@@ -1,0 +1,1137 @@
+<!DOCTYPE html><html lang="zh-CN"><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#141512">
+  <meta name="description" content="NovelAI 双语 Tag 编辑、本机队列与离线图库">
+  <title>NAI Pocket</title>
+  
+  
+  <link rel="icon" href="/icons/icon-flow-192.png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="/styles.css?v=1.6.81">
+  
+  <link rel="stylesheet" href="/workspace.css?v=1.6.81">
+  <link rel="stylesheet" href="/tag-chips.css?v=1.6.81">
+<link rel="stylesheet" href="/native.css">
+<link rel="stylesheet" href="/artist-browser.css">
+</head>
+<body>
+  <div id="toastHost" class="toast-host" aria-live="polite"></div>
+  <div id="inspectDropOverlay" class="inspect-drop-overlay hidden" aria-hidden="true">松开即可读取 NovelAI PNG 参数</div>
+  <input id="inspectImageFile" type="file" accept="image/png,.png" hidden="">
+
+  <main id="loginView" class="login-shell">
+    <form id="loginForm" class="login-card">
+      <div class="brand-mark">N</div>
+      <h1>NAI Pocket</h1>
+      <p>私人 Tag 工作台、后台队列和云端图库</p>
+      <label>
+        访问密码
+        <input id="loginPassword" type="password" autocomplete="current-password" minlength="12" required="">
+      </label>
+      <button type="submit" class="primary wide">登录</button>
+      <p id="loginError" class="error-text" role="alert"></p>
+    </form>
+  </main>
+
+  <div id="appView" class="app-shell workspace-app hidden">
+    <nav class="tabs workspace-nav" aria-label="主导航">
+      <div class="workspace-brand" aria-label="NAI Pocket">
+        <span class="brand-mark small">N</span>
+        <span class="workspace-brand-copy"><strong>NAI Pocket</strong><small>Creative desk</small></span>
+      </div>
+      <div class="workspace-nav-list">
+        <button class="tab active" data-tab="editor" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19l3.8-.8L19 8l-3-3L5.8 15.2 5 19zM13.8 7.2l3 3"></path></svg><span>编辑</span></button>
+        <button class="tab" data-tab="artists" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"></circle><path d="M3.5 19c.6-4 2.4-6 5.5-6s4.9 2 5.5 6M16 6h5M18.5 3.5v5"></path></svg><span>画师</span></button>
+        <button class="tab" data-tab="codex" type="button" data-new-layout-only=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h5.5A2.5 2.5 0 0 1 13 7v12.5a2 2 0 0 0-2-2H5zM19 4.5h-3.5A2.5 2.5 0 0 0 13 7v12.5a2 2 0 0 1 2-2h4z"></path></svg><span>法典</span></button>
+        
+        <button class="tab" data-tab="gallery" type="button" data-onboarding-target="gallery"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4" width="17" height="16" rx="2"></rect><circle cx="9" cy="9" r="1.5"></circle><path d="M4 16l4-4 3.2 3 2.3-2 6.5 6"></path></svg><span>图库</span></button>
+        <button class="tab" data-tab="scheme" type="button" data-owner-only=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"></path></svg><span>方案</span></button>
+        <button class="tab" data-tab="queue" type="button" data-onboarding-target="queue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h12M6 12h12M6 19h8"></path><circle cx="3" cy="5" r=".8"></circle><circle cx="3" cy="12" r=".8"></circle><circle cx="3" cy="19" r=".8"></circle></svg><span>队列</span><span id="queueBadge" class="badge">0</span></button>
+      </div>
+    </nav>
+
+    <div class="workspace-nav-foot">
+      <button id="openSettingsButton" class="workspace-settings-button" type="button" aria-label="打开设置"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19 12a7 7 0 00-.1-1l2-1.5-2-3.4-2.4 1a8 8 0 00-1.7-1L14.5 3h-5L9 6.1a8 8 0 00-1.7 1l-2.4-1-2 3.4L5 11a7 7 0 000 2l-2.1 1.5 2 3.4 2.4-1a8 8 0 001.7 1l.5 3.1h5l.5-3.1a8 8 0 001.7-1l2.4 1 2-3.4L19 13a7 7 0 000-1z"></path></svg><span>设置</span></button>
+    </div>
+
+    <div class="workspace-frame">
+      <header class="topbar workspace-topbar">
+        <div class="workspace-crumb"><span>Workspace</span><strong id="pageCrumb">编辑工作台</strong></div>
+        <div class="top-actions">
+          <span id="connectionText" class="connection-text">连接中 · v1.6.81</span>
+          
+          <button id="openNaiImportButton" class="ghost compact-button" type="button" title="导入 NAI / JSON">导入</button>
+          
+        </div>
+      </header>
+
+      <div class="workspace-scroll">
+        <section id="editorTab" class="tab-panel active">
+      <div id="editorCommandBar" class="editor-command-bar" aria-label="Prompt 工作台导航" data-onboarding-target="command">
+        <div class="command-quick" data-new-layout-only="">
+          <button type="button" class="command-icon-button" data-history="undo" disabled="" aria-label="撤销">↶</button>
+          <button type="button" class="command-icon-button" data-history="redo" disabled="" aria-label="重做">↷</button>
+          <button id="commandSearchButton" class="command-icon-button" type="button" aria-label="搜索当前 Tag" aria-expanded="false">⌕</button>
+          <button id="commandMenuButton" class="command-icon-button" type="button" aria-label="更多操作" aria-expanded="false" aria-haspopup="menu">⋯</button>
+          <div id="commandMenu" class="command-menu hidden" role="menu">
+            <button type="button" role="menuitem" data-proxy="#openNaiImportButton">导入 NAI / JSON</button>
+            <button type="button" role="menuitem" data-proxy="#restoreToolButton">从图片恢复参数</button>
+            <button type="button" role="menuitem" data-proxy="#translateMissingButton">补全缺失释义</button>
+            <button type="button" role="menuitem" data-proxy="#showTranslations">显示 / 隐藏中文释义</button>
+            
+            <button type="button" role="menuitem" data-menu-action="brackets">括号权重转数字</button>
+            <button type="button" role="menuitem" data-menu-action="default-scheme" data-owner-only="">载入默认方案</button>
+            <button type="button" role="menuitem" data-menu-action="tagger" data-owner-only="">图片反推…</button>
+            <button type="button" role="menuitem" data-proxy="#clearTagsButton">清空正面 Tag</button>
+            <button type="button" role="menuitem" data-proxy="#clearNegativeButton">清空负面提示词</button>
+            
+          </div>
+        </div>
+        <div class="prompt-meter-row edit-switch-row" data-new-layout-only="">
+          <div class="edit-side-switch" role="group" aria-label="编辑正面或负面提示词">
+            <button type="button" data-edit-side="positive" aria-pressed="true">正面</button>
+            <button type="button" data-edit-side="negative" aria-pressed="false">负面</button>
+          </div>
+          <button type="button" class="edit-switch-button" data-edit-text="" aria-pressed="false" aria-label="文本模式">≡ 文本</button>
+        </div>
+        <div class="prompt-meter-line" data-new-layout-only="">
+          <span class="prompt-meter-bar"><i id="promptMeterBar"></i></span>
+          <span id="promptMeterText" class="prompt-meter-text"></span>
+          <button id="quickDeleteButton" class="quick-delete-button" type="button" aria-pressed="false" title="快删：点 Tag 直接删除，可撤销">✕ 快删</button>
+        </div>
+        <div class="module-nav" role="navigation" aria-label="Prompt 模块">
+          <button type="button" class="module-nav-button active" data-editor-nav="all">全部</button>
+          <button type="button" class="module-nav-button" data-editor-nav="characters">角色 <span data-module-count="characters">0</span></button>
+          <button type="button" class="module-nav-button" data-editor-nav="scene">场景 <span data-module-count="scene">0</span></button>
+          <button type="button" class="module-nav-button" data-editor-nav="camera">镜头 <span data-module-count="camera">0</span></button>
+          <button type="button" class="module-nav-button" data-editor-nav="style">画风 <span data-module-count="style">0</span></button>
+          <button type="button" class="module-nav-button" data-editor-nav="misc">其他 <span data-module-count="misc">0</span></button>
+          <button type="button" class="module-nav-button" data-editor-nav="uc">UC <span data-module-count="uc">0</span></button>
+        </div>
+        <div id="characterDragTargets" class="character-drag-targets" aria-label="拖动 Tag 到指定角色"></div>
+        <div class="editor-tool-row">
+          <div class="tag-history-buttons" role="group" aria-label="Tag 布局与编辑历史">
+            <button id="tagUndoButton" class="ghost editor-tool-button" type="button" disabled="" aria-label="撤销 Tag 编辑">↶</button>
+            <button id="tagRedoButton" class="ghost editor-tool-button" type="button" disabled="" aria-label="重做 Tag 编辑">↷</button>
+          </div>
+          <label class="prompt-search-box" aria-label="搜索当前 Prompt Tag">
+            <span class="prompt-search-icon" aria-hidden="true">⌕</span>
+            <input id="promptTagSearch" type="search" autocomplete="off" spellcheck="false" placeholder="搜索当前 Tag / 中文释义">
+          </label>
+          <div class="editor-mode-switch" role="group" aria-label="编辑显示模式">
+            <button id="focusModeButton" class="ghost editor-tool-button mode-tool-button" type="button" aria-pressed="false"><span aria-hidden="true">◎</span><span>专注</span></button>
+            <button id="denseTagsButton" class="ghost editor-tool-button mode-tool-button" type="button" aria-pressed="false"><span aria-hidden="true">▦</span><span>紧凑</span></button>
+          </div>
+          <button id="restoreToolButton" class="ghost editor-tool-button restore-tool-button" type="button" aria-label="从 NovelAI PNG 恢复参数" title="从图片恢复参数" data-onboarding-target="restore"><span aria-hidden="true">▣</span><span class="restore-tool-label">恢复</span></button>
+        </div>
+      </div>
+      <div class="workspace">
+        <section class="editor-column">
+          <div class="panel image-workflow-panel" data-editor-module="image" data-onboarding-target="workflow">
+            <div class="panel-title-row">
+              <h2>图像工作流</h2>
+              <button class="parameter-help-button inline-help-button" type="button" data-parameter-help="workflow" aria-label="图像工作流说明">?</button>
+            </div>
+            <div class="workflow-row" data-wf-row="base" data-new-layout-only="">
+              <button type="button" class="workflow-row-main" data-wf-toggle="base"><span class="workflow-row-icon" aria-hidden="true">◩</span><strong>图生图</strong><span id="wfBaseState" class="workflow-row-state"></span><span class="workflow-row-chevron" aria-hidden="true">▾</span></button>
+              <button type="button" class="workflow-row-add" data-wf-add="base" aria-label="选择输入图片">＋</button>
+            </div>
+            <div class="workflow-row-body workflow-mode-chips" data-wf-body="base" data-new-layout-only="">
+              <button type="button" data-wf-mode="text">文生图</button><button type="button" data-wf-mode="img2img">图生图</button><button type="button" data-wf-mode="inpaint">局部重绘</button><button type="button" data-wf-mode="enhance">Enhance</button><button type="button" data-wf-mode="upscale">Upscale</button>
+            </div>
+            <div class="workflow-row" data-wf-row="vibe" data-new-layout-only="">
+              <button type="button" class="workflow-row-main" data-wf-toggle="vibe"><span class="workflow-row-icon" aria-hidden="true">◎</span><strong>Vibe Transfer</strong><span id="wfVibeState" class="workflow-row-state"></span><span class="workflow-row-chevron" aria-hidden="true">▾</span></button>
+              <button type="button" class="workflow-row-add" data-wf-add="vibe" aria-label="添加 Vibe 参考图">＋</button>
+            </div>
+            <div class="workflow-row-body" data-wf-body="vibe" data-new-layout-only=""><button type="button" class="workflow-off" data-wf-off="reference">停用 Vibe Transfer</button></div>
+            <div class="workflow-row" data-wf-row="precise" data-new-layout-only="">
+              <button type="button" class="workflow-row-main" data-wf-toggle="precise"><span class="workflow-row-icon" aria-hidden="true">☺</span><strong>角色参考</strong><span id="wfPreciseState" class="workflow-row-state"></span><span class="workflow-row-chevron" aria-hidden="true">▾</span></button>
+              <button type="button" class="workflow-row-add" data-wf-add="precise" aria-label="添加角色参考图">＋</button>
+            </div>
+            <div class="workflow-row-body" data-wf-body="precise" data-new-layout-only=""><button type="button" class="workflow-off" data-wf-off="reference">停用角色参考</button></div>
+            <div class="workflow-switch-grid">
+              <div class="workflow-switch-group">
+                <strong>生成方式</strong>
+                <div class="workflow-mode-select-shell" id="generationModeSwitch" data-onboarding-target="generation-mode">
+                  <select id="generationModeSelect" aria-label="生成方式">
+                    <option value="text" data-generation-mode="text">文生图</option>
+                    <option value="img2img" data-generation-mode="img2img">图生图</option>
+                    <option value="enhance" data-generation-mode="enhance">官方 Enhance</option>
+                    <option value="upscale" data-generation-mode="upscale">官方 Upscale</option>
+                    <option value="inpaint" data-generation-mode="inpaint">局部重绘</option>
+                    <option value="director" data-generation-mode="director" disabled="">Director 工具（从图库选择具体工具）</option>
+                    <option value="unknown" data-generation-mode="unknown" disabled="">待确认：请选择工作流</option>
+                  </select>
+                </div>
+              </div>
+              <div class="workflow-switch-group">
+                <strong>参考控制</strong>
+                <div class="segmented-control" id="referenceModeSwitch" role="group" aria-label="参考控制">
+                  <button type="button" class="active" data-reference-mode="none">无</button>
+                  <button type="button" data-reference-mode="precise">Precise Reference</button>
+                  <button type="button" data-reference-mode="vibe">Vibe Transfer</button>
+                </div>
+              </div>
+            </div>
+
+            <div id="baseImageWorkflow" class="workflow-subpanel hidden">
+              <div class="workflow-subpanel-title"><strong id="baseImageWorkflowTitle">输入图片</strong><span id="baseImageWorkflowHint" class="hidden"></span></div>
+               <div class="workflow-image-row">
+                <button id="chooseBaseImageButton" class="workflow-image-slot" type="button">
+                  <img id="baseImagePreview" class="hidden" alt="输入图片预览">
+                  <span id="baseImagePlaceholder">＋ 选择图片</span>
+                </button>
+                <div class="workflow-image-actions">
+                  <button id="replaceBaseImageButton" class="ghost" type="button">更换</button>
+                  <button id="clearBaseImageButton" class="ghost danger" type="button">清除</button>
+                  <small id="baseImageMeta">未选择图片</small>
+                 </div>
+               </div>
+               <p id="workflowRecoveryHint" class="workflow-recovery-warning hidden" role="status"></p>
+               <div id="workflowSliderGrid" class="workflow-slider-grid">
+                <label>Strength <span id="imageStrengthValue">0.65</span><input id="imageStrength" type="range" min="0" max="1" step="0.01" value="0.65"></label>
+                <label>Noise <span id="imageNoiseValue">0.00</span><input id="imageNoise" type="range" min="0" max="1" step="0.01" value="0"></label>
+                <label class="check-label workflow-checkbox"><input id="imageColorCorrect" type="checkbox">Color Correct</label>
+              </div>
+
+              <div id="officialImageToolPanel" class="workflow-tool-panel hidden">
+                <div class="workflow-subpanel-title"><strong id="officialImageToolName">NovelAI 官方图片工具</strong><span id="officialImageToolHint" class="hidden"></span></div>
+                <div class="workflow-slider-grid">
+                  <label id="enhanceUpscaleFactorField">Enhance Upscale Amount
+                    <select id="enhanceUpscaleFactor"><option value="1">1×</option><option value="1.5" selected="">1.5×</option><option value="2">2×</option><option value="max">Max✨（仅 V5）</option></select>
+                  </label>
+                  <div id="officialUpscaleScaleField" class="workflow-tool-static">专用 Upscale 固定 4×，不使用 Prompt 或其他生成设置。</div>
+                  <label id="officialDirectorPromptField">工具 Prompt
+                    <input id="officialDirectorPrompt" type="text" maxlength="4000" placeholder="Colorize / Emotion 可选">
+                  </label>
+                  <label id="officialDirectorDefryField">Defry / Emotion Level
+                    <select id="officialDirectorDefry"><option value="0" selected="">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select>
+                  </label>
+                </div>
+              </div>
+
+              <div id="inpaintEditor" class="inpaint-editor hidden">
+                <div class="workflow-subpanel-title"><strong>Mask</strong><button class="parameter-help-button inline-help-button" type="button" data-parameter-help="mask" aria-label="Mask 说明">?</button></div>
+                <div id="inpaintCanvasStage" class="inpaint-canvas-stage">
+                  <img id="inpaintBaseImage" alt="局部重绘原图">
+                  <canvas id="inpaintMaskCanvas"></canvas>
+                </div>
+                <div class="mask-toolbar">
+                  <button id="maskBrushButton" class="ghost active" type="button">画笔</button>
+                  <button id="maskEraserButton" class="ghost" type="button">橡皮</button>
+                  <label>大小 <input id="maskBrushSize" type="range" min="4" max="180" step="2" value="48"></label>
+                  <button id="maskUndoButton" class="ghost" type="button">撤销</button>
+                  <button id="maskRedoButton" class="ghost" type="button">重做</button>
+                  <button id="maskInvertButton" class="ghost" type="button">反选</button>
+                  <button id="maskClearButton" class="ghost danger" type="button">清空</button>
+                </div>
+                <p id="maskStatus" class="hint">尚未绘制 Mask。</p>
+              </div>
+            </div>
+
+            <div id="preciseReferencePanel" class="workflow-subpanel hidden">
+              <div class="workflow-subpanel-title"><div><strong>Precise Reference</strong><span>V4.5 · V5 首发暂不可用</span></div><button id="addPreciseReferenceButton" class="primary" type="button">＋ 添加参考</button></div>
+              <div class="workflow-warning">多个 Character Reference 会融合，不会分别绑定到角色1 / 角色2。</div>
+              <div id="preciseReferenceList" class="reference-card-list"></div>
+            </div>
+
+            <div id="vibeReferencePanel" class="workflow-subpanel hidden">
+              <div class="workflow-subpanel-title"><div><strong>Vibe Transfer</strong><span>最多 16 张 · V5 首发暂不可用</span></div><button id="addVibeReferenceButton" class="primary" type="button">＋ 添加 Vibe</button></div>
+              <div class="vibe-total-row"><span>总 Strength：<strong id="vibeTotalStrength">0.00</strong></span><button id="normalizeVibeStrengthButton" class="ghost" type="button">归一化到 1.0</button></div>
+              <div id="vibeReferenceList" class="reference-card-list"></div>
+            </div>
+          </div>
+
+          <div class="panel raw-panel prompt-primary" data-editor-module="raw" data-onboarding-target="prompt">
+            <div class="panel-title-row compact-section-heading">
+              <div class="raw-title-cluster"><h2>实际生成 Prompt</h2><span id="promptModeHint" class="prompt-mode-chip" data-mode="cards">分类顺序</span></div>
+              <div class="compact-header-actions" data-collapse-actions="">
+                <button id="copyPromptButton" class="ghost compact-header-button">复制</button>
+              </div>
+            </div>
+            <textarea id="promptPreview" rows="9" spellcheck="false" placeholder="可直接编辑最终 Prompt。" data-onboarding-target="prompt-text"></textarea>
+            <div id="v5PromptBudget" class="prompt-budget" hidden="" aria-live="polite"></div>
+            <div class="inline-actions prompt-import-actions">
+              <button id="smartImportPromptButton" class="ghost">智能拆分并分类</button>
+              <button id="importPromptButton" class="ghost">全部拆到未分类</button>
+              <button id="syncPromptButton" class="ghost">用 Tag 卡片覆盖当前文本</button>
+            </div>
+            <div class="prompt-order-inline">
+              <label class="prompt-order-select compact">顺序
+                <select id="promptOrderMode">
+                  <option value="original">保持导入 / 设定顺序</option>
+                  <option value="grouped">画风 → 场景 → 镜头 → 其他</option>
+                </select>
+              </label>
+              <button id="rebuildPromptOrderButton" class="ghost" type="button" title="把当前分类排列确立为新的保持顺序">按分类重建</button>
+            </div>
+          </div>
+
+          <div class="panel character-panel" data-editor-module="characters" data-onboarding-target="characters">
+            <div class="panel-title-row compact-section-heading character-compact-heading">
+              <h2>人物角色</h2><span id="characterCountBadge" class="count-badge" data-new-layout-only=""></span>
+              <div class="inline-actions compact-actions character-panel-actions" data-collapse-actions="">
+                <label class="check-label character-position-toggle" title="按当前模型提供角色位置引导" data-onboarding-target="character-position"><input id="characterUseCoords" type="checkbox"><span>位置</span></label>
+                <button id="addCharacterButton" class="primary compact-header-button">＋角色</button>
+              </div>
+            </div>
+            <div id="charactersList" class="character-list empty-state">暂无角色</div>
+          </div>
+
+          <div class="panel prompt-panel" data-editor-module="tags">
+            <div class="panel-title-row tag-panel-heading compact-section-heading">
+              <h2>双语 Tag 卡片</h2>
+              <div class="inline-actions compact-actions">
+                <button id="translateMissingButton" class="ghost">补翻译</button>
+                <button id="expandTagGroupsButton" class="ghost">展开</button>
+                <button id="collapseTagGroupsButton" class="ghost">折叠</button>
+                <button id="clearTagsButton" class="ghost danger">清空</button>
+              </div>
+            </div>
+            <div class="tag-display-options">
+              <label class="check-label"><input id="showTranslations" type="checkbox" checked="">显示中文释义</label>
+              <span id="translationStatus" class="hint"></span>
+            </div>
+            <div id="translateHint" class="translate-hint" data-new-layout-only="" hidden=""><span></span><button id="translateHintButton" type="button">补翻译</button></div>
+            <div id="tagGroups" class="tag-groups"></div>
+          </div>
+
+          <div class="panel negative-panel" data-editor-module="uc">
+            <div class="panel-title-row"><h2>Undesired Content</h2><div class="compact-header-actions" data-collapse-actions=""><button id="clearNegativeButton" class="ghost danger compact-button">清空</button></div></div>
+            <div class="uc-chip-head" data-new-layout-only=""><strong>负面 Tag</strong><button id="ucClearButton" class="tag-section-clear" type="button" title="清空负面（可撤销）">清空</button></div>
+            <div id="ucChipList" class="tag-list uc-chip-list" data-new-layout-only="" aria-label="全局 UC Tag"></div>
+            <div class="tag-add uc-chip-add" data-new-layout-only="">
+              <input id="ucChipInput" autocomplete="off" enterkeyhint="done" autocapitalize="none" spellcheck="false" placeholder="继续添加负面…" title="回车按逗号拆分">
+              <button id="ucChipAddButton" class="primary tag-add-button" type="button" aria-label="添加负面 Tag">＋</button>
+            </div>
+            <textarea id="negativePrompt" rows="5" spellcheck="false" placeholder="lowres, bad anatomy, ..."></textarea>
+          </div>
+
+        </section>
+
+        <aside class="settings-column">
+          <div class="panel sticky-settings" data-onboarding-target="parameters">
+            <div class="panel-title-row"><h2>生成参数</h2><span id="parameterSummary" class="parameter-summary" data-new-layout-only=""></span><button id="paramsSheetClose" class="command-icon-button params-sheet-close" type="button" aria-label="关闭参数面板" data-new-layout-only="">✕</button></div>
+            <div class="form-grid">
+              <div class="sheet-group-title" data-sheet-group="size" data-new-layout-only="">尺寸</div>
+              <div id="sizeTiles" class="size-tiles" data-new-layout-only=""></div>
+              <div class="sheet-group-title" data-sheet-group="sampling" data-new-layout-only="">采样</div>
+              <div class="sheet-group-title" data-sheet-group="options" data-new-layout-only="">选项</div>
+              <div class="sheet-group-title" data-sheet-group="seed" data-new-layout-only="">种子</div>
+              <label data-onboarding-target="model">模型
+                <select id="model">
+                  <option value="nai-diffusion-5-full">V5 Full</option>
+                  <option value="nai-diffusion-5-curated">V5 Curated</option>
+                  <option value="nai-diffusion-4-5-full">V4.5 Full</option>
+                  <option value="nai-diffusion-4-5-curated">V4.5 Curated</option>
+                  <option value="nai-diffusion-4-full">V4 Full</option>
+                  <option value="nai-diffusion-4-curated-preview">V4 Curated</option>
+                  <option value="nai-diffusion-3">Anime V3</option>
+                </select>
+              </label>
+              <label>尺寸预设
+                <select id="sizePreset">
+                  <option value="832x1216">竖图 832×1216</option>
+                  <option value="1216x832">横图 1216×832</option>
+                  <option value="1024x1024">方图 1024×1024</option>
+                  <option value="704x1472">长竖图 704×1472</option>
+                  <option value="1472x704">长横图 1472×704</option>
+                  <option value="custom">自定义</option>
+                </select>
+              </label>
+              <label>宽度<input id="width" type="number" min="64" max="2048" step="64"></label>
+              <label>高度<input id="height" type="number" min="64" max="2048" step="64"></label>
+              <div class="dimension-tools full">
+                <label>画面比例
+                  <select id="aspectRatio">
+                    <option value="free">自由</option>
+                    <option value="1:1">1:1</option>
+                    <option value="2:3">2:3</option>
+                    <option value="3:2">3:2</option>
+                    <option value="9:16">9:16</option>
+                    <option value="16:9">16:9</option>
+                  </select>
+                </label>
+                <button id="swapDimensionsButton" class="ghost swap-dimensions-button" type="button" title="交换宽高" aria-label="交换宽高"><span aria-hidden="true">↔</span><span>交换</span></button>
+              </div>
+              <label>Steps<input id="steps" type="number" min="1" max="50"></label>
+              <label title="控制模型遵循 Prompt 的强度；过高可能造成过饱和、硬边或细节僵化。">Prompt Guidance (CFG)<input id="scale" type="number" min="0" max="20" step="0.1"></label>
+              <label><span class="field-label-with-help">Sampler<button class="parameter-help-button inline-help-button" type="button" data-parameter-help="sampling" aria-label="采样设置说明">?</button></span>
+                <select id="sampler">
+                  <option value="k_euler_ancestral">Euler Ancestral</option>
+                  <option value="k_euler">Euler</option>
+                  <option value="k_dpmpp_2s_ancestral">DPM++ 2S Ancestral</option>
+                  <option value="k_dpmpp_2m_sde">DPM++ 2M SDE</option>
+                  <option value="k_dpmpp_2m">DPM++ 2M</option>
+                  <option value="k_dpmpp_sde">DPM++ SDE</option>
+                </select>
+              </label>
+              <label title="决定各采样步之间的噪声水平变化曲线。">Noise Schedule
+                <select id="noiseSchedule">
+                  <option value="karras">Karras</option>
+                  <option value="exponential">Exponential</option>
+                  <option value="polyexponential">Polyexponential</option>
+                </select>
+              </label>
+              <label>UC Preset<input id="ucPreset" type="number" min="0" max="9"></label>
+              <label title="在较高 Guidance 时重新缩放 CFG，缓解过饱和和“炸色”；0 表示关闭。">Prompt Guidance Rescale<input id="cfgRescale" type="number" min="0" max="1" step="0.01"></label>
+              <div class="parameter-choice quality-choice"><label><input id="qualityToggle" type="checkbox"><span>Quality Tags</span></label><button class="parameter-help-button" type="button" data-parameter-help="qualityToggle" aria-label="Quality Tags 说明">?</button></div>
+              <div class="parameter-choice"><label><input id="preferBrownian" type="checkbox"><span>Brownian Noise</span></label><button class="parameter-help-button" type="button" data-parameter-help="preferBrownian" aria-label="Brownian Noise 说明">?</button></div>
+              <div class="parameter-choice"><label><input id="varietyBoost" type="checkbox"><span>Variety+</span></label><button class="parameter-help-button" type="button" data-parameter-help="varietyBoost" aria-label="Variety+ 说明">?</button></div>
+              <div class="parameter-choice alpha-choice"><label><input id="nativeAlpha" type="checkbox"><span>原生透明</span></label><button class="parameter-help-button" type="button" data-parameter-help="nativeAlpha" aria-label="原生透明背景说明">?</button></div>
+              <label>Seed 模式
+                <select id="seedMode">
+                  <option value="random">每张随机</option>
+                  <option value="fixed">全部固定</option>
+                  <option value="increment">逐张 +1</option>
+                </select>
+              </label>
+              <label>Seed<input id="seed" type="number" min="0" max="4294967295"></label>
+                <details class="full advanced-box">
+                  <summary><span>高级参数覆盖 JSON</span><button class="parameter-help-button inline-help-button" type="button" data-parameter-help="advancedOverrides" aria-label="高级参数说明">?</button></summary>
+                  <textarea id="advancedOverrides" rows="5" spellcheck="false" placeholder="例如：{&quot;controlnet_strength&quot;: 0.8}"></textarea>
+                <div id="advancedOverridesSummary" class="advanced-overrides-summary hidden" aria-live="polite"></div>
+                <div class="inline-actions compact-actions">
+                  <button id="cleanAdvancedOverridesButton" class="ghost compact-button" type="button">清理已接管字段</button>
+                  <button id="payloadPreviewButton" class="ghost compact-button" type="button">查看最终 API Payload</button>
+                </div>
+              </details>
+            </div>
+          </div>
+
+          <div id="optionStrip" class="option-strip" role="group" aria-label="生成选项" data-new-layout-only=""></div>
+          <div class="panel generation-panel" data-owner-only="">
+            <div class="generate-box">
+              <div class="batch-control-heading"><strong>最新结果</strong><span id="generateHint" class="hint"></span></div>
+              <div id="quickLatest" class="quick-latest"><span>尚无生成结果</span></div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section id="artistsTab" class="tab-panel artist-workspace-tab">
+      <div id="artistLibraryMount" class="artist-library-mount"></div>
+    </section>
+
+    <section id="codexTab" class="tab-panel codex-page" data-new-layout-only="">
+      <div class="codex-top">
+        <div class="codex-head">
+          <button id="codexSourceButton" class="codex-source" type="button" aria-expanded="false" aria-controls="codexSourcePanel" aria-label="切换法典来源"><span id="codexSourceLabel" class="codex-source-label">法典</span><i aria-hidden="true"></i></button>
+        </div>
+        <div id="codexSourcePanel" class="codex-source-panel" hidden="">
+          <div id="codexBooks" class="codex-books" role="group" aria-label="选择法典"></div>
+          <label class="codex-nsfw" title="显示 R18 法典"><input id="codexNsfw" type="checkbox"><span>显示 R18 来源</span></label>
+        </div>
+        <div class="codex-tools">
+          <input id="codexSearch" type="search" autocomplete="off" spellcheck="false" placeholder="搜索标题或 Tag" aria-label="搜索法典">
+        </div>
+        <div id="codexPath" class="codex-path"></div>
+      </div>
+      <div id="codexGrid" class="codex-grid"></div>
+      <button id="codexMore" class="codex-more" type="button" hidden="">加载更多</button>
+      <p id="codexCredit" class="codex-credit"></p>
+      <div id="codexDetail" class="codex-detail" role="dialog" aria-label="法典条目" hidden=""></div>
+    </section>
+
+    
+
+    <section id="queueTab" class="tab-panel">
+      <div class="panel queue-panel standalone">
+        <div class="panel-title-row">
+          <h2>后台队列</h2>
+          <div class="inline-actions" data-owner-only=""><button id="pauseQueueButton" class="ghost">暂停</button><button id="resumeQueueButton" class="primary">继续</button></div>
+        </div>
+        <div id="queueControl" class="queue-control" data-owner-only="">
+          <p id="queuePauseNote" class="queue-pause-note" hidden=""></p>
+          <div class="queue-control-actions">
+            <button id="queueRerouteButton" type="button" class="ghost" aria-expanded="false">换渠道</button>
+            <button id="queueCancelAllButton" type="button" class="ghost danger">全部取消</button>
+          </div>
+          <div id="queueRouteMenu" class="queue-route-menu" hidden=""></div>
+        </div>
+        <div id="queueSummary" class="metrics"></div>
+        <div id="queueList" class="queue-list empty-state">暂无任务</div>
+      </div>
+    </section>
+
+    <section id="schemeTab" class="tab-panel" data-owner-only="">
+      <div class="panel scheme-library-panel standalone">
+        <div class="panel-title-row">
+          <h2>方案库</h2>
+          <div class="inline-actions">
+            <button id="exportButton" class="ghost" type="button" data-owner-only="">导出备份</button>
+            <button id="importButton" class="ghost" type="button" data-owner-only="">导入备份</button><input id="importFile" type="file" accept="application/json" hidden="">
+          </div>
+        </div>
+        <div class="scheme-library-create">
+          <input id="schemeLibraryName" placeholder="新方案名称">
+          <button id="schemeLibrarySaveCurrent" class="primary" type="button">保存当前参数</button>
+          <div class="scheme-more" data-new-layout-only="" data-owner-only="">
+            <button id="schemeMoreButton" class="gallery-more-toggle" type="button" aria-expanded="false" aria-haspopup="menu" aria-label="备份">⋯</button>
+            <div id="schemeMoreMenu" class="gallery-more-menu" role="menu" hidden="">
+              <button type="button" role="menuitem" data-scheme-proxy="exportButton">导出备份</button>
+              <button type="button" role="menuitem" data-scheme-proxy="importButton">导入备份</button>
+            </div>
+          </div>
+        </div>
+        <div id="schemeGrid" class="scheme-card-grid empty-state">暂无方案</div>
+      </div>
+    </section>
+
+    <section id="galleryTab" class="tab-panel">
+      <div class="panel gallery-panel standalone">
+        <div class="panel-title-row gallery-title-row">
+          <h2>云端图库</h2>
+          <div class="inline-actions gallery-title-actions">
+              
+            <label class="check-label"><input id="favoriteOnly" type="checkbox">只看收藏</label>
+            
+            <div class="gallery-more" data-new-layout-only="" data-owner-only="">
+              <button id="galleryMoreButton" class="gallery-more-toggle" type="button" aria-expanded="false" aria-haspopup="menu" aria-label="更多图库操作">⋯</button>
+              <div id="galleryMoreMenu" class="gallery-more-menu" role="menu" hidden="">
+                <button type="button" role="menuitem" data-gallery-proxy="galleryCleanupToggle">清理模式</button>
+                <button type="button" role="menuitem" data-gallery-proxy="gallerySelectToggle">批量选择</button>
+                
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="gallery-toolbar">
+          <div class="gallery-scope-row" role="group" aria-label="图库视图">
+            <button id="galleryScopeGallery" class="ghost" type="button" aria-pressed="true">常规作品</button>
+            
+          </div>
+          <div class="gallery-mode-row" role="group" aria-label="图库模式">
+            <button id="galleryCleanupToggle" class="ghost" type="button" aria-pressed="false" data-owner-only="">清理模式</button>
+            <button id="gallerySelectToggle" class="ghost" type="button" aria-pressed="false" data-owner-only="">批量选择</button>
+          </div>
+          <div class="gallery-selection-actions">
+            <button id="gallerySelectAll" class="ghost hidden" type="button">已加载全选</button>
+            <button id="gallerySelectNonFavorites" class="ghost hidden" type="button">已加载非收藏</button>
+            <button id="galleryClearSelection" class="ghost hidden" type="button">清空选择</button>
+            <button id="galleryDeleteSelected" class="ghost danger hidden" type="button" data-owner-only="">删除选中</button>
+            <span id="gallerySelectionText" class="hint hidden">已选择 0 张</span>
+          </div>
+        </div>
+        <div class="gallery-filter-row">
+          <input id="gallerySearch" type="search" autocomplete="off" spellcheck="false" placeholder="搜索 Prompt / 备注 / Seed">
+          <select id="galleryAgeFilter" aria-label="图库时间范围">
+            <option value="all">全部时间</option>
+            <option value="recent:7">最近 7 天</option>
+            <option value="recent:30">最近 30 天</option>
+            <option value="recent:90">最近 90 天</option>
+            <option value="recent:365">最近一年</option>
+            <option value="month">指定月份</option>
+            <option value="custom">自定义始末</option>
+          </select>
+          <input id="galleryMonthFilter" class="gallery-time-detail hidden" type="month" aria-label="图库指定月份">
+          <div id="galleryCustomRange" class="gallery-custom-range hidden" role="group" aria-label="图库自定义时间范围">
+            <input id="galleryDateFrom" type="date" aria-label="图库开始日期">
+            <span>至</span>
+            <input id="galleryDateTo" type="date" aria-label="图库结束日期">
+          </div>
+          <button id="galleryNewImagesButton" class="ghost compact-button hidden" type="button">载入新图</button>
+          <span id="galleryResultSummary" class="hint">—</span>
+        </div>
+        <div id="storageMeter" class="storage-meter"></div>
+        <div id="galleryGrid" class="gallery-grid empty-state">暂无图片</div>
+        <button id="loadMoreButton" class="ghost wide hidden">加载更多</button>
+      </div>
+    </section>
+      </div>
+
+      <div id="tagSelectionDock" class="tag-dock hidden" role="region" aria-label="已选 Tag 操作"></div>
+      <div id="paramsSheetBackdrop" class="params-sheet-backdrop" data-new-layout-only=""></div>
+      <section id="positionSheet" class="position-sheet" role="dialog" aria-label="角色站位" data-new-layout-only="">
+        <div class="position-sheet-head">
+          <strong>站位</strong>
+          <button id="positionAuto" class="position-auto" type="button" aria-pressed="true" title="交给模型自动安排全部角色">AUTO</button>
+          <button id="positionSheetClose" class="command-icon-button" type="button" aria-label="关闭站位">✕</button>
+        </div>
+        <div id="positionStrip" class="position-strip" role="group" aria-label="选择角色"></div>
+        <div id="positionCanvas" class="position-canvas" role="application" aria-label="点按或拖动摆放当前角色"></div>
+        <p id="positionReadout" class="position-readout" aria-live="polite"></p>
+      </section>
+      <div id="floatingGenerateBar" class="floating-generate-bar" data-owner-only="">
+        <div class="gen-deck" data-new-layout-only="">
+          <label id="genModelSlot" class="gen-cell gen-slot-select"><small>模型</small></label>
+          <label id="genSamplerSlot" class="gen-cell gen-slot-select"><small>采样</small></label>
+          <div id="genUcSlot" class="gen-cell gen-stepper gen-num" data-gen-stepper="ucPreset" title="UC Preset">
+            <small>UC</small>
+            <b id="genUcValue"></b>
+            <button type="button" data-gen-step="-1" aria-label="UC Preset 减一">−</button>
+            <button type="button" data-gen-step="1" aria-label="UC Preset 加一">＋</button>
+          </div>
+          <div class="gen-cell gen-stepper gen-num gen-rescale" data-gen-stepper="cfgRescale" title="Prompt Guidance Rescale">
+            <small>Rescale</small>
+            <b id="genRescaleValue"></b>
+            <button type="button" data-gen-step="-1" aria-label="降低 Rescale，按住连续">−</button>
+            <button type="button" data-gen-step="1" aria-label="提高 Rescale，按住连续">＋</button>
+          </div>
+        </div>
+        <div class="gen-params" data-new-layout-only="">
+          <div class="gen-stepper" data-gen-stepper="steps">
+            <button type="button" data-gen-step="-1" aria-label="减少步数，按住连续">−</button>
+            <button type="button" class="gen-value" data-param-open="steps"><b id="paramStepsReadout"></b></button>
+            <button type="button" data-gen-step="1" aria-label="增加步数，按住连续">＋</button>
+          </div>
+          <div class="gen-stepper" data-gen-stepper="scale">
+            <button type="button" data-gen-step="-1" aria-label="降低 CFG，按住连续">−</button>
+            <button type="button" class="gen-value" data-param-open="steps"><small>CFG</small><b id="genScaleValue"></b></button>
+            <button type="button" data-gen-step="1" aria-label="提高 CFG，按住连续">＋</button>
+          </div>
+          <button id="genSeedMode" type="button" class="gen-seed" data-mode="random"><svg class="seed-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="seed-body" d="M12 3.5c3.6 3.4 5.5 6.6 5.5 9.6a5.5 5.5 0 0 1-11 0c0-3 1.9-6.2 5.5-9.6z"></path><path class="seed-groove" d="M12 9v8"></path><g class="seed-random"><path d="M18.2 2.8l.5 1.5 1.5.5-1.5.5-.5 1.5-.5-1.5-1.5-.5 1.5-.5z"></path><path d="M4.6 5.2l.35 1 1 .35-1 .35-.35 1-.35-1-1-.35 1-.35z"></path></g><g class="seed-fixed"><rect x="15" y="15.5" width="6.5" height="5" rx="1.2"></rect><path d="M16.4 15.5v-1.3a1.85 1.85 0 0 1 3.7 0v1.3"></path></g></svg><b>随机</b><small></small></button>
+          <button type="button" class="gen-size" data-param-open="size"><span id="paramSizeReadout"></span></button>
+          <button type="button" class="gen-more" data-param-open="advanced" aria-label="全部生成参数">⚙</button>
+        </div>
+        <div class="gen-count" data-new-layout-only="">
+          <button type="button" data-gen-count="-1" aria-label="减少张数，按住连续">−</button>
+          <b id="genCountValue">×1</b>
+          <button type="button" data-gen-count="1" aria-label="增加张数，按住连续">＋</button>
+        </div>
+        <select id="batchCount" class="floating-batch-count" aria-label="生成张数">
+          <option value="1" selected="">1 张</option>
+          <option value="2">2 张</option>
+          <option value="4">4 张</option>
+          <option value="8">8 张</option>
+          <option value="custom">自定义</option>
+        </select>
+        <input id="customCount" class="floating-custom-count" type="number" min="1" value="4" inputmode="numeric" aria-label="自定义生成张数" hidden="">
+        <button id="floatingGenerateButton" class="primary floating-generate-button generate-button" data-count="1" type="button">抽一发</button>
+        <button id="floatingQueueButton" class="ghost floating-queue-button" type="button">队列 <span id="floatingQueueCount">0</span></button>
+      </div>
+
+      
+
+      <dialog id="settingsDialog" class="settings-dialog workspace-choice-dialog" aria-labelledby="settingsDialogTitle">
+        <div class="dialog-header">
+          <strong id="settingsDialogTitle">设置与账户</strong>
+          <button id="closeSettingsButton" class="icon-button" type="button" aria-label="关闭设置">×</button>
+        </div>
+        <div class="dialog-body settings-dialog-body">
+          <section class="settings-dialog-section">
+            <div class="settings-section-heading"><span class="workspace-eyebrow">Route</span><h2>生成通道</h2></div>
+            <label class="settings-route-field">当前通道
+              <select id="generationProvider">
+                <option value="official">NovelAI 官方</option>
+                <option value="rbq">RBQ 中转</option>
+              </select>
+            </label>
+            <div id="officialProviderPanel" class="provider-settings" data-owner-only="">
+              <div class="provider-status-line"><strong>官网 Token</strong><span id="officialProviderStatus">尚未读取配置</span></div>
+              <label class="provider-account-picker">本次使用
+                <select id="officialAccountSelect" aria-label="选择 NovelAI 官网 Token"><option value="">正在读取…</option></select>
+              </label>
+              <details class="provider-token-manager">
+                <summary>管理 Token</summary>
+                <div class="official-token-form">
+                  <input id="officialAccountName" type="text" maxlength="60" autocomplete="off" placeholder="名称，例如 Opus 主号">
+                  <input id="officialApiToken" type="password" autocomplete="new-password" spellcheck="false" placeholder="粘贴 pst- 开头的 Persistent API Token">
+                  <div class="official-token-form-actions">
+                    <button id="saveOfficialTokenButton" class="ghost" type="button">添加</button>
+                    <button id="cancelOfficialTokenEdit" class="ghost hidden" type="button">取消</button>
+                  </div>
+                </div>
+                <div id="officialAccountList" class="provider-account-list" aria-live="polite"></div>
+              </details>
+            </div>
+            <div id="rbqProviderPanel" class="provider-settings" hidden="" data-owner-only="">
+              <div class="provider-status-line"><strong>RBQ 中转</strong><span id="rbqProviderStatus">尚未读取配置</span></div>
+              <div class="provider-key-row">
+                <input id="rbqApiKey" type="password" autocomplete="new-password" spellcheck="false" placeholder="粘贴 RBQ API Key">
+                <button id="saveRbqKeyButton" class="ghost" type="button">保存 Key</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-dialog-section usage-settings-section" data-owner-only="">
+            <div class="settings-section-heading"><span class="workspace-eyebrow">Usage</span><h2>账户额度</h2></div>
+            <details id="accountUsagePanel" class="account-usage-panel" open="">
+              <summary><strong id="accountUsageSummary">额度 · 读取中…</strong></summary>
+              <div class="account-usage-content">
+                <div id="naiAccountUsage" class="nai-account-usage" aria-live="polite">
+                  <div class="nai-account-head">
+                    <div><strong>NovelAI 额度</strong><span id="naiAccountTier">读取中…</span></div>
+                    <button id="refreshNaiAccountButton" class="ghost compact-button" type="button">刷新</button>
+                  </div>
+                  <div class="nai-usage-row">
+                    <div class="nai-usage-label"><span>V5 动态免费额度</span><strong id="naiV5UsageText">--</strong></div>
+                    <progress id="naiV5UsageMeter" class="meter-track" max="100" value="0"></progress>
+                    <small id="naiV5UsageHint">官方滚动额度状态</small>
+                  </div>
+                  <div class="nai-anlas-row"><span>Anlas</span><strong id="naiAnlasText">--</strong></div>
+                </div>
+                <div id="rbqAccountUsage" class="nai-account-usage rbq-account-usage" aria-live="polite" hidden="">
+                  <div class="nai-account-head">
+                    <div><strong>RBQ 图片额度</strong><span id="rbqAccountName">等待查询…</span></div>
+                    <button id="refreshRbqAccountButton" class="ghost compact-button" type="button">刷新</button>
+                  </div>
+                  <div class="nai-usage-row">
+                    <div class="nai-usage-label"><span>已使用 / 总额度</span><strong id="rbqUsageText">--</strong></div>
+                    <progress id="rbqUsageMeter" class="meter-track" max="100" value="0"></progress>
+                    <small id="rbqUsageHint">保存 Key 后读取</small>
+                  </div>
+                  <div class="nai-anlas-row"><span>剩余额度</span><strong id="rbqRemainingText">--</strong></div>
+                  <div class="nai-anlas-row"><span>最大并发</span><strong id="rbqConcurrentText">--</strong></div>
+                </div>
+              </div>
+            </details>
+          </section>
+
+          
+          
+          
+          
+        </div>
+      </dialog>
+    </div>
+  </div>
+
+  <div id="onboardingTour" class="onboarding-tour hidden" aria-hidden="true">
+    <div id="onboardingCard" class="onboarding-card" role="dialog" aria-live="polite" aria-label="快速上手">
+      <span id="onboardingArrow" class="onboarding-arrow" aria-hidden="true"></span>
+      <div class="onboarding-card-head"><div><small id="onboardingSection" class="onboarding-section"></small><strong id="onboardingTitle"></strong></div><button id="onboardingClose" class="icon-button" type="button" aria-label="关闭引导">×</button></div>
+      <p id="onboardingText"></p>
+      <p id="onboardingHint" class="onboarding-hint"></p>
+      <div class="onboarding-card-foot"><div class="onboarding-card-progress"><button id="onboardingBack" class="ghost" type="button">上一步</button><span id="onboardingStep" class="hint"></span></div><div class="onboarding-card-actions"><button id="onboardingSkip" class="ghost" type="button">跳过本章</button><button id="onboardingNext" class="primary" type="button">下一步</button></div></div>
+    </div>
+  </div>
+
+  <dialog id="tagEditorDialog" class="tag-editor-dialog">
+    <form id="tagEditorForm" method="dialog">
+      <div class="dialog-header"><strong>编辑 Tag</strong><button id="closeTagEditorButton" class="icon-button" type="button" aria-label="关闭">×</button></div>
+      <div class="tag-editor-body">
+        <label>英文 Tag
+          <input id="tagEditorText" autocomplete="off" spellcheck="false" required="">
+        </label>
+        <label>中文释义
+          <div class="translation-edit-row">
+            <input id="tagEditorTranslation" autocomplete="off" placeholder="可自动翻译，也可手动修正">
+            <button id="tagEditorTranslateButton" class="ghost" type="button">自动翻译</button>
+          </div>
+        </label>
+        <div class="tag-editor-grid">
+          <label>分类 / 移动到<select id="tagEditorGroup"></select></label>
+          <label>权重<input id="tagEditorWeight" type="number" step="0.01" inputmode="decimal" placeholder="可用两位小数或负数，如 0.28 / -3"></label>
+        </div>
+        <label class="check-label"><input id="tagEditorEnabled" type="checkbox">启用此 Tag</label>
+        <div class="dialog-actions tag-editor-actions">
+          <button id="tagEditorDelete" class="ghost danger" type="button">删除 Tag</button>
+          <button id="tagEditorCancel" class="ghost" type="button">取消</button>
+          <button class="primary" type="submit">保存</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  
+  <dialog id="taggerDialog" class="tagger-dialog" aria-label="图片反推"></dialog>
+  <input id="taggerFile" type="file" accept="image/png,image/jpeg,image/webp" hidden="">
+
+  <dialog id="semanticDialog" class="semantic-dialog">
+    <div class="dialog-header">
+      <div><strong>Danbooru 语义工作台</strong><small id="semanticTargetLabel">添加到当前区域</small></div>
+      <button id="closeSemanticDialog" class="icon-button" type="button" aria-label="关闭">×</button>
+    </div>
+    <div class="semantic-body">
+      <section class="semantic-search-workbench">
+        <label>自然语言、模糊写法或完整画面描述
+          <textarea id="semanticQuery" rows="3" spellcheck="false" enterkeyhint="search" placeholder="例如：低机位仰视人物；紧身衣勒入皮肤；城市雨夜积水反光"></textarea>
+        </label>
+        <div class="semantic-primary-options">
+          <div class="semantic-mode-chips" role="group" aria-label="搜索模式" data-new-layout-only="">
+            <button type="button" data-semantic-mode-chip="subject_describe">描述查词</button>
+            <button type="button" data-semantic-mode-chip="precise_lookup">精确</button>
+            <button type="button" data-semantic-mode-chip="concept_explore">发散</button>
+            <button type="button" data-semantic-mode-chip="full_scene">完整画面</button>
+          </div>
+          <label>搜索模式
+            <select id="semanticMode">
+              <option value="subject_describe">描述查词</option>
+              <option value="precise_lookup">精确 / 拼写纠错</option>
+              <option value="concept_explore">概念发散</option>
+              <option value="full_scene">完整画面</option>
+            </select>
+          </label>
+          <label class="check-label semantic-nsfw"><input id="semanticShowNsfw" type="checkbox" checked=""><span class="semantic-nsfw-long">显示 NSFW 标签</span><span class="semantic-nsfw-short">NSFW</span></label>
+          <button id="semanticSearchButton" class="primary" type="button">开始搜索</button>
+        </div>
+
+        <details id="semanticAdvanced" class="semantic-advanced">
+          <summary><span>高级选项</span><small id="semanticAdvancedSummary">Top K 20 · 结果 20 · 热度 0.15</small></summary>
+          <div class="semantic-advanced-body">
+            <div class="semantic-number-grid">
+              <label>Top K（语义相关）
+                <input id="semanticTopK" type="number" min="1" max="50" step="1" value="20">
+                <small>最多 50；数值越大，搜索范围越广。</small>
+              </label>
+              <label>结果上限
+                <input id="semanticLimit" type="number" min="1" max="500" step="1" value="20">
+                <small>最多显示 500 条搜索结果。</small>
+              </label>
+              <label>标签分组模式
+                <select id="semanticGroupMode">
+                  <option value="off">关闭</option>
+                  <option value="expand">expand · 同组扩展</option>
+                  <option value="diverse">diverse · 多样化</option>
+                </select>
+              </label>
+              <label>每组最大标签数
+                <input id="semanticMaxPerGroup" type="number" min="1" max="50" step="1" value="2" disabled="">
+                <small>仅 diverse 模式生效。</small>
+              </label>
+            </div>
+
+            <div class="semantic-range-row">
+              <label for="semanticPopularityWeight">热度权重</label>
+              <input id="semanticPopularityWeight" type="range" min="0" max="1" step="0.05" value="0.15">
+              <output id="semanticPopularityValue" for="semanticPopularityWeight">0.15</output>
+            </div>
+            <label class="check-label semantic-segmentation"><input id="semanticUseSegmentation" type="checkbox">智能分词</label>
+
+            <div class="semantic-filter-grid">
+              <fieldset>
+                <legend>匹配层筛选</legend>
+                <label><input type="checkbox" data-semantic-layer="英文" checked="">英文标签</label>
+                <label><input type="checkbox" data-semantic-layer="中文扩展词" checked="">中文扩展词</label>
+                <label><input type="checkbox" data-semantic-layer="释义" checked="">维基释义</label>
+                <label><input type="checkbox" data-semantic-layer="中文核心词" checked="">中文核心词</label>
+                <label><input type="checkbox" data-semantic-layer="artist">artist</label>
+              </fieldset>
+              <fieldset>
+                <legend>类型筛选</legend>
+                <label><input type="checkbox" data-semantic-category="General" checked="">通用 (General)</label>
+                <label><input type="checkbox" data-semantic-category="Copyright" checked="">作品 (Copyright)</label>
+                <label><input type="checkbox" data-semantic-category="Character" checked="">角色 (Character)</label>
+              </fieldset>
+              <fieldset>
+                <legend>结果显示</legend>
+                <label><input id="semanticDisplaySemantic" type="checkbox">显示语义分</label>
+                <label><input id="semanticDisplayLayer" type="checkbox">显示匹配层</label>
+                <label><input id="semanticDisplaySource" type="checkbox">显示匹配来源</label>
+              </fieldset>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <div id="semanticStatus" class="semantic-status hint" aria-live="polite"></div>
+      <div class="semantic-result-toolbar">
+        <div><strong>搜索结果</strong><small id="semanticSelectionSummary">已选 0 个探索标签</small></div>
+        <div class="inline-actions compact-actions">
+          <button id="semanticAddSelectedButton" class="ghost" type="button" disabled="">加入当前区域</button>
+          <button id="semanticClearSelectedButton" class="ghost" type="button" disabled="">清空选择</button>
+        </div>
+      </div>
+      <div id="semanticResults" class="semantic-results empty-state">尚未搜索</div>
+
+      <section class="semantic-recommendation-panel">
+        <div class="panel-title-row semantic-recommendation-heading compact-section-heading">
+          <strong>关联探索</strong>
+          <div class="semantic-seed-chips" role="group" aria-label="推荐依据" data-new-layout-only="">
+            <button type="button" data-semantic-seed-chip="selected">所选</button>
+            <button type="button" data-semantic-seed-chip="target">当前区域</button>
+            <button type="button" data-semantic-seed-chip="all">全部 Tag</button>
+          </div>
+          <label>依据
+            <select id="semanticSeedSource">
+              <option value="selected">本次勾选</option>
+              <option value="target">当前编辑区域</option>
+              <option value="all">全部已启用 Tag</option>
+            </select>
+          </label>
+        </div>
+        <div class="semantic-recommendation-controls">
+          <div class="semantic-recommendation-control-pair">
+            <button id="semanticRelatedButton" class="primary" type="button">相关推荐</button>
+            <label><span>上限</span><input id="semanticRelatedLimit" type="number" min="1" max="200" step="1" value="50"></label>
+          </div>
+          <div class="semantic-recommendation-control-pair">
+            <button id="semanticArtistsButton" class="ghost" type="button">画师推荐</button>
+            <label><span>画师数</span><input id="semanticArtistLimit" type="number" min="1" max="100" step="1" value="64"></label>
+          </div>
+        </div>
+        <div id="semanticRecommendationStatus" class="hint semantic-recommendation-status"></div>
+        <div id="semanticRecommendationResults" class="semantic-results semantic-recommendation-results empty-state">暂无推荐</div>
+      </section>
+
+      <p class="semantic-credit">搜索服务：<a href="https://huggingface.co/spaces/SAkizuki/DanbooruSearch" target="_blank" rel="noopener noreferrer">DanbooruSearch</a></p>
+      <div id="semanticActionBar" class="semantic-action-bar" data-new-layout-only="" hidden="">
+        <span id="semanticBarCount">已选 0</span>
+        <button type="button" data-semantic-bar="clear">清空</button>
+        <button type="button" data-semantic-bar="related">相关</button>
+        <button type="button" data-semantic-bar="artists">画师</button>
+        <button type="button" class="semantic-bar-add" data-semantic-bar="add">加入</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="inspectDialog" class="inspect-dialog">
+    <div class="dialog-header">
+      <div><strong>读取 NovelAI 图片参数</strong><small id="inspectSourceLabel">PNG metadata</small></div>
+      <button id="closeInspectDialog" class="icon-button" type="button" aria-label="关闭">×</button>
+    </div>
+    <div class="inspect-body">
+      <div class="inspect-preview-wrap"><img id="inspectPreview" alt="待检查图片"></div>
+      <div class="inspect-info">
+        <div id="inspectSummary" class="meta-list"></div>
+        <section id="inspectSemanticSummary" class="inspect-semantic-summary" aria-live="polite" aria-label="导入语义摘要">
+          <div class="inspect-semantic-heading"><strong>语义摘要</strong></div>
+          <div class="inspect-semantic-grid">
+            <div class="inspect-semantic-stat" data-inspect-semantic="workflow"><span>识别工作流</span><b id="inspectSemanticWorkflow">等待识别</b></div>
+            <div class="inspect-semantic-stat" data-inspect-semantic="input"><span>输入图状态</span><b id="inspectSemanticInputStatus">等待识别</b></div>
+            <div class="inspect-semantic-stat" data-inspect-semantic="advanced"><span>高级参数</span><b id="inspectSemanticAdvancedCount">0 项</b></div>
+            <div class="inspect-semantic-stat" data-inspect-semantic="record-only"><span>仅记录字段</span><b id="inspectSemanticRecordOnlyCount">0 项</b></div>
+          </div>
+        </section>
+        <div id="inspectFieldMap" class="inspect-field-map" aria-live="polite"></div>
+        <details class="inspect-raw-box">
+          <summary>查看 Raw Parameters</summary>
+          <pre id="inspectRawParameters"></pre>
+        </details>
+        <div id="inspectWarnings" class="inspect-warnings hidden"></div>
+        <p id="inspectActionStatus" class="hint restore-loading-status hidden" role="status" aria-live="polite"></p>
+        <div class="dialog-actions inspect-actions">
+          <button id="inspectPromptOnly" class="ghost" type="button">只恢复 Prompt / UC</button>
+          <button id="inspectRestoreAll" class="primary" type="button" data-onboarding-target="inspect-all">恢复全部参数</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="imageDialog" class="image-dialog">
+    <div class="dialog-header">
+      <div class="dialog-title-stack"><strong id="imageDialogTitle">图片详情</strong><small id="dialogPosition">—</small></div>
+      <div id="cleanupJumpControls" class="cleanup-jump-controls hidden" aria-label="跳转到图库第几张">
+        <span>第</span><input id="cleanupJumpInput" type="number" min="1" step="1" inputmode="numeric" aria-label="图片序号"><span>/</span><span id="cleanupJumpTotal">—</span>
+        <button id="cleanupJumpButton" class="ghost" type="button">跳转</button>
+      </div>
+      <button id="closeDialogButton" class="icon-button" aria-label="关闭">×</button>
+    </div>
+    <div class="dialog-body">
+      <section class="image-viewer-column">
+        <div id="dialogImageStage" class="dialog-image-stage">
+          <button id="dialogPrevious" class="dialog-nav dialog-nav-previous" type="button" aria-label="上一张">‹</button>
+          <div class="dialog-image-wrap"><img id="dialogImage" alt="生成图片"></div>
+          <button id="dialogNext" class="dialog-nav dialog-nav-next" type="button" aria-label="下一张">›</button>
+          <button id="dialogLoadOriginal" class="dialog-original-button" type="button" aria-label="加载高清原图" title="加载高清原图" data-owner-only="">原图</button>
+          <button id="cleanupFavoriteButton" class="cleanup-favorite-button hidden" type="button" aria-label="收藏" data-owner-only="">☆</button>
+        </div>
+        <div class="dialog-image-action-stack">
+          <div class="dialog-image-actions" aria-label="图片管理操作">
+            <button id="dialogFavorite" class="ghost dialog-favorite-button" type="button" data-owner-only="">☆ 收藏</button>
+            <button id="dialogDownload" class="ghost" type="button" data-owner-only="">下载</button>
+            <button id="dialogDelete" class="ghost danger" type="button" data-owner-only="">删除</button>
+          </div>
+          <div class="dialog-image-actions dialog-creative-actions" aria-label="图片再创作操作" data-owner-only="">
+            <div class="restore-split-action" role="group" aria-label="恢复图片参数">
+              <button id="dialogReuse" class="primary" type="button">恢复</button>
+              <button id="dialogReuseMenu" class="primary restore-split-menu" type="button" aria-label="选择部分恢复内容" title="部分恢复">▾</button>
+            </div>
+            <button id="dialogSaveScheme" class="ghost">存方案</button>
+            <button id="dialogRegenerate" class="ghost">换Seed抽</button>
+          </div>
+        </div>
+        <div id="cleanupActionBar" class="cleanup-action-bar hidden" aria-label="清理模式操作" data-owner-only="">
+          <span id="cleanupSessionStatus" class="cleanup-session-status">本轮 保留 0 · 已删 0</span>
+          <button id="cleanupUndoButton" class="ghost" type="button" disabled="">撤销</button>
+          <button id="cleanupDeleteButton" class="ghost danger" type="button">删除</button>
+          <button id="cleanupKeepButton" class="primary" type="button">保留→</button>
+          <button id="cleanupLoadOriginalButton" class="ghost" type="button">高清</button>
+        </div>
+      </section>
+      <div class="dialog-info">
+        <div class="dialog-create-row">
+          <button id="dialogCreateFromImage" class="ghost" type="button">用此图创作 ▾</button>
+          
+          <button id="dialogTaggerFromImage" class="ghost" type="button" data-owner-only="">✦ 反推 Tag</button>
+        </div>
+        <div id="dialogMeta" class="meta-list"></div>
+        <details id="dialogPayload" class="dialog-payload">
+          <summary>全部参数 <small>NovelAI 请求 JSON</small></summary>
+          <div class="dialog-payload-body">
+            <button id="dialogPayloadCopy" class="ghost" type="button">复制 JSON</button>
+            <pre id="dialogPayloadJson">展开后读取…</pre>
+          </div>
+        </details>
+        <label>备注<textarea id="dialogNote" rows="3"></textarea></label>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="downloadChoiceDialog" class="action-choice-dialog">
+    <div class="dialog-header">
+      <strong>下载图片</strong>
+      <button id="closeDownloadChoiceDialog" class="icon-button" type="button" aria-label="关闭">×</button>
+    </div>
+    <div class="action-choice-body">
+      <button id="downloadOriginalButton" class="action-choice-card" type="button">
+        <strong>原图</strong>
+        <span>保留 NovelAI Prompt、Seed、生成参数等元数据，方便以后恢复。</span>
+      </button>
+      <button id="downloadCleanButton" class="action-choice-card primary-choice" type="button">
+        <strong>净图</strong>
+        <span>重新编码为 PNG，移除文本 / EXIF 与 NovelAI alpha 隐写元数据；适合外发。</span>
+      </button>
+    </div>
+  </dialog>
+
+  <dialog id="imageRestoreDialog" class="action-choice-dialog image-restore-dialog">
+    <div class="dialog-header">
+      <div class="dialog-title-stack"><strong>部分恢复</strong><small>只替换选择的区域，其余当前编辑内容保持不变。</small></div>
+      <button id="closeImageRestoreDialog" class="icon-button" type="button" aria-label="关闭">×</button>
+    </div>
+    <div class="image-restore-body">
+      <div id="imageRestoreCharacterActions" class="image-restore-character-actions"></div>
+      <div class="image-restore-grid">
+        <button class="primary" type="button" data-image-restore-mode="all">完整恢复</button>
+        <button class="ghost" type="button" data-image-restore-mode="characters">全部角色</button>
+        <button class="ghost" type="button" data-image-restore-mode="camera-style">镜头 + 画风</button>
+        <button class="ghost" type="button" data-image-restore-mode="scene">仅场景</button>
+        <button class="ghost" type="button" data-image-restore-mode="camera">仅镜头</button>
+        <button class="ghost" type="button" data-image-restore-mode="style">仅画风</button>
+        <button class="ghost" type="button" data-image-restore-mode="misc">仅其他</button>
+        <button class="ghost" type="button" data-image-restore-mode="uc">Global UC</button>
+        <button class="ghost" type="button" data-image-restore-mode="params">仅生成参数</button>
+      </div>
+      <p id="imageRestoreLegacyHint" class="hint hidden">这张旧图没有结构化 Tag 分区，只能完整恢复或恢复生成参数。</p>
+    </div>
+  </dialog>
+
+  <dialog id="schemeDialog" class="scheme-dialog">
+    <div class="dialog-header">
+      <div class="dialog-title-stack"><strong id="schemeDialogTitle">方案详情</strong><small id="schemeDialogSubtitle">—</small></div>
+      <button id="closeSchemeDialog" class="icon-button" type="button" aria-label="关闭">×</button>
+    </div>
+    <div class="scheme-detail-body">
+      <div class="scheme-detail-hero">
+        <div id="schemeDialogCover" class="scheme-detail-cover"><span class="scheme-cover-placeholder">◇</span></div>
+        <div id="schemeDialogMeta" class="scheme-detail-meta"></div>
+      </div>
+      <div id="schemeDialogSections" class="scheme-detail-sections"></div>
+      <div class="scheme-restore-panel">
+        <strong>恢复到当前编辑器</strong>
+        <p class="hint">部分恢复只替换选中的区域，其余当前内容保持不变。</p>
+        <div class="scheme-restore-grid">
+          <button class="primary" type="button" data-scheme-restore-mode="all">完整恢复</button>
+          <button class="ghost" type="button" data-scheme-restore-mode="characters">仅角色</button>
+          <button class="ghost" type="button" data-scheme-restore-mode="camera-style">镜头 + 画风</button>
+          <button class="ghost" type="button" data-scheme-restore-mode="scene">仅场景</button>
+          <button class="ghost" type="button" data-scheme-restore-mode="camera">仅镜头</button>
+          <button class="ghost" type="button" data-scheme-restore-mode="style">仅画风</button>
+          <button class="ghost" type="button" data-scheme-restore-mode="misc">仅其他</button>
+          <button class="ghost" type="button" data-scheme-restore-mode="params">仅生成参数</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="imagePickerDialog" class="image-picker-dialog">
+    <div class="dialog-header">
+      <strong id="imagePickerTitle">选择图片</strong>
+      <button id="closeImagePickerDialog" class="icon-button" type="button" aria-label="关闭">×</button>
+    </div>
+      <div class="image-picker-body">
+        <input id="workflowImageFile" class="hidden" type="file" accept="image/png,image/jpeg,image/webp">
+        <button id="uploadWorkflowImageButton" class="primary wide" type="button">从设备上传</button>
+        <p id="imagePickerStatus" class="hint image-picker-status hidden" role="status" aria-live="polite"></p>
+        <div class="image-picker-heading"><strong>最近图库</strong><button id="refreshImagePickerGallery" class="ghost" type="button">刷新</button></div>
+      <div id="imagePickerGallery" class="image-picker-grid empty-state">正在读取图库…</div>
+    </div>
+  </dialog>
+
+  <dialog id="imageCreateDialog" class="action-choice-dialog">
+    <div class="dialog-header">
+      <strong>用此图创作</strong>
+      <button id="closeImageCreateDialog" class="icon-button" type="button" aria-label="关闭">×</button>
+    </div>
+    <div class="action-choice-body image-create-choice-body">
+      <button class="action-choice-card" type="button" data-create-from-image="img2img"><strong>图生图</strong><span>保留整张图的大方向继续变化。</span></button>
+      <button class="action-choice-card" type="button" data-create-from-image="enhance"><strong>官方 Enhance</strong><span>调用 NovelAI 官方二次扩散与放大参数。</span></button>
+      <button class="action-choice-card" type="button" data-create-from-image="upscale"><strong>官方 Upscale</strong><span>调用 NovelAI 专用放大接口，不进行创意重绘。</span></button>
+      <button class="action-choice-card" type="button" data-create-from-image="lineart"><strong>Director · Line Art</strong><span>调用官方线稿提取工具。</span></button>
+      <button class="action-choice-card" type="button" data-create-from-image="sketch"><strong>Director · Sketch</strong><span>调用官方草图提取工具。</span></button>
+      <button class="action-choice-card" type="button" data-create-from-image="bg-removal"><strong>Director · Remove BG</strong><span>调用官方背景移除工具。</span></button>
+      <button class="action-choice-card" type="button" data-create-from-image="declutter"><strong>Director · Declutter</strong><span>调用官方画面清理工具。</span></button>
+      <button class="action-choice-card" type="button" data-create-from-image="colorize"><strong>Director · Colorize</strong><span>调用官方线稿上色工具。</span></button>
+      <button class="action-choice-card" type="button" data-create-from-image="emotion"><strong>Director · Emotion</strong><span>调用官方表情修改工具。</span></button>
+      <button class="action-choice-card" type="button" data-create-from-image="inpaint"><strong>局部重绘</strong><span>把这张图装进 Mask 编辑器，只修选中区域。</span></button>
+      <button class="action-choice-card" type="button" data-create-from-image="precise"><strong>Precise Reference</strong><span>作为角色 / 画风精确参考。</span></button>
+      <button class="action-choice-card" type="button" data-create-from-image="vibe"><strong>Vibe Transfer</strong><span>提取配色、质感与视觉气氛。</span></button>
+    </div>
+  </dialog>
+
+  <dialog id="naiImportDialog" class="nai-import-dialog">
+    <div class="dialog-header">
+      <div class="dialog-title-with-help"><strong>导入 NAI / JSON</strong><button class="parameter-help-button inline-help-button" type="button" data-parameter-help="naiImport" aria-label="导入方式说明">?</button></div>
+      <button id="closeNaiImportDialog" class="icon-button" type="button" aria-label="关闭">×</button>
+    </div>
+    <div class="nai-import-body">
+      <label class="nai-import-input-label">粘贴内容
+        <textarea id="naiImportText" rows="14" spellcheck="false" autocapitalize="none" placeholder="可直接粘贴：
+格式: nai ...
+提示词: ...
+生成参数: ...
+
+或粘贴完整 JSON"></textarea>
+      </label>
+      <div id="naiImportSummary" class="nai-import-summary">等待粘贴内容。</div>
+      <section id="naiImportSemanticSummary" class="nai-import-semantic-summary hidden" aria-live="polite" aria-label="导入语义摘要">
+        <div><span>识别工作流</span><b id="naiImportWorkflowLabel">—</b></div>
+        <div><span>输入图状态</span><b id="naiImportInputStatus">—</b></div>
+        <div><span>高级额外参数</span><b id="naiImportAdvancedCount">0 项</b></div>
+        <div><span>待复核字段</span><b id="naiImportExtrasCount">0 项</b></div>
+      </section>
+      <div id="naiImportWarnings" class="nai-import-warnings hidden"></div>
+      <section id="naiImportReview" class="nai-import-review hidden" aria-live="polite"></section>
+      <p id="naiImportActionStatus" class="hint restore-loading-status hidden" role="status" aria-live="polite"></p>
+    </div>
+    <div class="dialog-actions nai-import-actions">
+      <button id="analyzeNaiImportButton" class="ghost" type="button">重新识别</button>
+      <button id="importNaiStructuredButton" class="ghost" type="button">解析到 Tag 编辑器</button>
+      <button id="importNaiDirectButton" class="primary" type="button">原样复现并抽一发</button>
+    </div>
+  </dialog>
+
+  <dialog id="artistPreviewDialog" class="artist-preview-dialog">
+    <div class="dialog-header">
+      <div class="dialog-title-stack"><strong id="artistPreviewName">画师预览</strong><small id="artistPreviewStatus">正在识别…</small></div>
+      <button id="closeArtistPreviewDialog" class="icon-button" type="button" aria-label="关闭">×</button>
+    </div>
+    <div class="artist-preview-body">
+      <div class="artist-preview-stage">
+        <img id="artistPreviewImage" alt="" loading="eager" decoding="async">
+        <div id="artistPreviewFallback" class="artist-preview-fallback">此画师暂时没有可用的 NAX V5 对照图。</div>
+      </div>
+      <p class="artist-preview-caption">NAX V5 参考样图，不含 Prompt、Seed 与生成参数；单张图不代表画师的全部表现。</p>
+      <div><button id="artistPreviewRetry" class="artist-preview-chip artist-preview-retry hidden" type="button">重新载入预览</button></div>
+      <div class="artist-preview-links">
+        <span class="artist-preview-links-label">外部参考</span>
+        <a id="artistPreviewDanbooru" class="artist-preview-chip" target="_blank" rel="noopener noreferrer">Danbooru 作品<span aria-hidden="true">↗</span></a>
+        <a id="artistPreviewNax" class="artist-preview-chip" target="_blank" rel="noopener noreferrer">NAX V5 作者搜索<span aria-hidden="true">↗</span></a>
+      </div>
+      <button id="artistPreviewLibrary" class="artist-preview-library" type="button">
+        <span class="artist-preview-library-copy">
+          <strong>查看画师资料</strong>
+          <small>例图、画风特征与 AI 标注</small>
+        </span>
+        <span class="artist-preview-library-arrow" aria-hidden="true">→</span>
+      </button>
+    </div>
+    <div class="dialog-actions artist-preview-actions">
+      <button id="artistPreviewReject" class="ghost" type="button">不是画师</button>
+      <button id="artistPreviewAddPrefix" class="primary" type="button">加入 artist: 前缀</button>
+    </div>
+  </dialog>
+
+  <dialog id="jsonDialog" class="json-dialog">
+    <div class="dialog-header"><strong>最终 API Payload</strong><button id="closeJsonDialog" class="icon-button">×</button></div>
+    <pre id="jsonPreview"></pre>
+  </dialog>
+
+  <script type="module" src="/main.js"></script>
+
+
+</body></html>

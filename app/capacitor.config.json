@@ -1,0 +1,8 @@
+{
+  "appId": "app.naipocket.local",
+  "appName": "NAI Pocket",
+  "webDir": "www",
+  "server": { "androidScheme": "https" },
+  "android": { "allowMixedContent": false, "webContentsDebuggingEnabled": false },
+  "plugins": { "CapacitorHttp": { "enabled": false } }
+}
