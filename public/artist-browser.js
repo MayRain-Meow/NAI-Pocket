@@ -133,7 +133,7 @@ export function createArtistBrowser({api,mount,toast=()=>{},addArtist=()=>{},pre
     loadImages=button('载入本页例图',()=>loadPageImages());
     const importPack=button('导入资料包',()=>runResource('import'));importPack.dataset.resourceStart='';importPack.disabled=resourceBusy;
     filters.append(favorites,loadImages,importPack);
-    const download=resourceDownload=node('details','','artist-pack-download');download.append(node('summary','从 GitHub 下载资料包'));
+    const download=resourceDownload=node('details','','artist-pack-download');download.append(node('summary','从链接下载资料包'));
     download.addEventListener('toggle',()=>{if(download.open)offerCatalog();});
     catalogUrl=node('input');catalogUrl.type='url';catalogUrl.maxLength=2048;catalogUrl.placeholder='粘贴 Release 中 catalog.json 的下载链接';catalogUrl.setAttribute('aria-label','资料目录链接');catalogUrl.dataset.resourceStart='';
     try{catalogUrl.value=localStorage.getItem('nai-artist-resource-catalog-url')||'';}catch{}

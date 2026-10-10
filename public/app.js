@@ -7647,6 +7647,10 @@ function syncProviderUi() {
   if (els.naiAccountUsage) els.naiAccountUsage.hidden = provider !== 'official';
   if (els.rbqAccountUsage) els.rbqAccountUsage.hidden = provider !== 'rbq';
   syncAccountUsageSummary();
+  // First run on the phone: nothing can be generated until the user adds their own credential.
+  // The server site always has its configured accounts, so the hint is native-only.
+  const firstRun = $('#firstRunHint');
+  if (firstRun) firstRun.hidden = !globalThis.NAI_RUNTIME?.native || !providerCatalog || official?.configured === true || rbq?.configured === true;
   const hint = $('#generateHint');
   if (hint) hint.textContent = provider === 'rbq'
     ? 'RBQ 中转'
@@ -10107,6 +10111,7 @@ function initBindings() {
     $('#settingsDialog')?.showModal();
     if (authContext.role === 'owner' && artistAutomationAvailable) ensureArtistAutomation().refresh().catch(error => toast(error.message, 'error'));
   });
+  $('#firstRunSettingsButton')?.addEventListener('click', () => $('#openSettingsButton')?.click());
   $('#closeSettingsButton')?.addEventListener('click', () => $('#settingsDialog')?.close());
   // New layout: 退出 lives in settings, away from the everyday top-bar buttons.
   $('#settingsLogoutButton')?.addEventListener('click', () => { $('#settingsDialog')?.close(); $('#logoutButton')?.click(); });

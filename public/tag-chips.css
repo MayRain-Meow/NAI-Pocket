@@ -464,6 +464,11 @@ body:not(.tag-layout-legacy) .generation-panel .batch-control-heading strong { c
 body:not(.tag-layout-legacy) .character-card .character-tag-title { display: none; }
 .translate-hint { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 2px 2px; color: var(--muted); font-size: 12.5px; }
 .translate-hint[hidden] { display: none; }
+.first-run-hint { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 10px 2px 8px; padding: 14px 14px 14px 16px; border-radius: 16px; background: rgba(220, 182, 141, .13); }
+.first-run-hint[hidden] { display: none; }
+.first-run-hint strong { display: block; font-size: 15px; }
+.first-run-hint small { display: block; margin-top: 3px; color: var(--muted); font-size: 12.5px; line-height: 1.4; }
+.first-run-hint button { flex: none; min-height: 38px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--accent); color: #1a1712; font-weight: 700; }
 .translate-hint button { min-height: 30px; padding: 0 4px; border: 0; background: none; color: var(--accent); font-size: 13px; font-weight: 600; }
 body:not(.tag-layout-legacy).params-sheet-open .sticky-settings .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
 body:not(.tag-layout-legacy) .sticky-settings .form-grid > * { min-width: 0; }

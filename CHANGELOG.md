@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1 — Preview
+
+- First run shows a step to add your own NovelAI Token or RBQ Key, with a shortcut to settings.
+- No artist resource catalog is configured by default; the pack download entry is labelled as a link download.
+
 ## 0.2.0 — Preview
 
 - Complete offline artist name/alias roster. Artist-example packs are not distributed; the pack reader, local import and download from a user-entered catalog remain.
