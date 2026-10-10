@@ -2,8 +2,7 @@
 
 ## 0.2.0 — Preview
 
-- Complete offline artist roster with original examples and paired annotations supplied as separate, verifiable resource packs.
-- Default GitHub catalog, artist-name pack search, local import, download progress/cancellation and atomic installation.
+- Complete offline artist name/alias roster. Artist-example packs are not distributed; the pack reader, local import and download from a user-entered catalog remain.
 - Official/RBQ accounts use device-local credentials; explicit official-account selection for uncached Vibe encoding.
 - Queue foreground service remains active through rate-limit cooldowns; pause/cancel wake it promptly.
 - Real-device generation, background behavior and resource installation acceptance remain pending.

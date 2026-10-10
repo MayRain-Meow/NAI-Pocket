@@ -1,24 +1,41 @@
 # NAI Pocket
 
-把 NovelAI 的 Prompt、图片参数和生成记录放进口袋。
+**把 NovelAI 工作台装进口袋。** 一款为手机设计的 NovelAI 客户端：双语 Tag 积木编辑、自动分栏、多角色与参考图工作流、后台队列和本机图库。Android 本地运行，用你自己的 Token，不需要服务器。
 
-NAI Pocket 是一款本机运行的 Android 客户端：双语 Tag 编辑、角色与参考图工作流、持久化队列、离线图库和方案管理共用一套 JavaScript 核心。使用者自行配置 NovelAI 官方 Persistent API Token 或 RBQ 凭据，无需部署服务器。
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-d6a774)](LICENSE) ![Android](https://img.shields.io/badge/Android-7.0%2B-7fbf95) ![Status](https://img.shields.io/badge/status-0.2%20preview-ab9cf0)
 
-当前处于 **0.2.0 preview 预览阶段**，尚非正式稳定版。内置选定资料中 12,866 位画师的轻量名字／别名索引，未下载资料包也可搜索、收藏和加入画风；本项目不分发画师原作例图；应用保留资料包读取器，可导入自行准备的资料包，校验后安装。APK 和源码 ZIP 都不含画师图片。早先的 0.1.0 APK 不含这些后续修改。本地合成数据集成检查已通过；真实设备上的生成、下载、后台持续运行与系统文件选择，以及真实付费生成仍未验证。
+<p align="center"><img src="docs/screenshots/demo-sort.gif" width="300" alt="粘贴一段 Prompt，自动分进场景、镜头、画风、其他四栏"></p>
 
-<img src="docs/screenshots/editor.png" width="280" alt="NAI Pocket 编辑器界面"> <img src="docs/screenshots/gallery.png" width="280" alt="NAI Pocket 本机图库界面">
+<p align="center">▶ <a href="docs/promo/nai-pocket-promo.mp4">观看 34 秒宣传片（MP4）</a></p>
 
-截图来自 412 像素宽的离线浏览器检查；图库白图为合成测试图片，不是设备实拍或真实生成结果。
+<p align="center">
+<img src="docs/screenshots/c-sorted.png" width="200" alt="四栏 Tag 编辑">
+<img src="docs/screenshots/d-chip.png" width="200" alt="Tag 积木：权重、停用、编辑">
+<img src="docs/screenshots/l-editor-bottom.png" width="200" alt="生成结果预览">
+<img src="docs/screenshots/g-queue-done.png" width="200" alt="后台生成队列">
+</p>
 
-## 功能
+> 截图与宣传片来自离线预览，生成结果是合成占位图，不是真实生成作品，也不是真机实拍。
 
-- Tag 分组、权重、双语释义、角色 Prompt 与参数编辑。
-- 文生图、Img2Img、Inpaint、Precise Reference、Vibe Transfer 及官方图片工具。
-- 本机 SQLite 队列；暂停、取消、手动重试、账号切换与 429 冷却。
-- 原图、缩略图与预览分开保存；图库搜索、收藏、备注和参数恢复。
-- PNG 参数读取、去元数据副本、方案导入导出。
-- QuickTagCloud 法典、WD Tagger 反推与公共 Danbooru Tag 搜索。
-- 画师名单与别名搜索、本机收藏／备注、加入画风提示词；已安装资料的原作例图、逐图标注、来源与 AI／人工状态，以及按标注筛选。NAX 参考可单独联网查看。可通过安卓文件选择器导入自备的 ZIP 资料包，或填写自己的资料目录链接下载，有进度和取消操作；不需要生成 Token，完成后可离线查看。源码不附带真实画师图片或私有采集工具。
+## 亮点
+
+- **Tag 积木**：每个 Tag 是一块带中文释义的卡片，可调权重、停用、编辑、拖动排序，随时切回纯文本。
+- **自动分栏**：粘贴整段 Prompt，按场景、镜头、画风、其他自动归类；画师 Tag 优先识别。
+- **完整工作流**：多角色分区提示词、文生图、Img2Img、Inpaint、Precise Reference、Vibe Transfer 和官方图片工具。
+- **后台队列**：本机 SQLite 持久化；支持暂停、取消、手动重试、账号切换和 429 冷却。
+- **图库与方案**：原图、缩略图、预览分开保存；支持搜索、收藏、备注，一键恢复参数；方案和片段可导入导出。
+- **从图片还原**：读取 PNG 里的 NovelAI 参数，包括隐写元数据；可生成去元数据副本。
+- **查找灵感**：QuickTagCloud 法典、WD Tagger 反推、公共 Danbooru Tag 搜索，以及 12,866 位画师的名字和别名索引。
+
+## 当前状态
+
+**0.2.0 preview 预览版**，还不是正式稳定版。本地合成数据的集成检查已通过；以下项目**尚未验证**：
+- 真实设备上的生成、下载、后台持续运行和系统文件选择；
+- 真实付费生成。
+
+早先的 0.1.0 APK 不含这些后续修改。
+
+## 使用须知
 
 生成需要网络及有效的上游账号。离线可编辑、管理已保存的方案和图库。反推会把所选图片上传到公共 WD Tagger 服务；公共搜索和翻译会发送相应文本。客户端不提供生成额度。
 
@@ -76,4 +93,4 @@ npm audit
 
 ## 许可
 
-项目代码采用 [AGPL-3.0-only](LICENSE)。第三方代码与数据保留各自许可；法典在运行时访问，画师图片和标注作为独立资料下载，不因代码采用 AGPL 而改变其权利归属。
+项目代码采用 [AGPL-3.0-only](LICENSE)。第三方代码与数据保留各自许可；法典在运行时访问；本项目不分发画师图片，第三方作品的权利不因代码采用 AGPL 而改变。

@@ -1,5 +1,5 @@
-import { buildNaxV5ArtistSearchUrl, normalizeArtistIdentity } from './artist-index-v5.js';
-import { STYLE_ATTRIBUTES, describeStyleAttributes, observationAttributes } from './artist-style-schema.js';
+import { buildNaxV5ArtistSearchUrl, normalizeArtistIdentity } from './artist-index-v5.js?v=1.6.81';
+import { STYLE_ATTRIBUTES, describeStyleAttributes, observationAttributes } from './artist-style-schema.js?v=1.6.81';
 
 const node=(tag,text='',className='')=>{const result=document.createElement(tag);result.textContent=text;if(className)result.className=className;return result;};
 const button=(text,action,className='')=>{const result=node('button',text,className);result.type='button';result.addEventListener('click',action);return result;};
