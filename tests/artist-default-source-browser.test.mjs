@@ -6,11 +6,17 @@ import os from 'node:os';
 import { createServer } from 'node:http';
 import { pathToFileURL } from 'node:url';
 import { catalogFixture } from './artist-pack-fixtures.mjs';
-import { DEFAULT_ARTIST_CATALOG_URL, withArtistCatalogSource } from '../app/src/artist-resource-source.js';
+import { DEFAULT_ARTIST_CATALOG_URL as SHIPPED_DEFAULT, withArtistCatalogSource } from '../app/src/artist-resource-source.js';
+
+// The APK ships without a resource source (owner decision 2026-10-10); a host may still supply one.
+assert.equal(SHIPPED_DEFAULT, '', 'no built-in artist resource source is distributed');
+const bare = { async list() { return { resources: { installed: false } }; } };
+assert.equal(withArtistCatalogSource(bare), bare, 'without a source the reader is passed through unchanged');
+const DEFAULT_ARTIST_CATALOG_URL = 'https://github.com/example/host/releases/download/v1/catalog.json';
 
 const source = { resources: { installed: false, sets: [], artists: 0 }, artists: [] }, forwarded = [];
 const get = () => 'unchanged';
-const service = withArtistCatalogSource({ get, async list(...args) { forwarded.push(args); return source; } });
+const service = withArtistCatalogSource({ get, async list(...args) { forwarded.push(args); return source; } }, DEFAULT_ARTIST_CATALOG_URL);
 const signal = new AbortController().signal, result = await service.list({ q: 'artist' }, { signal });
 assert.equal(result.resources.defaultCatalogUrl, DEFAULT_ARTIST_CATALOG_URL);
 assert.equal(service.get, get); assert.equal(forwarded[0][1].signal, signal);
@@ -28,7 +34,7 @@ import { validateArtistPackCatalog } from '/service/artist-pack-catalog.js';
 const rawCatalog=${JSON.stringify(fixture)};
 const profile={artist:'Catalog_Artist',favorite:false,note:'',indexed:false,aliases:[],examples:[],observations:[],exampleCount:0,annotatedCount:0};
 const plain={async list(){return {artists:[profile],total:1,page:1,pages:1,favorites:0,resources:{installed:false,sets:[],artists:0}};}};
-const artists=new URL(location.href).searchParams.has('no-default')?plain:withArtistCatalogSource(plain);
+const artists=new URL(location.href).searchParams.has('no-default')?plain:withArtistCatalogSource(plain,${JSON.stringify(DEFAULT_ARTIST_CATALOG_URL)});
 window.fixture={calls:[],errors:[],mode:'ok'};
 const api=async(url,options={})=>{
  const pathname=new URL(url,location.origin).pathname;

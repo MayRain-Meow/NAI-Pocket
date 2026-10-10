@@ -76,16 +76,11 @@ builds deterministic resource ZIPs and a size/checksum/coverage catalog. See
 [the pack contract](app/docs/ARTIST-PACK.public.md) for the prepared input and stable
 64-shard ownership rule. Run `node tests/artist-pack-producer.test.mjs` for focused
 producer/installer checks. This tool has no server/database or upload access;
-review actual data separately before publication. The app can load a Release
-catalog URL, find packs by artist name and install selected versions. Its default
-[catalog](https://github.com/MayRain-Meow/NAI-Pocket/releases/download/artist-originals-2026-10-10-1/catalog.json)
-addresses the separately delivered original-example collection: 64 ZIPs totaling
-2,733,771,101 bytes, with 35,346 images and 35,278 observations. Of the 12,866
-listed artists, 11,431 have at least three annotated originals; missing examples
-or observations are not filled with synthetic content. Only the lightweight
-roster is bundled in the APK/source. The catalog becomes publicly usable when
-its Release assets are published; source configuration alone does not establish
-download availability.
+review actual data separately before publication. The app can load a catalog URL
+that the user enters, find packs by artist name and install selected versions.
+No default catalog is configured and the project distributes no artist-example
+packs: example originals are third-party works with copyright and content-rating
+concerns. Only the lightweight name/alias roster is bundled in the APK/source.
 
 ## Dependency notices
 
@@ -94,6 +89,6 @@ JavaScript runtime licenses are collected automatically during the web build. Af
 ## Current limits
 
 - PNG text metadata and the shared RGBA decoder are supported. Unusual PNG encodings that require a platform decoder may not expose hidden metadata.
-- The public app omits server administration, private collection/annotation workers, sample rotation and the Storm queue UI. The prepared artist-resource reader, local ZIP installation and public GitHub Release download are implemented. Original-example packs are separate from the APK; old resource versions are reclaimed on the next cold process start. See [the pack contract](app/docs/ARTIST-PACK.public.md) for schema and limits.
+- The public app omits server administration, private collection/annotation workers, sample rotation and the Storm queue UI. The artist-resource reader, local ZIP installation and download from a user-entered catalog are implemented. No example packs are distributed; old resource versions are reclaimed on the next cold process start. See [the pack contract](app/docs/ARTIST-PACK.public.md) for schema and limits.
 - Public services may be unavailable, require cold-start time, or apply quota limits.
 - Android backups contain schemes, snippets and local artist favorites/notes. Import merges artist names, replacing matching preferences with the backup values and retaining other local records. Old backups without artist preferences remain supported. Export original images separately; Tokens remain device-local. Public example images are not included in backups.
