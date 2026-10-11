@@ -27,6 +27,17 @@ export function validateArtistPackDownload(input) {
     }
     return {url,sha256};
 }
+// Annotation-only packs point at a public Danbooru CDN rendition instead of
+// carrying image bytes. Only this exact host/path shape is ever fetched.
+const REMOTE_IMAGE_PATH=/^\/(?:180x180|360x360|720x720|sample)\/[0-9a-f]{2}\/[0-9a-f]{2}\/(?:sample-)?[0-9a-f]{32}\.(?:jpg|png|webp)$/;
+export function validateRemoteImageUrl(value) {
+  let url;
+  try {url=typeof value==='string'&&value.length<=300?new URL(value):null;} catch {url=null;}
+  check(url&&url.href===value&&url.protocol==='https:'&&url.hostname==='cdn.donmai.us'&&!url.port&&!url.username&&!url.password
+    &&!url.search&&!url.hash&&!value.includes('?')&&!value.includes('#')&&REMOTE_IMAGE_PATH.test(url.pathname),'在线例图地址无效。');
+  return url.href;
+}
+export const remoteImageExtension=value=>validateRemoteImageUrl(value).split('.').at(-1);
 function jsonObject(value,max,label) {
   check(object(value),`${label}格式无效。`);
   check(JSON.stringify(value).length<=max,`${label}过大。`);
@@ -58,8 +69,14 @@ export function validateArtistPack(input) {
       check(examples.size<=ARTIST_PACK_LIMITS.examples,'资料包例图过多。');
       check(sample.sourceType==='original','资料包只能包含原作例图。');
       check(Number.isSafeInteger(sample.width)&&sample.width>0&&Number.isSafeInteger(sample.height)&&sample.height>0,'例图尺寸无效。');
-      const example={id:sample.id,sourceUrl:sourceUrl(sample.sourceUrl),width:sample.width,height:sample.height,note:string(sample.note??'',4000,'例图备注'),metadata:jsonObject(sample.metadata??{},16000,'例图来源数据'),images:{},observations:[]};
-      for(const tier of ['thumb','preview']) {
+      const example={id:sample.id,sourceUrl:sourceUrl(sample.sourceUrl),width:sample.width,height:sample.height,note:string(sample.note??'',4000,'例图备注'),metadata:jsonObject(sample.metadata??{},16000,'例图来源数据'),observations:[]};
+      const remote=sample.remoteImages!==undefined;
+      check(remote!==(sample.images!==undefined),'例图必须且只能包含本地图片或在线图片地址之一。');
+      if(remote) {
+        check(object(sample.remoteImages)&&Object.keys(sample.remoteImages).every(key=>['thumb','preview'].includes(key)),'在线例图描述无效。');
+        example.remoteImages={thumb:validateRemoteImageUrl(sample.remoteImages.thumb),preview:validateRemoteImageUrl(sample.remoteImages.preview)};
+      } else example.images={};
+      for(const tier of remote?[]:['thumb','preview']) {
         const image=sample.images?.[tier];check(object(image)&&['webp','png','jpg'].includes(image.ext),'例图文件描述无效。');
         const name=`${sample.id}-${tier}.${image.ext}`;
         check(image.name===name&&/^[a-f0-9]{64}$/.test(image.sha256),'例图文件名或校验值无效。');
@@ -102,7 +119,7 @@ export function createArtistPackInstaller({store}) {
           &&file.width>0&&file.height>0&&Math.max(file.width,file.height)<=10000&&file.width*file.height<=32000000,'资料包图片格式或尺寸无效。');
       }
       const result=await store.install(pack,staged.directory);
-      return {installed:true,id:pack.id,version:pack.version,artists:pack.artists.length,examples:pack.files.length/2,...result};
+      return {installed:true,id:pack.id,version:pack.version,artists:pack.artists.length,examples:pack.artists.reduce((sum,artist)=>sum+artist.examples.length,0),...result};
     }
   };
 }

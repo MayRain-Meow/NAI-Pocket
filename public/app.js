@@ -470,7 +470,7 @@ async function loadArtistIdentityIndex() {
     // The NAX snapshot still classifies gallery names; roster-only tags stay unmarked until this load succeeds.
   }
 }
-window.addEventListener('nai-artist-resources-changed',()=>loadArtistIdentityIndex());
+window.addEventListener('nai-artist-resources-changed',()=>{ loadArtistIdentityIndex(); artistLibrary?.refreshList?.(); });
 
 function artistRefFromButton(button) {
   const scope = button.dataset.artistScope;
@@ -673,6 +673,8 @@ function ensureArtistLibrary() {
     mount: $('#artistLibraryMount'),
     onNavigate: () => switchTabTo('artists'),
     isReadOnly: () => authContext.role !== 'owner',
+    // Library management (collection, annotation, rotation, covers) needs the private tools.
+    canManage: () => artistAutomationAvailable,
     // Always supply the mount hook: omitting it enables the legacy embedded
     // ingestion panel in the private library. Browsing never implies management.
     mountAutomation: (host, summary) => {
@@ -3643,7 +3645,7 @@ const openCharacterTiles = new Set();
 function characterPositionLabel(character) {
   if (appState.v4Options?.useCoords !== true) return 'AUTO';
   const center = normalizeCharacterCenters(character.centers)[0];
-  if (isV5Model(appState.model)) return `${center.x.toFixed(1)}, ${center.y.toFixed(1)}`;
+  if (isV5Model(appState.model)) return `${center.x.toFixed(2)}, ${center.y.toFixed(2)}`;
   const column = 'ABCDE'[Math.min(4, Math.max(0, Math.round((center.x - .1) / .2)))];
   return `${column}${Math.min(5, Math.max(1, Math.round((center.y - .1) / .2) + 1))}`;
 }
@@ -3826,13 +3828,15 @@ function renderPositionSheet() {
   if (auto) {
     const note = document.createElement('em');
     note.className = 'position-auto-note';
-    note.textContent = 'AUTO · 由模型安排';
+    note.textContent = '由模型安排';
     parts.push(note);
   }
   canvas.replaceChildren(...parts);
   const center = current ? normalizeCharacterCenters(current.centers)[0] : { x: .5, y: .5 };
-  $('#positionReadout').textContent = auto ? 'AUTO：坐标保留，模型不使用；点画布即改为手动摆位'
-    : v5 ? `X ${center.x.toFixed(2)} · Y ${center.y.toFixed(2)}` : `格子 ${characterPositionLabel(current)}`;
+  const who = current ? (current.name || `角色 ${appState.characters.indexOf(current) + 1}`) : '';
+  $('#positionReadout').textContent = auto ? '自动：模型安排站位，坐标保留；点画布改为手动'
+    : v5 ? `${who} · X ${center.x.toFixed(2)} · Y ${center.y.toFixed(2)}` : `${who} · 格子 ${characterPositionLabel(current)}`;
+  $('#positionReadout').classList.toggle('manual', !auto);
 }
 
 function placeFromPointer(event) {
@@ -7413,7 +7417,8 @@ function queuePhaseLabel(phase) {
     queued: '队列', started: '开始', prepare: '准备', request: '请求', response: '响应',
     'response-error': '响应错误', received: '接收', saving: '保存', thumbnail: '缩略图',
     completed: '完成', 'retry-wait': '重试', 'manual-retry': '重试',
-    'cancel-requested': '停止', cancelled: '停止', timeout: '超时', failed: '失败', recovered: '恢复', rerouted: '换渠道'
+    'cancel-requested': '停止', cancelled: '停止', timeout: '超时', failed: '失败', recovered: '恢复', rerouted: '换渠道',
+    'phone-gallery': '相册'
   })[phase] || phase || '状态';
 }
 

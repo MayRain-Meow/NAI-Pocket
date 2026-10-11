@@ -39,10 +39,13 @@ export function createLocalApi({ database, settings, providers, client, assets, 
       const result = await references.artistResources.image(query.get('id'), query.get('tier') || 'thumb', { signal:request.signal, revision:query.get('revision') });
       return new Response(result.buffer, { headers: { 'Content-Type':result.contentType, 'Cache-Control':'no-store', 'X-Content-Type-Options':'nosniff' } });
     }
-    if (pathname === '/api/artists' && method === 'GET') return references.artists.list(Object.fromEntries(query),{signal:request.signal});
+    if (pathname === '/api/artists/resources/sets' && method === 'GET') { const { sets, profiles } = await references.artistResources.catalog(); return { sets, artists: profiles.length }; }
+    // The artist page is the shared artist-library UI; these follow the server's response shapes.
+    if (pathname === '/api/artists' && method === 'GET') return references.artistLibrary.list(Object.fromEntries(query));
+    if (pathname === '/api/artists/summary' && method === 'GET') return { summary: await references.artistLibrary.summary() };
     if (pathname === '/api/artists/profile') {
-      if (method === 'GET') return { artist: await references.artists.get(query.get('artist')) };
-      if (method === 'PUT') return { artist: await references.artists.save(await body()) };
+      if (method === 'GET') return { artist: await references.artistLibrary.profile(query.get('artist')) };
+      if (method === 'PUT') return { artist: await references.artistLibrary.save(await body()) };
     }
     if (pathname === '/api/nax/artist-preview' && method === 'GET') {
       const preview = await references.naxPreview(query.get('artist'), { signal: request.signal });

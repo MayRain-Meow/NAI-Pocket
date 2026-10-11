@@ -36,6 +36,11 @@ public class ArtistPackArchiveTest {
         if(result.files.size()!=1||result.files.get(0).bytes!=4||!result.files.get(0).sha256.equals("9f64a747e1b97f131fabb6b447296c9b6f0201e79fb3c5356e6c77e89b6a806a"))throw new AssertionError("Stream digest or metadata mismatch");
         for(String name:new String[]{"../image-thumb.png","/image-thumb.png","nested/image-thumb.png","vault.json","image-thumb.svg"})rejects(archive(name,image,true));
         rejects(archive("image-thumb.png",image,false));
+        // Annotation-only packs: manifest.json is the sole entry and no image is required.
+        ByteArrayOutputStream manifestOnly=new ByteArrayOutputStream();
+        try(ZipOutputStream zip=new ZipOutputStream(manifestOnly)){zip.putNextEntry(new ZipEntry("manifest.json"));zip.write("{}".getBytes());zip.closeEntry();}
+        ArtistPackArchive.Result annotations=unpack(manifestOnly.toByteArray());
+        if(!"{}".equals(annotations.manifest)||!annotations.files.isEmpty())throw new AssertionError("Manifest-only archive must extract with zero files");
         rejects(archive("image-thumb.png",new byte[ArtistPackArchive.MAX_IMAGE+1],true));
         System.out.println("Artist archive passed: streaming digest, traversal/extra-file rejection, missing manifest and decompression bound.");
     }

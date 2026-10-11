@@ -11,6 +11,7 @@ import * as cursors from '../../public/gallery-utils.js';
 import { nativeFiles, nativeImages, localPath } from './files.js';
 import { PocketNative } from './providers.js';
 import { createQueueRunner } from './queue-runner.js';
+import { createPhoneGallery } from './phone-gallery.js';
 
 export function openQueue(database, settings, providers, client, media, assets) {
   const { db, serial, transaction } = database, activeJobControllers = new Map();
@@ -34,6 +35,10 @@ export function openQueue(database, settings, providers, client, media, assets) 
   }
   const generationStore = database.store(createGenerationStore(db, transaction));
   const ids = { next: () => crypto.randomUUID() };
+  // Album copy is a side effect of the native host only; service/ stays unchanged for the server.
+  const phoneGallery = createPhoneGallery({ state, save: options => PocketNative.saveToGallery(options),
+    locate: row => localPath('originals', row.original_name), log: control.appendJobLog,
+    notify: message => window.dispatchEvent(new CustomEvent('nai-runtime-error', { detail: message })) });
   const saveImage = createGenerationArchive({ store: generationStore, ids,
     currentJobStatus: control.currentJobStatus, cancelledError: rawControl.cancelledError, appendJobLog: control.appendJobLog,
     files: { ...nativeFiles, async allocate(id, mime, now) {
@@ -43,7 +48,9 @@ export function openQueue(database, settings, providers, client, media, assets) 
     } }, images: { ...nativeImages, thumbnail: (source, target) => nativeImages.preview(source, target, 520) },
     async afterSave(job) {
       const row = await serial(() => db.prepare('SELECT * FROM images WHERE job_id=?').get(job.id));
-      if (row) await media.registerRows([row]);
+      if (!row) return;
+      phoneGallery.schedule(job.id, row);
+      await media.registerRows([row]);
     }
   });
   const worker = createQueueWorker({ store: database.store(createQueueWorkerStore(db)), settings, activeJobControllers,
@@ -72,7 +79,7 @@ export function openQueue(database, settings, providers, client, media, assets) 
     }
   });
   function kick() { runner.kick().catch(() => {}); }
-  return { control, jobs, resources, state, kick,
+  return { control, jobs, resources, state, kick, phoneGallery,
     async enqueue(raw, count) {
       const state = sanitizeGenerationState(raw);
       await assets.prepareVibeGeneration(state);

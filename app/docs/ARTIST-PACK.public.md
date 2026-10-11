@@ -8,6 +8,8 @@ is attached. Device picker/lifecycle behavior still requires Android acceptance.
 ## Container and limits
 
 Use a flat ZIP containing UTF-8 `manifest.json` and the image files it names.
+An annotation-only pack (see below) names no image files, so its ZIP contains
+only `manifest.json`.
 Directories, extra files, duplicate names and path traversal are rejected. Each
 image is at most 4 MiB, the manifest at most 8 MiB, and both compressed input and
 total extracted output are limited to 256 MiB per ZIP. A shard may contain at most
@@ -32,8 +34,9 @@ are accepted; this preserves incomplete coverage and the existing fourth-example
 edge case without silently dropping content to meet the three-image target.
 
 Each example has a globally unique `id`, `sourceType: "original"`, HTTP(S)
-`sourceUrl`, positive integer `width`/`height`, `note`, `metadata`, `images`, and
-`observations`. `metadata` preserves prepared source information; it must not be
+`sourceUrl`, positive integer `width`/`height`, `note`, `metadata`, `observations`,
+and exactly one of `images` (files inside the ZIP) or `remoteImages` (pointers to a
+public CDN, described below). One pack may mix both kinds. `metadata` preserves prepared source information; it must not be
 populated by copying unrelated private database state. `images.thumb` and
 `images.preview` each contain:
 
@@ -41,6 +44,15 @@ populated by copying unrelated private database state. `images.thumb` and
 - `ext`: `png`, `jpg` or `webp`;
 - `bytes`: positive byte length of that exact file;
 - `sha256`: lowercase 64-character SHA-256 digest of that exact file.
+
+`remoteImages.thumb` and `remoteImages.preview` are URLs on `https://cdn.donmai.us/`
+only. The path must be `/<variant>/<xx>/<yy>/<md5>.<ext>`, where variant is
+`180x180`, `360x360`, `720x720` or `sample` (sample files carry a `sample-` prefix),
+`xx`/`yy` are lowercase hex pairs, the md5 is 32 lowercase hex characters and the
+extension is `jpg`, `png` or `webp`. Query strings, fragments, ports and user info
+are rejected. Remote examples add nothing to the pack's file list. `formatVersion`
+stays `1`; apps that predate this field reject such a pack instead of installing it
+without images.
 
 Every observation carries its original `id` and matching `exampleId`, `model`,
 `schemaVersion` (1 or 2), `facets`, `attributes`, `note`, `reviewed` (boolean),
@@ -120,6 +132,59 @@ output for diagnosis and never overwrite an earlier delivery. Catalogs are limit
 to 2 MiB, with up to 64 shards. Keep a published collection/version immutable;
 publish changed data with a new version. Publish only reviewed complete output
 as Release assets, keeping the catalog and its ZIP files in the same release.
+
+## Annotation-only packs
+
+The published collection does not redistribute third-party artwork. It carries
+artist names and aliases, the per-image style annotations, the source metadata
+(Danbooru post id, rating, md5 and the recorded rendition) and `remoteImages`
+pointers instead of image files. Only examples rated `g` (general) or `s`
+(sensitive) are included. Examples rated `q` or `e`, together with their
+annotation text and metadata, are excluded entirely. An artist whose examples were
+all excluded remains listed by name with zero examples.
+
+From the source root, run:
+
+```sh
+node --max-old-space-size=4096 scripts/build-artist-annotation-packs.mjs prepared.json new-output-directory [version]
+```
+
+The input is the same prepared collection that the full producer accepts. The
+image directory is not needed. The thumbnail is the post's `360x360` JPEG, and the
+preview is the rendition recorded in `metadata.variant`, usually `720x720` WebP. Examples
+without a valid Danbooru md5 and rendition are dropped and counted. The output
+uses the same collection ID, pack IDs, partition rule, catalog format, private-data
+scan and catalog-last write as the full producer. A private full pack for a shard
+therefore replaces the annotation pack for that shard, and the reverse also holds.
+The default version string is `2026-10-10-annotations-gs-1`. The default title is
+「画师逐图标注（不含图片）」.
+
+The owner's private full ZIPs (images inside the ZIP) still import unchanged.
+
+**Fetching and caching on the device.** An annotation-only example is stored with
+image extension `remote`. Its validated URLs are kept in the example's metadata, so
+no schema change was needed. When a thumbnail or preview is first shown, the app
+fetches it through native HTTPS from `cdn.donmai.us`:
+- `GET` only, with no redirects, cookies, tokens or credentials;
+- `User-Agent: NAI-Pocket/0.3 (artist annotation preview)`, where the WebView allows that header;
+- a 20-second timeout and at most four concurrent fetches; cancelled requests leave the queue.
+
+The response must be an image of the URL's type, at most 4 MiB, with at most 10,000
+pixels per side and at most 32 MP. It is then written to the app-private
+`artist-cache/<example-id>-<tier>.<ext>`, and later views read that file. An invalid
+cache file is ignored and fetched again. Failures are reported as follows, and
+nothing is cached:
+- network failures and timeouts: 「无法从 Danbooru 读取这张例图，请检查网络。」 (HTTP 502);
+- a missing post: HTTP 404;
+- invalid bytes: HTTP 502.
+
+The directory-revision check still applies. The cache is not cleaned up or bounded
+yet: viewing every example of a full collection can use several GB. Clearing app
+data removes it.
+
+Not yet verified: Danbooru rate limits under heavy scrolling, whether the WebView
+keeps the custom User-Agent, and reachability of `cdn.donmai.us` from mainland
+China on a phone.
 
 ## GitHub download
 

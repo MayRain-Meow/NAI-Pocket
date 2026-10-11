@@ -11,3 +11,9 @@ body.native-mode { overscroll-behavior-y: contain; }
 .native-license-dialog { max-width: min(95vw, 50rem); max-height: 85vh; padding: 1rem; }
 .native-license-dialog button { float: right; }
 .native-license-dialog pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; margin-top: 1.5rem; }
+.native-album-toggle { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; }
+.native-album-toggle input { width: 1.15rem; height: 1.15rem; margin: 0; }
+.native-artist-resources [hidden] { display: none !important; }
+.native-artist-resources input[type="url"] { width: 100%; margin: 8px 0; }
+.native-artist-resources-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.native-artist-resources progress { width: 100%; margin-top: 8px; }

@@ -36,10 +36,15 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 
-@CapacitorPlugin(name = "PocketNative", permissions = @Permission(alias = "notifications", strings = { "android.permission.POST_NOTIFICATIONS" }))
+@CapacitorPlugin(name = "PocketNative", permissions = {
+    @Permission(alias = "notifications", strings = { "android.permission.POST_NOTIFICATIONS" }),
+    // Only Android 7-9 use it: the manifest declares it with maxSdkVersion=28.
+    @Permission(alias = "storage", strings = { "android.permission.WRITE_EXTERNAL_STORAGE" })
+})
 public class PocketNativePlugin extends Plugin {
     private static final String KEY = "nai-pocket-vault-v1";
     private final ExecutorService vaultThread = Executors.newSingleThreadExecutor();
+    private final ExecutorService galleryThread = Executors.newSingleThreadExecutor();
     private final ExecutorService networkThreads = Executors.newFixedThreadPool(4);
     private final ConcurrentHashMap<String, HttpURLConnection> requests = new ConcurrentHashMap<>();
     private final Set<String> cancelled = ConcurrentHashMap.newKeySet();
@@ -100,6 +105,110 @@ public class PocketNativePlugin extends Plugin {
                 JSObject response = new JSObject(); response.put("saved", true); call.resolve(response);
             } catch (Exception error) { call.reject("文件导出失败。", error); }
         });
+    }
+
+    // Phone album copy (Pictures/NAI Pocket). Original bytes are copied as-is, never re-encoded.
+    // Callers treat every outcome as non-fatal: the in-app gallery already holds the image.
+    private static final String GALLERY_FOLDER = "NAI Pocket";
+
+    private boolean legacyStorage() { return android.os.Build.VERSION.SDK_INT < 29; }
+
+    private boolean inForeground() {
+        Activity activity = getActivity();
+        return activity instanceof androidx.lifecycle.LifecycleOwner
+            && ((androidx.lifecycle.LifecycleOwner) activity).getLifecycle().getCurrentState().isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED);
+    }
+
+    private SharedPreferences permissionPreferences() { return getContext().getSharedPreferences("nai-pocket-permissions", Context.MODE_PRIVATE); }
+
+    private void resolveGallery(PluginCall call, boolean saved, String reason) {
+        JSObject response = new JSObject(); response.put("saved", saved); if (reason != null) response.put("reason", reason); call.resolve(response);
+    }
+
+    @PluginMethod public void requestGalleryAccess(PluginCall call) {
+        if (!legacyStorage() || getPermissionState("storage") == PermissionState.GRANTED) { JSObject result = new JSObject(); result.put("granted", true); call.resolve(result); return; }
+        if (!inForeground()) { JSObject result = new JSObject(); result.put("granted", false); call.resolve(result); return; }
+        permissionPreferences().edit().putBoolean("galleryAsked", true).apply();
+        requestPermissionForAlias("storage", call, "galleryAccessResult");
+    }
+
+    @PermissionCallback private void galleryAccessResult(PluginCall call) {
+        JSObject result = new JSObject(); result.put("granted", getPermissionState("storage") == PermissionState.GRANTED); call.resolve(result);
+    }
+
+    @PluginMethod public void saveToGallery(PluginCall call) {
+        if (legacyStorage() && getPermissionState("storage") != PermissionState.GRANTED) {
+            // Ask once, and only while the app is on screen: Android 7-9 would otherwise
+            // pop the system dialog over whatever the person is doing during a background queue.
+            if (permissionPreferences().getBoolean("galleryAsked", false)) { resolveGallery(call, false, "permission-denied"); return; }
+            if (!inForeground()) { resolveGallery(call, false, "permission-pending"); return; }
+            permissionPreferences().edit().putBoolean("galleryAsked", true).apply();
+            requestPermissionForAlias("storage", call, "galleryPermissionResult"); return;
+        }
+        galleryThread.execute(() -> writeToGallery(call));
+    }
+
+    @PermissionCallback private void galleryPermissionResult(PluginCall call) {
+        if (getPermissionState("storage") != PermissionState.GRANTED) { resolveGallery(call, false, "permission-denied"); return; }
+        galleryThread.execute(() -> writeToGallery(call));
+    }
+
+    private void copyGallerySource(PluginCall call, java.io.OutputStream output) throws Exception {
+        String path = call.getString("path");
+        if (path != null) {
+            if (!path.matches("originals/[a-zA-Z0-9_./-]+") || path.contains("..")) throw new IllegalArgumentException("Invalid gallery source");
+            try (InputStream input = new FileInputStream(localFile(path))) { byte[] chunk = new byte[65536]; int count; while ((count = input.read(chunk)) != -1) output.write(chunk, 0, count); }
+        } else output.write(Base64.decode(call.getString("data", ""), Base64.NO_WRAP));
+    }
+
+    private void writeToGallery(PluginCall call) {
+        String mime = call.getString("mime", "image/png");
+        if (!mime.matches("image/(png|jpeg|webp)")) { call.reject("相册只接受 PNG / JPEG / WebP 图片。"); return; }
+        String extension = mime.equals("image/webp") ? ".webp" : mime.equals("image/jpeg") ? ".jpg" : ".png";
+        String name = call.getString("name", "nai-image" + extension).replaceAll("[\\\\/:*?\"<>|]", "_");
+        if (!name.toLowerCase(java.util.Locale.ROOT).endsWith(extension)) name = name + extension;
+        try {
+            if (legacyStorage()) writeLegacyGallery(call, name, mime);
+            else writeMediaStore(call, name, mime);
+        } catch (Exception error) { call.reject("复制到手机相册失败。", error); }
+    }
+
+    private void writeMediaStore(PluginCall call, String name, String mime) throws Exception {
+        android.content.ContentResolver resolver = getContext().getContentResolver();
+        android.content.ContentValues values = new android.content.ContentValues();
+        values.put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, name);
+        values.put(android.provider.MediaStore.Images.Media.MIME_TYPE, mime);
+        values.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/" + GALLERY_FOLDER);
+        values.put(android.provider.MediaStore.Images.Media.IS_PENDING, 1);
+        android.net.Uri uri = resolver.insert(android.provider.MediaStore.Images.Media.getContentUri(android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY), values);
+        if (uri == null) throw new java.io.IOException("MediaStore insert failed");
+        try {
+            try (java.io.OutputStream output = resolver.openOutputStream(uri)) {
+                if (output == null) throw new java.io.IOException("No album destination");
+                copyGallerySource(call, output);
+            }
+            android.content.ContentValues done = new android.content.ContentValues();
+            done.put(android.provider.MediaStore.Images.Media.IS_PENDING, 0);
+            resolver.update(uri, done, null, null);
+        } catch (Exception error) {
+            try { resolver.delete(uri, null, null); } catch (Exception ignored) {}
+            throw error;
+        }
+        JSObject response = new JSObject(); response.put("saved", true); response.put("uri", uri.toString()); call.resolve(response);
+    }
+
+    @SuppressWarnings("deprecation")
+    private void writeLegacyGallery(PluginCall call, String name, String mime) throws Exception {
+        File folder = new File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES), GALLERY_FOLDER);
+        if (!folder.isDirectory() && !folder.mkdirs()) throw new java.io.IOException("Cannot create album folder");
+        int dot = name.lastIndexOf('.');
+        String base = name.substring(0, dot), extension = name.substring(dot);
+        File target = new File(folder, name);
+        for (int index = 1; target.exists(); index++) target = new File(folder, base + " (" + index + ")" + extension);
+        try (java.io.OutputStream output = new java.io.FileOutputStream(target)) { copyGallerySource(call, output); }
+        catch (Exception error) { target.delete(); throw error; }
+        android.media.MediaScannerConnection.scanFile(getContext(), new String[] { target.getPath() }, new String[] { mime }, null);
+        JSObject response = new JSObject(); response.put("saved", true); response.put("uri", android.net.Uri.fromFile(target).toString()); call.resolve(response);
     }
 
     @PluginMethod
@@ -231,7 +340,7 @@ public class PocketNativePlugin extends Plugin {
 
     @Override
     protected void handleOnDestroy() {
-        vaultThread.shutdown(); networkThreads.shutdownNow();
+        vaultThread.shutdown(); galleryThread.shutdown(); networkThreads.shutdownNow();
         requests.values().forEach(HttpURLConnection::disconnect);
     }
 }

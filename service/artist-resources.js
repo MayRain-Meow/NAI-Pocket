@@ -1,6 +1,7 @@
 import { normalizeArtistIdentity } from '../public/artist-index-v5.js';
 import { observationAttributes, matchesStyleAttributes, validateStyleAttributes } from '../public/artist-style-schema.js';
-import { imageDimensionsFromBytes } from '../public/image-bytes.js';
+import { detectImageMime, imageDimensionsFromBytes } from '../public/image-bytes.js';
+import { validateRemoteImageUrl } from './artist-pack.js';
 
 const fail = (status, message) => Object.assign(new Error(message), { status });
 const identity = value => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(value);
@@ -17,10 +18,84 @@ const observation = row => ({
   schemaVersion: row.schema_version, source: row.source, reviewed: Boolean(row.reviewed),
   automatic: automatic(row), provenance: json(row.provenance_json, {}), updatedAt: row.updated_at
 });
+const IMAGE_BYTES = 4 * 1024 * 1024;
+const validImage = (buffer, mime) => {
+  const size = buffer && buffer.length <= IMAGE_BYTES && (!mime || detectImageMime(buffer) === mime) ? imageDimensionsFromBytes(buffer) : null;
+  return Boolean(size && size.width * size.height <= 32000000 && Math.max(size.width, size.height) <= 10000);
+};
+const mimeOf = extension => `image/${extension === 'jpg' ? 'jpeg' : extension}`;
+export const REMOTE_IMAGE_USER_AGENT = 'NAI-Pocket/0.3 (artist annotation preview)';
+export const REMOTE_IMAGE_CONCURRENCY = 4;
+const remoteFailure = () => fail(502, '无法从 Danbooru 读取这张例图，请检查网络。');
+
+// FIFO slots; a released slot is handed directly to the next waiter so the
+// limit holds even when new callers arrive between release and resume.
+function createLimiter(max) {
+  let active = 0; const waiting = [];
+  return {
+    async acquire(signal) {
+      signal?.throwIfAborted();
+      if (active < max) { active++; return; }
+      await new Promise((resolve, reject) => {
+        const entry = { grant() { signal?.removeEventListener('abort', cancel); resolve(); } };
+        function cancel() { const index = waiting.indexOf(entry); if (index >= 0) waiting.splice(index, 1); reject(signal.reason); }
+        waiting.push(entry); signal?.addEventListener('abort', cancel, { once: true });
+      });
+    },
+    release() { const next = waiting.shift(); if (next) next.grant(); else active--; }
+  };
+}
 export const artistResourceImageUrl = (id, tier = 'thumb', revision = '') => `/api/artists/resources/image?id=${encodeURIComponent(id)}&tier=${tier}&revision=${encodeURIComponent(revision)}`;
 
 
-export function createArtistResourceService({ store, files }) {
+// Annotation-only packs store 'remote' tiers: the image is fetched from the
+// validated Danbooru CDN URL on demand (no credentials) and cached locally.
+export function createArtistResourceService({ store, files, http = { fetch: (...args) => globalThis.fetch(...args) }, remoteTimeoutMs = 20_000 }) {
+  const limiter = createLimiter(REMOTE_IMAGE_CONCURRENCY);
+  async function readCache(path, mime, signal) {
+    if (!files?.stat || !files?.read) return null;
+    try {
+      const stat = await files.stat(path);
+      if (!stat.isFile || stat.size > IMAGE_BYTES) return null;
+      const buffer = await files.read(path, { signal });
+      signal?.throwIfAborted();
+      return validImage(buffer, mime) ? buffer : null;
+    } catch { signal?.throwIfAborted(); return null; } // Any unreadable cache entry is a miss.
+  }
+  async function fetchRemote(url, mime, signal) {
+    await limiter.acquire(signal);
+    const controller = new AbortController(), cancel = () => controller.abort(signal.reason);
+    const timer = setTimeout(() => controller.abort(), remoteTimeoutMs);
+    signal?.addEventListener('abort', cancel, { once: true });
+    try {
+      let response;
+      try {
+        response = await http.fetch(url, { method: 'GET', redirect: 'error', credentials: 'omit', referrerPolicy: 'no-referrer', signal: controller.signal,
+          headers: { Accept: 'image/webp,image/jpeg,image/png;q=0.9', 'User-Agent': REMOTE_IMAGE_USER_AGENT } });
+      } catch { signal?.throwIfAborted(); throw remoteFailure(); }
+      if ([404, 410].includes(response.status)) throw fail(404, 'Danbooru 上已找不到这张例图。');
+      if (!response.ok || Number(response.headers?.get?.('content-length') || 0) > IMAGE_BYTES) throw remoteFailure();
+      let buffer;
+      try { buffer = new Uint8Array(await response.arrayBuffer()); }
+      catch { signal?.throwIfAborted(); throw remoteFailure(); }
+      signal?.throwIfAborted();
+      if (!validImage(buffer, mime)) throw fail(502, '从 Danbooru 读取的例图格式无效或过大。');
+      return buffer;
+    } finally { clearTimeout(timer); signal?.removeEventListener('abort', cancel); limiter.release(); }
+  }
+  async function remoteImage(row, id, tier, signal) {
+    let url;
+    try { url = validateRemoteImageUrl(json(row.metadata_json, {}).remoteImages?.[tier]); }
+    catch { throw fail(422, '例图资料格式无效。'); }
+    const extension = url.split('.').at(-1), contentType = mimeOf(extension);
+    const path = `artist-cache/${id}-${tier}.${extension}`;
+    const cached = await readCache(path, contentType, signal);
+    if (cached) return { buffer: cached, contentType };
+    const buffer = await fetchRemote(url, contentType, signal);
+    // A failed cache write (e.g. full storage) still shows the image this time.
+    if (files?.write) await files.write(path, buffer).catch(() => {});
+    return { buffer, contentType };
+  }
   return {
     async catalog() {
       const { sets, profiles } = await store.catalog();
@@ -65,6 +140,7 @@ export function createArtistResourceService({ store, files }) {
       if (!row) throw fail(404, '资料包中没有这张例图。');
       if (revision && revision !== row.storage_id) throw fail(409, '资料版本已更新，请重新打开画师资料。');
       const extension = row[`${tier}_ext`];
+      if (extension === 'remote') return remoteImage(row, id, tier, signal);
       if (!identity(row.storage_id) || !['webp','png','jpg'].includes(extension)) throw fail(422, '例图资料格式无效。');
       const path = `artist-resources/${row.storage_id}/${id}-${tier}.${extension}`;
       try {

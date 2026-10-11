@@ -27,7 +27,8 @@ const out = path.join(temporary, 'www'), dataRoot = path.join(temporary, 'data')
 await fs.mkdir(dataRoot); await fs.mkdir(out);
 const db = new DatabaseSync(path.join(dataRoot,'app.db'));
 const media = new Map(); let vault = '{}', failedVault = false;
-const generationCalls = [], encodingCalls = [], naxCalls = [];
+const albumCopies = []; let albumFailure = false;
+const generationCalls = [], encodingCalls = [], naxCalls = [], danbooruCalls = [];
 let packMode='valid',packSequence=0;const packStages=new Set(),discardedPacks=[];
 const recoveryCalls=[];
 let downloadMode='valid',resumeDownload=null,installBarrier=null,resumeInstall=null,resumeCancelAck=null;
@@ -59,7 +60,7 @@ if (preview) {
   const html = await fs.readFile(path.join(out,'index.html'),'utf8');
   await fs.writeFile(path.join(out,'index.html'),html.replace('</body>','<script type="module" src="/fixture/seed.js"></script></body>'));
 }
-for(const name of ['styles.css','workspace.css','tag-chips.css','artist-browser.css','native.css','licenses.txt'])await fs.copyFile(path.join(appRoot,'www',name),path.join(out,name));
+for(const name of ['styles.css','workspace.css','tag-chips.css','artist-browser.css','artist-library.css','native.css','licenses.txt'])await fs.copyFile(path.join(appRoot,'www',name),path.join(out,name));
 await fs.cp(path.join(appRoot,'www/icons'),path.join(out,'icons'),{recursive:true});
 function local(name) { const file=path.resolve(dataRoot,String(name));if(!file.startsWith(dataRoot+path.sep))throw new Error('Fixture path escaped');return file; }
 async function rpc(name,args) {
@@ -119,12 +120,24 @@ async function rpc(name,args) {
   if(name==='PocketNative.diskStatus')return {freeBytes:1024**3,totalBytes:8*1024**3};
   if(name==='PocketNative.queueActive'||name==='PocketNative.cancelRequest')return {};
   if(name==='PocketNative.registerMedia'){for(const item of args.entries){if(item.remove)media.delete(item.route);else media.set(item.route,item);}return {};}
+  if(name==='PocketNative.requestGalleryAccess')return {granted:true};
+  if(name==='PocketNative.saveToGallery'){
+    if (preview) throw new Error('手机相册复制需在安卓手机上验证；此预览没有写入相册。');
+    albumCopies.push(args);await fs.access(local(args.path));
+    if(albumFailure)throw new Error('Synthetic album write failure');
+    return {saved:true,uri:'content://media/external/images/media/'+albumCopies.length};
+  }
   if(name==='PocketNative.exportFile'){
     if (preview) throw new Error('系统文件导出需在安卓手机上确认；此预览没有保存文件。');
     return {saved:true};
   }
   if(name==='PocketNative.request'){
     const url=new URL(args.url);
+    if(url.hostname==='cdn.donmai.us'){
+      assert.equal(args.method,'GET');assert.deepEqual(Object.keys(args.headers).map(key=>key.toLowerCase()).filter(key=>!['accept','user-agent'].includes(key)),[],'annotation thumbnails send no credentials');
+      danbooruCalls.push(url.pathname);
+      return {status:200,headers:{'content-type':'image/jpeg'},body:Buffer.from('ffd8ffc0001108000200020301220002110103110100ffd9','hex').toString('base64')};
+    }
     if(url.hostname==='cdn.zele.st'){
       assert.equal(args.method,'GET'); assert.equal(args.headers.authorization,undefined,'public examples receive no generation credential');
       naxCalls.push(url.pathname);
@@ -236,6 +249,12 @@ try {
   await page.locator('#promptPreview').fill('synthetic fixture');
   await page.locator('#floatingGenerateButton').click();
   await waitCompleted(1);
+  const waitAlbum=async count=>{const deadline=Date.now()+5000;while(albumCopies.length<count&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,50));assert.equal(albumCopies.length,count,'album copy attempts');};
+  await waitAlbum(1);
+  assert.match(albumCopies[0].path,/^originals\/\d{4}\/\d{2}\/[\w-]+\.png$/);assert.equal(albumCopies[0].mime,'image/png');
+  assert.match(albumCopies[0].name,/^nai-\d{4}-\d{2}-\d{2}T[\d-]+Z\.png$/,'album copy keeps the download file name');
+  assert.equal(albumCopies[0].data,undefined,'native reads the original file; bytes are not re-encoded in JS');
+  albumFailure=true;
   assert.equal(generationCalls[0].host,'gnai.rbq.my');assert.equal(generationCalls[0].authorization,`Bearer ${rbqToken}`);
   await page.locator('#openSettingsButton').click();
   await page.locator('#generationProvider').selectOption('official');
@@ -243,6 +262,12 @@ try {
   await page.locator('#closeSettingsButton').click();
   await page.locator('#floatingGenerateButton').click();
   await waitCompleted(2);
+  await waitAlbum(2);albumFailure=false;
+  await page.getByText(/复制到手机相册失败：Synthetic album write failure/).first().waitFor();
+  const albumJobs=(await call('/api/jobs')).data.jobs;
+  assert.deepEqual(albumJobs.map(job=>[job.status,job.attempts]),[['completed',1],['completed',1]],'album failure neither fails nor retries the job');
+  const albumLogs=await Promise.all(albumJobs.map(async job=>(await call(`/api/jobs/${job.id}/logs`)).data.logs.filter(entry=>entry.phase==='phone-gallery').map(entry=>entry.level)));
+  assert.deepEqual(albumLogs.flat().sort(),['info','warn'],'each album outcome is logged on its job');
   assert.equal(generationCalls[1].host,'image.novelai.net');assert.equal(generationCalls[1].authorization,`Bearer ${secondToken}`);
   // Recreate the WebView execution context: providers must reload from the vault.
   await page.reload();
@@ -254,6 +279,12 @@ try {
   assert.equal(await page.locator('#officialApiToken').inputValue(),'');assert.equal(await page.locator('#rbqApiKey').inputValue(),'');
   await page.locator('#generationProvider').selectOption('rbq');
   await page.locator('#officialAccountSelect').selectOption(accountId);
+  assert.equal(await page.locator('#nativePhoneAlbumToggle').isChecked(),true,'phone album copy defaults to on');
+  await page.getByText('保存到手机相册',{exact:true}).click();
+  await page.waitForFunction(()=>!document.querySelector('#nativePhoneAlbumToggle').checked);
+  const albumSetting=()=>db.prepare("SELECT value FROM app_state WHERE key='phone_gallery_copy'").get()?.value;
+  { const deadline=Date.now()+3000;while(albumSetting()!=='0'&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,50)); }
+  assert.equal(albumSetting(),'0','switch persists in the native SQLite state');
   await page.locator('#closeSettingsButton').click();
   const state={model:'nai-diffusion-4-5-full',prompt:'synthetic fixture',negativePrompt:'',provider:'official',officialAccountId:accountId,seed:42,seedMode:'fixed',params:{width:64,height:64,steps:1,scale:5}};
   const uploaded=await page.evaluate(async base64=>{const image=Uint8Array.from(atob(base64),x=>x.charCodeAt(0));const response=await fetch('/api/assets',{method:'POST',headers:{'Content-Type':'image/png'},body:image});return response.json();},png.toString('base64'));
@@ -272,6 +303,7 @@ try {
   // A cached reference can generate through RBQ without an official credential.
   assert.equal((await call('/api/jobs/enqueue',{state:{...vibe,officialAccountId:''},count:1})).status,200);
   await waitCompleted(4);assert.equal(encodingCalls.length,1);assert.equal(generationCalls.length,4);
+  await new Promise(resolve=>setTimeout(resolve,300));assert.equal(albumCopies.length,2,'switched off: later images are not copied');
   await call('/api/jobs/pause',{});
   assert.equal((await call('/api/jobs/enqueue',{state:vibe,count:1})).status,200);
   assert.equal((await call(`/api/providers/official/accounts/${accountId}`,null,'DELETE')).status,409,'pending RBQ Vibe keeps its official account pinned');
@@ -308,96 +340,111 @@ try {
   assert.equal(await page.locator('#artistPreviewImage').getAttribute('src'),null);
   assert.equal(await page.evaluate(async url=>{try{await fetch(url);return false;}catch{return true;}},previewUrl),true,'closing releases the preview object URL');
   await page.screenshot({path:path.join(temporary,'native-editor.png'),fullPage:false});
+  // The artist page is the shared artist-library UI without management (canManage false).
   await page.locator('[data-tab="artists"]').click();
-  await page.locator('.artist-browser-card').first().waitFor();
-  assert.equal(await page.locator('.artist-browser-card').count(),24);
-  await page.getByRole('searchbox',{name:'搜索画师',exact:true}).fill('anmi');
-  const artistCard=page.locator('.artist-browser-card[data-artist="anmi"]');
+  const library=page.locator('#artistLibraryMount'),searchBox=library.locator('input[name="query"]');
+  const libraryCard=name=>library.locator(`.artist-library-card[data-artist-card="${name}"]`);
+  const cardNames=()=>library.locator('.artist-library-card').evaluateAll(nodes=>nodes.map(node=>node.dataset.artistCard));
+  const openFilters=async()=>{const toggle=library.locator('.artist-library-filter-toggle');if(await toggle.isVisible()&&await toggle.getAttribute('aria-expanded')!=='true')await toggle.click();};
+  const libraryBack=()=>page.evaluate(()=>!window.dispatchEvent(new Event('nai-navigation-back',{cancelable:true})));
+  await library.locator('.artist-library-card').first().waitFor();
+  assert.ok(await library.locator('.artist-library-card').count()>=3,'roster and installed artists render as cards');
+  for(const selector of ['.artist-library-manage-toggle','[data-open-artist-tasks]','[data-open-artist-rotation]','[data-open-nax-mirror]','[data-open-similar]','[data-library-coverage]'])
+    assert.equal(await page.locator(`${selector}:visible`).count(),0,`${selector}: library management is absent in the app`);
+  await searchBox.fill('anmi');
+  await page.waitForFunction(()=>{const names=[...document.querySelectorAll('#artistLibraryMount .artist-library-card')].map(node=>node.dataset.artistCard);return names.includes('anmi')&&names.length<10;});
+  assert.ok((await cardNames()).every(name=>name.includes('anmi')),'name search narrows the list');
+  const artistCard=libraryCard('anmi');
   await artistCard.getByRole('button',{name:'收藏 anmi',exact:true}).click();
   await artistCard.getByRole('button',{name:'取消收藏 anmi',exact:true}).waitFor();
-  await artistCard.locator('.artist-browser-image').click();
-  await page.waitForFunction(()=>document.querySelector('.artist-browser-card[data-artist="anmi"] img')?.naturalWidth>0);
-  await artistCard.getByRole('button',{name:'资料',exact:true}).click();
-  await page.waitForFunction(()=>[...document.querySelectorAll('.artist-example-media img')].length===3&&[...document.querySelectorAll('.artist-example-media img')].every(image=>image.naturalWidth>0));
-  const resourceUrls=await page.locator('.artist-example-media img').evaluateAll(images=>images.map(image=>image.src));
+  assert.equal((await call('/api/artists/profile?artist=anmi')).data.artist.favorite,true,'card favourite persists');
+  await artistCard.getByRole('button',{name:'查看 anmi 的资料与例图',exact:true}).click();
+  await library.locator('.artist-library-example-card').nth(2).waitFor();
+  assert.equal(await library.locator('.artist-library-example-card').count(),3);
+  for(const image of await library.locator('.artist-library-example-image').all()) {
+    await image.scrollIntoViewIfNeeded();
+    await page.waitForFunction(node=>node.naturalWidth>0&&node.src.startsWith('blob:'),await image.elementHandle());
+  }
   assert.equal(naxCalls.length,1,'original examples never invoke NAX or upstream services');
-  assert.equal(await page.locator('.artist-example-card').count(),3);
-  await page.locator('[data-example-id="fixture-anmi-1"]').getByText('AI 初标 · 未人工确认',{exact:true}).waitFor();
-  await page.locator('[data-example-id="fixture-anmi-2"]').getByText('人工已确认',{exact:true}).waitFor();
-  await page.locator('[data-example-id="fixture-anmi-3"]').getByText('尚无标注',{exact:true}).waitFor();
-  assert.match(await page.locator('[data-example-id="fixture-anmi-1"]').textContent(),/合成标注 A/);
-  assert.doesNotMatch(await page.locator('[data-example-id="fixture-anmi-2"]').textContent(),/合成标注 A/);
+  const chips=async id=>library.locator(`[data-example-evidence="${id}"] .artist-library-chip:not([hidden])`).evaluateAll(nodes=>nodes.map(node=>[node.textContent,node.dataset.automatic||'',node.dataset.evidencePending||'']));
+  assert.deepEqual(await chips('fixture-anmi-1'),[['纤细','true',''],['冷色调','true','']],'AI observations are marked unconfirmed');
+  assert.deepEqual((await chips('fixture-anmi-2')).map(([label,automatic])=>[label,automatic]).sort(),[['平涂','false'],['暖色调','false'],['粗重','false']],'reviewed observations are confirmed chips');
+  assert.deepEqual(await chips('fixture-anmi-3'),[['待标注','','true']],'an example without annotations says so');
+  const viewer=page.locator('.artist-result-dialog');
+  const viewAnnotation=async id=>{await library.locator(`[data-view-annotation="${id}"]`).click();await viewer.locator('.artist-result-info').waitFor();const text=await viewer.textContent();await viewer.getByRole('button',{name:'关闭',exact:true}).click();return text;};
+  { const text=await viewAnnotation('fixture-anmi-1');assert.match(text,/AI 初标 · 未人工确认/);assert.match(text,/合成标注 A/); }
+  { const text=await viewAnnotation('fixture-anmi-2');assert.match(text,/人工已确认/);assert.doesNotMatch(text,/合成标注 A/);assert.match(text,/合成标注 B/); }
+  assert.match(await viewAnnotation('fixture-anmi-3'),/暂无可查看的标注结果/);
+  assert.deepEqual(await library.locator('.artist-library-detail-tabs button').allTextContents(),['资料','风格概览'],'no 添加例图 tab without management');
+  assert.equal(await library.locator('[data-generate-artist-samples]').count(),0);
+  const exampleMenu=library.locator('[data-example-id="fixture-anmi-1"] .artist-library-example-menu');
+  await exampleMenu.locator('summary').click();
+  await exampleMenu.locator('.artist-library-example-menu-body').waitFor();
+  assert.deepEqual(await exampleMenu.locator('.artist-library-example-menu-body button').allTextContents(),[],'the example menu has no 编辑标注/设为封面/删除 without management');
+  assert.match(await exampleMenu.textContent(),/打开来源链接/);
+  await page.keyboard.press('Escape');
   await page.setViewportSize({width:360,height:800});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'per-image annotations fit a narrow phone');
   await page.screenshot({path:path.join(temporary,'native-artist-resources.png'),fullPage:true});
+  // Notes are edited in the 资料 panel; a failed save is reported and nothing is stored.
+  const profilePanel=library.locator('dialog[data-artist-panel="profile"]'),noteBox=profilePanel.locator('textarea[name="note"]');
   db.exec("CREATE TRIGGER refuse_artist_note BEFORE UPDATE ON artist_preferences WHEN NEW.note='synthetic-save-failure' BEGIN SELECT RAISE(ABORT,'Synthetic artist note save failure'); END;");
-  await page.getByRole('textbox',{name:'画师备注',exact:true}).fill('synthetic-save-failure');
-  await page.getByRole('button',{name:'保存备注',exact:true}).click();
-  await page.getByText('Synthetic artist note save failure',{exact:true}).waitFor();
+  await library.locator('.artist-library-detail-tabs').getByRole('button',{name:'资料',exact:true}).click();
+  await noteBox.fill('synthetic-save-failure');
+  await profilePanel.getByRole('button',{name:'保存资料',exact:true}).click();
+  await page.getByText('Synthetic artist note save failure',{exact:true}).first().waitFor();
+  assert.equal((await call('/api/artists/profile?artist=anmi')).data.artist.note,'','a failed save stores nothing');
+  await noteBox.fill('星空方案，线条与色彩待比较。');
+  await profilePanel.getByRole('button',{name:'保存资料',exact:true}).click();
+  await page.getByText('画师资料已保存。',{exact:true}).first().waitFor();
+  assert.equal((await call('/api/artists/profile?artist=anmi')).data.artist.note,'星空方案，线条与色彩待比较。','note saved from the 资料 panel persists');
+  // Back navigation: the library consumes the app's cancelable back event (panel, then detail).
+  assert.equal(await libraryBack(),true,'the library consumes back while a panel is open');
+  assert.equal(await profilePanel.evaluate(node=>node.open),false);
+  await library.locator('.artist-library-detail-toolbar').waitFor();
+  await library.locator('.artist-library-detail-tabs').getByRole('button',{name:'资料',exact:true}).click();
   await page.evaluate(()=>globalThis.fixtureApp.emit('backButton'));
-  assert.equal(await page.evaluate(async urls=>(await Promise.all(urls.map(async url=>{try{await fetch(url);return false;}catch{return true;}}))).every(Boolean),resourceUrls),true,'leaving detail releases every local example object URL');
-  await artistCard.getByRole('button',{name:'资料',exact:true}).click();
-  assert.equal(await page.getByRole('textbox',{name:'画师备注',exact:true}).inputValue(),'synthetic-save-failure','failed saves retain the unsaved draft after navigation');
-  await page.getByRole('textbox',{name:'画师备注',exact:true}).fill('星空方案，线条与色彩待比较。');
-  await page.evaluate(()=>globalThis.fixtureApp.emit('backButton'));
-  await page.getByRole('searchbox',{name:'搜索画师',exact:true}).waitFor();
-  assert.equal(await page.locator('#artistsTab').evaluate(el=>el.classList.contains('active')),true,'native back returns from detail to the artist list');
-  assert.equal(await page.getByRole('searchbox',{name:'搜索画师',exact:true}).inputValue(),'anmi');
-  await artistCard.getByRole('button',{name:'资料',exact:true}).click();
-  assert.equal(await page.getByRole('textbox',{name:'画师备注',exact:true}).inputValue(),'星空方案，线条与色彩待比较。','returning to an artist preserves its unsaved draft');
-  assert.equal((await call('/api/artists/profile?artist=anmi')).data.artist.note,'','navigation does not silently save a draft');
+  assert.equal(await profilePanel.evaluate(node=>node.open),false,'native back closes the open panel first');
+  assert.equal(await library.locator('.artist-library-detail-toolbar').isVisible(),true,'closing the panel keeps the detail');
   await page.locator('#openSettingsButton').click();
   await page.evaluate(()=>globalThis.fixtureApp.emit('backButton'));
   assert.equal(await page.locator('#settingsDialog').evaluate(el=>el.open),false,'back closes the top dialog before navigating');
-  await page.getByRole('textbox',{name:'画师备注',exact:true}).waitFor();
-  await page.getByRole('button',{name:'保存备注',exact:true}).click();
-  await page.getByText('备注已保存在本机。',{exact:true}).waitFor();
-  await page.evaluate(()=>{
-    const original=window.fetch;
-    window.fetch=(input,options)=>{
-      if(input==='/api/artists/profile'&&options?.method==='PUT'&&JSON.parse(options.body).note==='first in flight'){
-        window.fetch=original;const response=original(input,options);
-        return new Promise(resolve=>{globalThis.fixtureResumeNote=async()=>resolve(await response);});
-      }
-      return original(input,options);
-    };
-  });
-  await page.getByRole('textbox',{name:'画师备注',exact:true}).fill('first in flight');
-  await page.getByRole('button',{name:'保存备注',exact:true}).click();
-  await page.waitForFunction(()=>typeof globalThis.fixtureResumeNote==='function');
-  await page.getByRole('textbox',{name:'画师备注',exact:true}).fill('星空方案，线条与色彩待比较。');
-  await page.evaluate(()=>globalThis.fixtureResumeNote());
-  await page.getByText('有未保存的修改。',{exact:true}).waitFor();
-  assert.equal((await call('/api/artists/profile?artist=anmi')).data.artist.note,'first in flight','only the clicked snapshot is saved');
-  await page.getByRole('button',{name:'保存备注',exact:true}).click();
-  await page.getByText('备注已保存在本机。',{exact:true}).waitFor();
-  await page.getByRole('button',{name:'‹ 返回画师列表',exact:true}).click();
-  await page.locator('.artist-browser-style-filters summary').click();
-  await page.getByRole('combobox',{name:'筛选维度',exact:true}).selectOption('line.weight');
-  await page.getByRole('combobox',{name:'筛选特征',exact:true}).selectOption('fine');
-  await page.getByRole('button',{name:'添加条件',exact:true}).click();
+  assert.equal(await library.locator('.artist-library-detail-toolbar').isVisible(),true);
+  await page.evaluate(()=>globalThis.fixtureApp.emit('backButton'));
   await artistCard.waitFor();
-  await page.getByRole('button',{name:'仅人工确认',exact:true}).click();
-  await page.getByText('没有匹配的画师。',{exact:true}).waitFor();
-  await page.getByRole('button',{name:'仅人工确认',exact:true}).click();
+  assert.equal(await library.locator('.artist-library-detail-toolbar').count(),0,'native back returns from detail to the artist list');
+  assert.equal(await page.locator('#artistsTab').evaluate(el=>el.classList.contains('active')),true,'back from detail stays on the artist tab');
+  assert.equal(await searchBox.inputValue(),'anmi','the list comes back with its search');
+  // Style filters narrow results.
+  await openFilters();
+  await library.locator('.artist-library-refined-filters > summary').click();
+  await library.locator('input[name="attribute-line.weight"][value="bold"]').check();
+  await page.waitForFunction(()=>{const names=[...document.querySelectorAll('#artistLibraryMount .artist-library-card')].map(node=>node.dataset.artistCard);return names.length===1&&names[0]==='anmi';});
+  await library.locator('input[name="attribute-line.weight"][value="bold"]').uncheck();
+  await library.locator('input[name="attribute-line.weight"][value="fine"]').check();
+  await searchBox.fill('');
+  await page.waitForFunction(()=>{const names=[...document.querySelectorAll('#artistLibraryMount .artist-library-card')].map(node=>node.dataset.artistCard).sort().join();return names==='anmi,fixture no image,fixture same image';});
+  await library.locator('input[name="confirmedOnly"]').check();
+  await library.getByText('没有符合当前条件的画师。可以清除筛选或搜索其他名称。',{exact:true}).waitFor();
+  await library.locator('input[name="confirmedOnly"]').uncheck();
   await artistCard.waitFor();
-  await page.getByRole('button',{name:'纤细 ×',exact:true}).click();
-  await page.locator('.artist-browser-style-filters summary').click();
-  await page.getByRole('button',{name:'只看收藏',exact:true}).click();
-  await page.waitForFunction(()=>document.querySelectorAll('.artist-browser-card').length===1);
-  await page.setViewportSize({width:360,height:800});
+  await library.locator('input[name="attribute-line.weight"][value="fine"]').uncheck();
+  await library.locator('input[name="favorite"]').check();
+  await page.waitForFunction(()=>[...document.querySelectorAll('#artistLibraryMount .artist-library-card')].map(node=>node.dataset.artistCard).join()==='anmi');
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'artist browsing fits a narrow phone');
   await page.screenshot({path:path.join(temporary,'native-artists.png'),fullPage:false});
   await page.reload();
   await page.waitForFunction(()=>globalThis.NAI_RUNTIME&&!document.querySelector('#appView').classList.contains('hidden'));
   await page.locator('[data-tab="artists"]').click();
-  await page.getByRole('button',{name:'只看收藏',exact:true}).click();
-  await page.waitForFunction(()=>document.querySelectorAll('.artist-browser-card').length===1);
+  await library.locator('.artist-library-card').first().waitFor();
+  await openFilters();
+  await library.locator('input[name="favorite"]').check();
+  await page.waitForFunction(()=>[...document.querySelectorAll('#artistLibraryMount .artist-library-card')].map(node=>node.dataset.artistCard).join()==='anmi');
   const restoredArtist=(await call('/api/artists/profile?artist=anmi')).data.artist;
   assert.equal(restoredArtist.favorite,true);assert.equal(restoredArtist.note,'星空方案，线条与色彩待比较。');
-  await page.locator('.artist-browser-card[data-artist="anmi"]').getByRole('button',{name:'加入画风',exact:true}).click();
+  await libraryCard('anmi').getByRole('button',{name:'把 anmi 加入画风',exact:true}).click();
   await page.locator('[data-tab="editor"]').click();
-  assert.match(await page.locator('#promptPreview').inputValue(),/artist:anmi/);
+  assert.match(await page.locator('#promptPreview').inputValue(),/artist:anmi/,'加入画风 inserts the artist into the prompt');
   const artistBackup=(await call('/api/export')).data;
   assert.deepEqual(artistBackup.artistPreferences,[{artist:'anmi',favorite:true,note:'星空方案，线条与色彩待比较。'}]);
   for(const secret of [token,secondToken,rbqToken])assert.ok(!JSON.stringify(artistBackup).includes(secret));
@@ -405,86 +452,108 @@ try {
   await page.locator('[data-tab="artists"]').click();
   await page.locator('#importFile').setInputFiles({name:'artist-backup.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(artistBackup))});
   await page.getByText('备份已导入，包含 1 位画师的收藏和备注。',{exact:true}).waitFor();
-  const importedCard=page.locator('.artist-browser-card[data-artist="anmi"]');
-  await importedCard.getByRole('button',{name:'取消收藏 anmi',exact:true}).waitFor();
-  await importedCard.getByRole('button',{name:'资料',exact:true}).click();
-  assert.equal(await page.getByRole('textbox',{name:'画师备注',exact:true}).inputValue(),'星空方案，线条与色彩待比较。');
+  await libraryCard('anmi').getByRole('button',{name:'取消收藏 anmi',exact:true}).waitFor();
+  await libraryCard('anmi').getByRole('button',{name:'查看 anmi 的资料与例图',exact:true}).click();
+  await library.locator('.artist-library-detail-tabs').getByRole('button',{name:'资料',exact:true}).click();
+  assert.equal(await noteBox.inputValue(),'星空方案，线条与色彩待比较。','backup import restores the note');
   await page.evaluate(()=>globalThis.fixtureApp.emit('backButton'));
-  await page.getByRole('searchbox',{name:'搜索画师',exact:true}).waitFor();
+  await page.evaluate(()=>globalThis.fixtureApp.emit('backButton'));
+  await library.locator('.artist-library-card').first().waitFor();
+  assert.equal(await libraryBack(),false,'on the list the library leaves back to the host');
   await page.evaluate(()=>globalThis.fixtureApp.emit('backButton'));
   assert.equal(await page.locator('body').evaluate(el=>el.classList.contains('editor-tab-active')),true,'back from the artist list returns to the editor');
   await page.evaluate(()=>globalThis.fixtureApp.emit('backButton'));
   assert.equal(await page.evaluate(()=>globalThis.fixtureApp.minimized),1,'only the final back minimizes the app');
-  await page.locator('[data-tab="artists"]').click();
+  // Resource packs are installed from Settings; the artist page then shows the data.
+  const packSets=async()=>Object.fromEntries((await call('/api/artists/resources/sets')).data.sets.map(row=>[row.id,row.version]));
   await call('/api/artists/profile',{artist:'fixture_artist',favorite:true,note:'保留个人备注'},'PUT');
-  await page.getByRole('button',{name:'导入资料包',exact:true}).click();
-  await page.getByText('已安装 1 位画师的 1 张例图及对应标注。',{exact:true}).waitFor();
+  await page.locator('#openSettingsButton').click();
+  const resources=page.locator('.native-artist-resources'),resourceStatus=resources.locator('p[role="status"]');
+  const resourceButton=name=>resources.getByRole('button',{name,exact:true});
+  const statusStarts=async prefix=>{await page.waitForFunction(({prefix})=>document.querySelector('.native-artist-resources p[role="status"]')?.textContent.startsWith(prefix),{prefix});};
+  await statusStarts('本机已安装 1 个资料包');
+  await resourceButton('导入资料包').click();
+  await statusStarts('已安装 1 位画师的 1 张例图及对应标注。 本机已安装 2 个资料包');
+  assert.equal((await packSets())['pack-a'],'1');
   let importedResource=(await call('/api/artists/profile?artist=fixture_artist')).data.artist;
-  assert.equal(importedResource.resourceSet.version,'1');assert.equal(importedResource.note,'保留个人备注');assert.equal(importedResource.favorite,true);
-  await page.getByRole('searchbox',{name:'搜索画师',exact:true}).fill('fixture_artist');
-  await page.locator('.artist-browser-card[data-artist="Fixture_Artist"]').getByRole('button',{name:'资料',exact:true}).click();
-  await page.waitForFunction(()=>document.querySelector('.artist-example-media img')?.naturalWidth===2);
-  await page.getByRole('button',{name:'‹ 返回画师列表',exact:true}).click();
+  assert.equal(importedResource.resourceSet.id,'pack-a');assert.equal(importedResource.note,'保留个人备注');assert.equal(importedResource.favorite,true);
   packMode='corrupt';
-  await page.getByRole('button',{name:'导入资料包',exact:true}).click();
-  await page.getByText('资料包未安装，原有资料保持不变。',{exact:true}).waitFor();
-  importedResource=(await call('/api/artists/profile?artist=fixture_artist')).data.artist;
-  assert.equal(importedResource.resourceSet.version,'1');assert.deepEqual(discardedPacks,['mock-pack-2']);
-  packMode='cancel';await page.getByRole('button',{name:'导入资料包',exact:true}).click();
-  await page.getByText('已取消导入。',{exact:true}).waitFor();
-  packMode='valid';downloadMode='wait';
-  await page.locator('.artist-pack-download > summary').click();
-  await page.getByText('已有单个 ZIP 下载链接',{exact:true}).click();
-  await page.getByRole('textbox',{name:'资料包下载链接',exact:true}).fill('https://github.com/example/resources/releases/download/v1/artist-pack.zip');
-  await page.getByRole('button',{name:'下载并安装',exact:true}).click();
-  await page.getByText('正在下载 1.0 / 2.0 MB',{exact:true}).waitFor();
-  assert.equal(await page.getByRole('progressbar',{name:'资料包处理进度',exact:true}).getAttribute('value'),'0.5');
-  assert.equal(await page.getByRole('button',{name:'导入资料包',exact:true}).isDisabled(),true);
+  await resourceButton('导入资料包').click();
+  await statusStarts('资料包未安装，原有资料保持不变。');
+  assert.equal((await packSets())['pack-a'],'1');assert.deepEqual(discardedPacks,['mock-pack-2']);
+  packMode='cancel';await resourceButton('导入资料包').click();
+  await statusStarts('已取消导入。');
+  packMode='valid';
+  await resources.getByRole('textbox',{name:'资料目录链接',exact:true}).fill('https://github.com/example/resources/releases/download/v1/catalog.json');
+  await resourceButton('读取目录').click();
+  await statusStarts('已读取资料目录（1 个资料包）。');
+  const downloadAll=resources.locator('button.primary');
+  assert.equal(await downloadAll.textContent(),'下载 1 个资料包（约 22.4 MB）');
+  downloadMode='wait';
+  await downloadAll.click();
+  await statusStarts('正在下载第 1 / 1 个资料包（catalog-test-10）…');
+  assert.equal(await resourceButton('导入资料包').isDisabled(),true);assert.equal(await resourceButton('读取目录').isDisabled(),true);
+  assert.equal(await resources.locator('progress').isVisible(),true);
   await page.screenshot({path:path.join(temporary,'native-pack-progress.png'),fullPage:false});
-  await page.getByRole('button',{name:'取消资料包操作',exact:true}).click();
-  await page.getByText('已取消下载，原有资料保持不变。',{exact:true}).waitFor();
-  assert.equal((await call('/api/artists/profile?artist=fixture_artist')).data.artist.resourceSet.version,'1');
+  await resourceButton('取消').click();
+  await statusStarts('已取消，已安装的资料包保持可用。');
+  assert.equal((await packSets())['catalog-test-10'],undefined,'a cancelled download installs nothing');
+  assert.equal(packDownloads.length,1);
+  // Commit cannot be interrupted, and a stale cancel acknowledgement cannot affect a newer operation.
   downloadMode='valid';installBarrier=new Promise(resolve=>{resumeInstall=resolve;});
-  await page.getByRole('button',{name:'下载并安装',exact:true}).click();
-  await page.getByText('正在安装资料，请保持应用在前台…',{exact:true}).waitFor();
+  await resourceButton('导入资料包').click();
+  { const deadline=Date.now()+5000;let phase='';while((phase=(await call('/api/artists/resources/status')).data.phase)!=='install'&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,50));assert.equal(phase,'install','import reached the commit phase'); }
   resumeCancelAck();await page.waitForTimeout(80);
-  await page.getByText('正在安装资料，请保持应用在前台…',{exact:true}).waitFor();
-  assert.equal(await page.getByRole('button',{name:'取消资料包操作',exact:true}).isDisabled(),true);
+  assert.equal(await resourceButton('取消').isVisible(),true,'a late acknowledgement of the earlier cancel does not end this operation');
+  await resourceButton('取消').click();
   assert.equal((await call('/api/artists/resources/cancel',{},'POST')).data.accepted,false,'commit cannot be interrupted halfway');
   resumeInstall();installBarrier=null;
-  await page.getByText('已安装 1 位画师的 1 张例图及对应标注。',{exact:true}).waitFor();
-  assert.equal((await call('/api/artists/profile?artist=fixture_artist')).data.artist.resourceSet.version,'3');
-  assert.equal(packDownloads.length,2);for(const download of packDownloads)assert.ok(!JSON.stringify(download).includes(token)&&!JSON.stringify(download).includes(rbqToken));
-  await page.getByRole('textbox',{name:'资料目录链接',exact:true}).fill('https://github.com/example/resources/releases/download/v1/catalog.json');
-  await page.getByRole('button',{name:'读取资料目录',exact:true}).click();
-  await page.getByText('已读取 1 个资料包。可按画师名查找并选择下载。',{exact:true}).waitFor();
-  await page.getByRole('searchbox',{name:'查找画师资料包',exact:true}).fill('absent artist');
-  await page.getByText('没有包含该画师的资料包。',{exact:true}).waitFor();
-  await page.getByRole('searchbox',{name:'查找画师资料包',exact:true}).fill('catalog artist');
-  const catalogCard=page.locator('[data-pack-id="catalog-test-10"]');await catalogCard.waitFor();
-  await catalogCard.scrollIntoViewIfNeeded();
-  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'catalog fits the narrow viewport');
-  await page.screenshot({path:path.join(temporary,'native-catalog-narrow.png'),fullPage:false});
-  packMode='catalog-mismatch';await catalogCard.getByRole('button',{name:'下载并安装此包',exact:true}).click();
-  await page.getByText('资料包未安装，原有资料保持不变。',{exact:true}).waitFor();
-  assert.ok(discardedPacks.includes('mock-pack-4'));assert.equal((await call('/api/artists/profile?artist=fixture_artist')).data.artist.resourceSet.version,'3');
-  packMode='valid';await catalogCard.getByRole('button',{name:'下载并安装此包',exact:true}).click();
-  await page.waitForFunction(()=>document.querySelector('[data-pack-id="catalog-test-10"] button')?.textContent==='已安装此版本');
-  assert.equal(await catalogCard.getByRole('button',{name:'已安装此版本',exact:true}).isDisabled(),true);
-  assert.equal((await call('/api/artists/profile?artist=catalog_artist')).data.artist.resourceSet.version,'catalog-v1');
+  await statusStarts('已安装 1 位画师的 1 张例图及对应标注。');
+  assert.equal((await packSets())['pack-a'],'3');
+  packMode='catalog-mismatch';await downloadAll.click();
+  await statusStarts('资料包未安装，已安装的资料保持可用。');
+  assert.ok(discardedPacks.includes('mock-pack-4'));assert.equal((await packSets())['catalog-test-10'],undefined);assert.equal((await packSets())['pack-a'],'3');
+  packMode='valid';await downloadAll.click();
+  await statusStarts('已安装 1 个资料包。');
+  assert.equal(await downloadAll.textContent(),'已是目录中的最新版本');assert.equal(await downloadAll.isDisabled(),true);
+  assert.equal((await packSets())['catalog-test-10'],'catalog-v1');
+  assert.equal((await call('/api/artists/profile?artist=catalog_artist')).data.artist.resourceSet.id,'catalog-test-10');
+  assert.equal(packDownloads.length,3);for(const download of packDownloads)assert.ok(!JSON.stringify(download).includes(token)&&!JSON.stringify(download).includes(rbqToken));
   assert.equal(packDownloads.at(-1).sha256,'a'.repeat(64));assert.equal(packDownloads.at(-1).expectedVersion,'catalog-v1');
-  await page.setViewportSize({width:820,height:900});await catalogCard.scrollIntoViewIfNeeded();
+  await resources.scrollIntoViewIfNeeded();
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'resource settings fit the narrow viewport');
+  await page.screenshot({path:path.join(temporary,'native-catalog-narrow.png'),fullPage:false});
+  await page.setViewportSize({width:820,height:900});await resources.scrollIntoViewIfNeeded();
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await page.screenshot({path:path.join(temporary,'native-catalog-wide.png'),fullPage:false});
+  await page.locator('#closeSettingsButton').click();
+  await page.locator('[data-tab="artists"]').click();
+  await searchBox.fill('fixture_artist');
+  await libraryCard('fixture artist').getByRole('button',{name:'取消收藏 fixture artist',exact:true}).waitFor();
+  await libraryCard('fixture artist').getByRole('button',{name:'查看 fixture artist 的资料与例图',exact:true}).click();
+  await library.locator('.artist-library-example-image').first().scrollIntoViewIfNeeded();
+  await page.waitForFunction(()=>document.querySelector('#artistLibraryMount .artist-library-example-image')?.naturalWidth===2,{},{timeout:10000});
+  await page.evaluate(()=>globalThis.fixtureApp.emit('backButton'));
+  await searchBox.fill('catalog_artist');
+  await libraryCard('catalog artist').waitFor();
   await page.reload();
   await page.waitForFunction(()=>globalThis.NAI_RUNTIME&&!document.querySelector('#appView').classList.contains('hidden'));
   assert.ok(recoveryCalls.length>=2,'startup reconciles from committed storage after a WebView reload');
   assert.ok(recoveryCalls.at(-1).includes('mock-pack-3'));
-  assert.equal((await call('/api/artists/profile?artist=fixture_artist')).data.artist.resourceSet.version,'3');
+  assert.equal((await packSets())['pack-a'],'3');
   await fs.access(local('artist-resources/mock-pack-1/pack-example-preview.png'));
-  assert.equal(await page.locator('[data-open-artist-rotation]').count(),0,'public browsing does not expose private automation');
+  await page.locator('[data-tab="artists"]').click();
+  await library.locator('.artist-library-card').first().waitFor();
+  assert.equal(await page.locator('[data-open-artist-rotation]:visible').count(),0,'public browsing does not expose private automation');
+  // Annotation-only example: the thumbnail is fetched once from the Danbooru CDN through native HTTP, then served from the local cache.
+  db.prepare('INSERT INTO artist_resource_examples(id,artist,position,source_url,width,height,note,metadata_json,thumb_ext,preview_ext) VALUES (?,?,?,?,?,?,?,?,?,?)')
+    .run('remote-fixture','anmi',9,'',2,2,'',JSON.stringify({remoteImages:{thumb:'https://cdn.donmai.us/360x360/ed/f8/edf829c359d0737baa2999ca09e3952c.jpg',preview:'https://cdn.donmai.us/720x720/ed/f8/edf829c359d0737baa2999ca09e3952c.webp'}}),'remote','remote');
+  const remoteRead=()=>page.evaluate(async()=>{const response=await fetch('/api/artists/resources/image?id=remote-fixture&tier=thumb');return [response.status,response.headers.get('content-type'),(await response.arrayBuffer()).byteLength];});
+  assert.deepEqual(await remoteRead(),[200,'image/jpeg',24]);assert.deepEqual(await remoteRead(),[200,'image/jpeg',24]);
+  assert.deepEqual(danbooruCalls,['/360x360/ed/f8/edf829c359d0737baa2999ca09e3952c.jpg'],'second read comes from the local cache');
+  await fs.access(local('artist-cache/remote-fixture-thumb.jpg'));
   assert.deepEqual(errors,[]);
-  console.log('Offline native wiring passed: UI token entry/rollback, dual-provider routing, Vibe consent/cache, gallery/export, public NAX preview, artist browsing/search/favorites/notes/reload/Prompt insertion/backup import, native back/draft retention and 360px layout. No upstream network used.');
+  console.log('Offline native wiring passed: UI token entry/rollback, dual-provider routing, Vibe consent/cache, gallery/export, public NAX preview, shared artist library (search/favourites/资料 notes/style filters/reload/Prompt insertion/backup import, no management), Settings resource packs (import/catalog/download/cancel/atomic commit), native back through panels/detail/list and 360px layout. No upstream network used.');
   console.log(`Screenshot: ${path.join(temporary,'native-gallery.png')}`);
 } finally { if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));db.close(); }
 }

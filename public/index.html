@@ -9,7 +9,7 @@
   <link rel="icon" href="/icons/icon-flow-192.png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="stylesheet" href="/styles.css?v=1.6.81">
-  
+  <link rel="stylesheet" href="/artist-library.css">
   <link rel="stylesheet" href="/workspace.css?v=1.6.81">
   <link rel="stylesheet" href="/tag-chips.css?v=1.6.81">
 <link rel="stylesheet" href="/native.css">
@@ -548,7 +548,7 @@
       <section id="positionSheet" class="position-sheet" role="dialog" aria-label="角色站位" data-new-layout-only="">
         <div class="position-sheet-head">
           <strong>站位</strong>
-          <button id="positionAuto" class="position-auto" type="button" aria-pressed="true" title="交给模型自动安排全部角色">AUTO</button>
+          <button id="positionAuto" class="position-auto" type="button" aria-pressed="true" title="交给模型自动安排全部角色">自动</button>
           <button id="positionSheetClose" class="command-icon-button" type="button" aria-label="关闭站位">✕</button>
         </div>
         <div id="positionStrip" class="position-strip" role="group" aria-label="选择角色"></div>
@@ -738,6 +738,7 @@
     </div>
     <div class="semantic-body">
       <section class="semantic-search-workbench">
+        <p class="semantic-step" data-new-layout-only=""><b>① 查词</b><small>用一句话描述想要的元素，找到对应的 Danbooru Tag</small></p>
         <label>自然语言、模糊写法或完整画面描述
           <textarea id="semanticQuery" rows="3" spellcheck="false" enterkeyhint="search" placeholder="例如：低机位仰视人物；紧身衣勒入皮肤；城市雨夜积水反光"></textarea>
         </label>
@@ -830,6 +831,7 @@
 
       <section class="semantic-recommendation-panel">
         <div class="panel-title-row semantic-recommendation-heading compact-section-heading">
+          <p class="semantic-step" data-new-layout-only=""><b>② 联想</b><small>从已有 Tag 找相关标签和画师</small></p>
           <strong>关联探索</strong>
           <div class="semantic-seed-chips" role="group" aria-label="推荐依据" data-new-layout-only="">
             <button type="button" data-semantic-seed-chip="selected">所选</button>

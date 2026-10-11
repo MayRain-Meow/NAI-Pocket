@@ -1,6 +1,6 @@
 {
   "name": "nai-pocket-android",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,7 +9,7 @@
     "android": "node scripts/android.mjs",
     "android:release": "node scripts/android.mjs release",
     "test:offline": "node tests/offline-integration.mjs",
-    "test:queue": "node --check src/queue-runner.js && node --check src/queue.js && node --check src/api.js && node tests/queue-runner.test.mjs",
+    "test:queue": "node --check src/queue-runner.js && node --check src/queue.js && node --check src/api.js && node tests/queue-runner.test.mjs && node tests/phone-gallery.test.mjs",
     "test:artist-resources": "node scripts/test-artist-resources.mjs",
     "preview:offline": "npm run build && node tests/offline-integration.mjs --preview"
   },

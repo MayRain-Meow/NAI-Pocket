@@ -6,7 +6,7 @@ import { createSchemesService } from '../../service/schemes.js';
 import { createSchemesStore } from '../../service/storage/schemes.js';
 import { sanitizeGenerationState } from '../../public/generation-payload.js';
 import { openDatabase } from './sqlite.js';
-import { openProviders } from './providers.js';
+import { openProviders, PocketNative } from './providers.js';
 import { nativeFetch } from './http.js';
 import { openAssets } from './assets.js';
 import { inflateRaw } from './codecs.js';
@@ -15,8 +15,32 @@ import { openQueue } from './queue.js';
 import { openReferences } from './references.js';
 import { createLocalApi } from './api.js';
 import { settings } from './settings.js';
+import { artistResourcesSection } from './artist-resources-section.js';
+import { createImageLoader } from './image-loader.js';
+import { DEFAULT_ARTIST_CATALOG_URL } from './artist-resource-source.js';
 
 document.body.classList.add('native-mode');
+// Native-only settings row, created here so the shared web markup stays unchanged.
+async function phoneAlbumSection(queue) {
+  const section = document.createElement('section'); section.className = 'settings-dialog-section native-album-section';
+  const heading = document.createElement('div'); heading.className = 'settings-section-heading';
+  const eyebrow = document.createElement('span'); eyebrow.className = 'workspace-eyebrow'; eyebrow.textContent = 'Album';
+  const title = document.createElement('h2'); title.textContent = '手机相册'; heading.append(eyebrow, title);
+  const label = document.createElement('label'); label.className = 'native-album-toggle';
+  const input = document.createElement('input'); input.type = 'checkbox'; input.id = 'nativePhoneAlbumToggle';
+  const text = document.createElement('span'); text.textContent = '保存到手机相册'; label.append(input, text);
+  const hint = document.createElement('p'); hint.className = 'hint';
+  hint.textContent = '生成完成后另存一份原图到系统相册 Pictures/NAI Pocket；应用内图库不受影响，复制失败也不影响任务。';
+  try { input.checked = await queue.phoneGallery.enabled(); } catch { input.checked = true; }
+  input.addEventListener('change', async () => {
+    const wanted = input.checked;
+    try {
+      await queue.phoneGallery.setEnabled(wanted);
+      if (wanted && !(await PocketNative.requestGalleryAccess()).granted) notice('未获得存储权限，新图片不会复制到手机相册；应用内图库照常保存。');
+    } catch (error) { input.checked = await queue.phoneGallery.enabled().catch(() => !wanted); notice(error.message); }
+  });
+  section.append(heading, label, hint); return section;
+}
 const notice = message => {
   const host = document.getElementById('toastHost');
   const text = document.createElement('div'); text.className = 'toast error'; text.textContent = message; host?.append(text);
@@ -42,7 +66,7 @@ try {
     const url = new URL(input instanceof Request ? input.url : input, location.origin);
     return url.origin === location.origin && url.pathname.startsWith('/api/') ? api.fetch(input, options) : browserFetch(input, options);
   };
-  globalThis.NAI_RUNTIME = { native: true, download: url => api.download(url) };
+  globalThis.NAI_RUNTIME = { native: true, download: url => api.download(url), loadImage: createImageLoader(url => api.fetch(url)) };
   const settingsBody = document.querySelector('.settings-dialog-body') || document.querySelector('#settingsDialog .dialog-body');
   const licenseButton = document.createElement('button'); licenseButton.className = 'ghost'; licenseButton.textContent = '关于 / 开源许可';
   licenseButton.addEventListener('click', async () => {
@@ -54,7 +78,11 @@ try {
       dialog.append(heading, close, content); dialog.addEventListener('close', () => dialog.remove()); document.body.append(dialog); dialog.showModal();
     } catch (error) { notice(error.message); }
   });
-  settingsBody?.append(licenseButton);
+  const request = async (path, { method = 'GET', body } = {}) => {
+    const response = await api.fetch(path, { method, ...(body ? { body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } } : {}) });
+    const data = await response.json(); if (!response.ok) throw new Error(data.error || '本机操作失败。'); return data;
+  };
+  settingsBody?.append(await phoneAlbumSection(queue), artistResourcesSection({ request, defaultCatalogUrl: DEFAULT_ARTIST_CATALOG_URL, notice }), licenseButton);
   await media.registerAll();
   await import('../../public/app.js');
   await queue.start();

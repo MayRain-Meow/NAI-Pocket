@@ -14,11 +14,11 @@ const fail=message=>{throw new Error(message);};
 const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
 const compare=(a,b)=>a<b?-1:a>b?1:0;
 export const artistShard=artist=>(createHash('sha256').update(normalizeArtistIdentity(artist)).digest()[0]&63).toString(16).padStart(2,'0');
-function fields(value,allowed,label) {
+export function fields(value,allowed,label) {
   if(!value||typeof value!=='object'||Array.isArray(value))fail(`${label}: expected an object`);
   if(Object.keys(value).some(key=>!allowed.includes(key)))fail(`${label}: unexpected field; prepare a selected public-data input`);
 }
-function scan(value,location='source') {
+export function scan(value,location='source') {
   if(typeof value==='string') {
     // A public source URL can legitimately contain /home/. Unix paths start
     // at a text boundary; credentials are still scanned throughout the value.
@@ -44,7 +44,7 @@ export async function readPreparedArtistImage(root,name) {
 
 // Stored ZIP entries keep existing WebP bytes unchanged. Fixed headers produce
 // identical archives from identical prepared inputs, independently of file dates.
-async function writeZip(target,manifest,images,root) {
+export async function writeZip(target,manifest,images,root) {
   const temporary=target+'.partial',handle=await fs.open(temporary,'wx'),hash=createHash('sha256');
   let offset=0;const central=[];
   async function write(bytes) {
@@ -72,7 +72,7 @@ async function writeZip(target,manifest,images,root) {
     return {bytes:offset,sha256:hash.digest('hex')};
   } catch(error) {await handle.close().catch(()=>{});await fs.unlink(temporary).catch(()=>{});throw error;}
 }
-function coverage(artists) {
+export function coverage(artists) {
   const examples=artists.flatMap(row=>row.examples),observations=examples.flatMap(row=>row.observations);
   return {artists:artists.length,examples:examples.length,annotatedExamples:examples.filter(row=>row.observations.length).length,
     manualReviewedExamples:examples.filter(row=>row.observations.some(item=>item.source==='manual'&&item.reviewed)).length,
@@ -115,6 +115,10 @@ export async function prepareArtistCollection({sourceFile,imageDirectory}) {
     validateArtistPack(manifest);
     if(!buckets.has(shard))buckets.set(shard,{...manifest,artists:[]});buckets.get(shard).artists.push(artist);
   }
+  return {source,packs:finishArtistShards(buckets),imageRoot};
+}
+// Sorted, validated shard manifests with the native size bounds enforced.
+export function finishArtistShards(buckets) {
   const packs=[];
   for(const [shard,manifest] of [...buckets].sort(([a],[b])=>compare(a,b))) {
     manifest.artists.sort((a,b)=>compare(normalizeArtistIdentity(a.artist),normalizeArtistIdentity(b.artist)));
@@ -124,10 +128,15 @@ export async function prepareArtistCollection({sourceFile,imageDirectory}) {
     if(bytes.length>limits.manifestBytes||extracted>limits.totalBytes||zipBytes>limits.totalBytes)fail(`Shard ${shard} exceeds native limits; do not silently change published ownership`);
     packs.push({manifest,bytes,files:pack.files});
   }
-  return {source,packs,imageRoot};
+  return packs;
 }
 export async function buildArtistPacks({sourceFile,imageDirectory,outputDirectory}) {
-  const output=path.resolve(outputDirectory),{source,packs,imageRoot}=await prepareArtistCollection({sourceFile,imageDirectory});
+  const {source,packs,imageRoot}=await prepareArtistCollection({sourceFile,imageDirectory});
+  return writeArtistPackOutput({source,packs,imageRoot,outputDirectory});
+}
+// Shared by the annotation-only producer: same ZIP layout, catalog and ordering.
+export async function writeArtistPackOutput({source,packs,imageRoot,outputDirectory}) {
+  const output=path.resolve(outputDirectory);
   // Refuse to overwrite prior output. The catalog is written last; failure leaves
   // an explicitly incomplete staging output for diagnosis, never a ready catalog.
   await fs.mkdir(output);

@@ -48,7 +48,7 @@ export function createArtistResourceStore(db, transaction) {
       }
     }),
     image: flow(function* (id) {
-      return yield db.prepare(`SELECT e.id,e.thumb_ext,e.preview_ext,p.set_id,COALESCE(s.directory,p.set_id) AS storage_id
+      return yield db.prepare(`SELECT e.id,e.thumb_ext,e.preview_ext,e.metadata_json,p.set_id,COALESCE(s.directory,p.set_id) AS storage_id
         FROM artist_resource_examples e JOIN artist_resource_profiles p ON p.artist=e.artist
         LEFT JOIN artist_resource_storage s ON s.set_id=p.set_id WHERE e.id=?`).get(id);
     }),
@@ -73,7 +73,10 @@ export function createArtistResourceStore(db, transaction) {
           yield db.prepare('INSERT INTO artist_resource_profiles(artist,display_name,aliases_json,set_id) VALUES (?,?,?,?)').run(artist.artist,artist.displayName,JSON.stringify(artist.aliases),pack.id);
           for(const [position,example] of artist.examples.entries()) {
             yield db.prepare(`INSERT INTO artist_resource_examples(id,artist,position,source_url,width,height,note,metadata_json,thumb_ext,preview_ext)
-              VALUES (?,?,?,?,?,?,?,?,?,?)`).run(example.id,artist.artist,position,example.sourceUrl,example.width,example.height,example.note,JSON.stringify(example.metadata),example.images.thumb.ext,example.images.preview.ext);
+              VALUES (?,?,?,?,?,?,?,?,?,?)`).run(example.id,artist.artist,position,example.sourceUrl,example.width,example.height,example.note,
+              // Annotation-only examples: 'remote' tiers; the validated CDN URLs live in metadata_json.
+              JSON.stringify(example.remoteImages?{...example.metadata,remoteImages:example.remoteImages}:example.metadata),
+              example.images?.thumb.ext??'remote',example.images?.preview.ext??'remote');
             for(const item of example.observations)yield db.prepare(`INSERT INTO artist_resource_observations(id,example_id,model,facets_json,attributes_json,note,schema_version,source,reviewed,provenance_json,updated_at)
               VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(item.id,item.exampleId,item.model,JSON.stringify(item.facets),JSON.stringify(item.attributes),item.note,item.schemaVersion,item.source,item.reviewed?1:0,JSON.stringify(item.provenance),item.updatedAt);
           }

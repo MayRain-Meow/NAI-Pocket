@@ -4,7 +4,8 @@ import { parse, serialize } from 'parse5';
 export function publicCss(source) {
   const root = postcss.parse(source);
   root.walkComments(comment => { if (!/^!|license|copyright/i.test(comment.text.trim())) comment.remove(); });
-  const privateSelector = /artist-library|artist-automation|artist-panel|artist-ingestion|artist-annotation|nax-mirror|#artistsTab|annotation-settings|visitor-settings|renewal-settings/i;
+  // The artist-library UI ships in the app (owner decision 2026-10-10); management panels do not.
+  const privateSelector = /artist-automation|artist-ingestion|nax-mirror|annotation-settings|visitor-settings|renewal-settings/i;
   root.walkRules(rule => { rule.selectors = rule.selectors.filter(selector => !privateSelector.test(selector)); if (!rule.selectors.length) rule.remove(); });
   root.walkAtRules(rule => { if (rule.nodes && !rule.nodes.length) rule.remove(); });
   return root.toString();
@@ -21,7 +22,8 @@ export function publicHtml(source) {
       const attrs = Object.fromEntries((child.attrs || []).map(attr => [attr.name, attr.value]));
       if (privateIds.has(attrs.id) || String(attrs.class || '').split(/\s+/).some(value => privateClasses.has(value))) return false;
       if (attrs['data-tab'] === 'storm' || attrs['data-menu-action'] === 'renewal' || attrs['data-gallery-proxy'] === 'storageAuditButton' || attrs['data-proxy'] === '#logoutButton') return false;
-      if (child.tagName === 'link' && /artist-library\.css|manifest\.webmanifest/.test(attrs.href || '')) return false;
+      if (child.tagName === 'link' && /manifest\.webmanifest/.test(attrs.href || '')) return false;
+      if (child.tagName === 'link' && /^\/artist-library\.css/.test(attrs.href || '')) child.attrs.find(attr => attr.name === 'href').value = '/artist-library.css';
       if (child.tagName === 'script' && /^\/app\.js/.test(attrs.src || '')) child.attrs.find(attr => attr.name === 'src').value = '/main.js';
       walk(child); return true;
     });

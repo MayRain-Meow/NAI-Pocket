@@ -11,7 +11,9 @@ import { createPngInspector } from '../../service/inspect-png.js';
 import { createNaxPreviewClient } from '../../service/nax-preview.js';
 import { createArtistBrowserService } from '../../service/artist-browser.js';
 import { createArtistBrowserStore } from '../../service/storage/artist-browser.js';
-import { createArtistResourceService } from '../../service/artist-resources.js';
+import { createArtistResourceService, artistResourceImageUrl } from '../../service/artist-resources.js';
+import { createArtistLibraryView } from '../../service/artist-library-view.js';
+import { createArtistLibraryViewStore } from '../../service/storage/artist-library-view.js';
 import { createArtistResourceStore } from '../../service/storage/artist-resources.js';
 import { extractStandardPngMetadata, decodeRgbaPng, extractStealthMetadataFromRgba } from '../../public/png-metadata.js';
 import { nativeFiles, localPath } from './files.js';
@@ -21,7 +23,7 @@ import artistRoster from './artist-roster.json';
 import { withArtistCatalogSource } from './artist-resource-source.js';
 
 export function openReferences(database, settings, http) {
-  const artistResources = createArtistResourceService({ store:database.store(createArtistResourceStore(database.db)), files:nativeFiles });
+  const artistResources = createArtistResourceService({ store:database.store(createArtistResourceStore(database.db)), files:nativeFiles, http });
   const translations = createTranslationService({ store: database.store(createTranslationStore(database.db)), settings, http });
   const search = createSearchService({ settings, http, cache: database.store(createSearchCacheStore(database.db)), hash: hashBytes, recordPublicTagNames: translations.recordPublicTagNames });
   const cache = {
@@ -50,6 +52,8 @@ export function openReferences(database, settings, http) {
   return { translations, search, codex: createCodexService({ cache, http }), tagger: createTaggerService({ hash: hashBytes, http }),
     naxPreview: createNaxPreviewClient({ binary: Buffer, http }),
     artistResources, artistPacks:openArtistPacks(database),
+    artistLibrary: createArtistLibraryView({ store: database.store(createArtistLibraryViewStore(database.db)),
+      preferences: database.store(createArtistBrowserStore(database.db)), roster: artistRoster.artists, imageUrl: artistResourceImageUrl }),
     artists: withArtistCatalogSource(createArtistBrowserService({ store: database.store(createArtistBrowserStore(database.db)), resources:artistResources,
       names:[], roster:artistRoster.artists })),
     ...createTranslationRefresh({ semanticSearch: search.semanticSearch, translateText: translations.translateText }), ...inspector };

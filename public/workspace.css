@@ -213,7 +213,7 @@ input:focus, textarea:focus, select:focus { border-color: #76644e; box-shadow: 0
 .storm-artist-chip, .storm-external-artist-chip { border-color: #554a3c; background: #2a2721; color: var(--accent); }
 
 .artist-workspace-tab { min-height: calc(100dvh - 58px); }
- { min-height: calc(100dvh - 58px); }
+.artist-library-mount { min-height: calc(100dvh - 58px); }
 
 .standalone { width: min(calc(100% - 56px), 1280px); max-width: 1280px; margin: 28px auto 110px; padding: 22px; }
 .queue-panel > .panel-title-row, .scheme-library-panel > .panel-title-row, .gallery-panel > .panel-title-row { align-items: center; padding-bottom: 15px; border-bottom: 1px solid var(--line); }
@@ -283,7 +283,7 @@ input:focus, textarea:focus, select:focus { border-color: #76644e; box-shadow: 0
 .workspace-choice-dialog .dialog-actions button { min-width: 92px; }
 
 .dialog-header { border-color: var(--line); background: #1b1c19; }
- { color: var(--text); }
+dialog:not(.artist-library-dialog) { color: var(--text); }
 .image-dialog, .json-dialog, .inspect-dialog, .semantic-dialog, .scheme-dialog, .image-picker-dialog, .nai-import-dialog, .action-choice-dialog, .tag-editor-dialog, .artist-preview-dialog { border-color: #47473f; background: var(--panel); box-shadow: 0 28px 90px #000d; }
 .dialog-image-wrap, .inspect-preview-wrap, .artist-preview-stage { background: #11120f; }
 

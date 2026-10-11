@@ -18,3 +18,15 @@ export function catalogFixture() {
   return {staged,catalog:{format:'nai-pocket-artist-catalog',formatVersion:1,id:'catalog-test',version:'catalog-v1',title:'原作例图与逐图标注 · 合成目录测试',synthetic:true,
     partition:'sha256-normalized-name-byte0-and63-v1',...coverage,shards:[{id:'catalog-test-10',file:'catalog-test-10.zip',version:'catalog-v1',bytes:23456789,sha256:'a'.repeat(64),artistNames:['Catalog_Artist'],...coverage}]}};
 }
+
+// Annotation-only pack: the example points at public Danbooru CDN renditions.
+export const REMOTE_MD5='edf829c359d0737baa2999ca09e3952c';
+export function remotePackFixture({version='remote-one',directory='remote-stage',id='pack-remote'}={}) {
+  const staged=packFixture({version,directory}),example=staged.manifest.artists[0].examples[0];
+  staged.manifest.id=id;staged.manifest.artists[0].artist='Remote_Artist';
+  example.id='remote-example';example.observations[0].id='remote-observation';example.observations[0].exampleId=example.id;
+  example.metadata={provider:'Danbooru',postId:1,rating:'g',remoteMd5:REMOTE_MD5,variant:{type:'720x720',width:2,height:2,fileExt:'webp'}};
+  delete example.images;
+  example.remoteImages={thumb:`https://cdn.donmai.us/360x360/ed/f8/${REMOTE_MD5}.jpg`,preview:`https://cdn.donmai.us/720x720/ed/f8/${REMOTE_MD5}.webp`};
+  return {...staged,files:[]};
+}
