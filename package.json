@@ -1,6 +1,6 @@
 {
   "name": "nai-pocket",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "private": true,
   "type": "module",
   "license": "AGPL-3.0-only",
@@ -9,6 +9,6 @@
   },
   "scripts": {
     "build": "npm --prefix app run build",
-    "test": "node tests/storage-ports.test.mjs && node tests/queue-worker-shared.test.mjs && node tests/generation-client.test.mjs && node tests/nax-preview-portable.test.mjs && node tests/artist-browser-service.test.mjs && node tests/artist-backup.test.mjs && node tests/artist-resources.test.mjs && node tests/artist-pack.test.mjs && node tests/artist-pack-producer.test.mjs && node tests/artist-pack-catalog.test.mjs && node tests/artist-roster-producer.test.mjs && node tests/artist-pack-remote.test.mjs && node tests/artist-pack-annotation-producer.test.mjs"
+    "test": "node tests/storage-ports.test.mjs && node tests/queue-worker-shared.test.mjs && node tests/generation-client.test.mjs && node tests/nax-preview-portable.test.mjs && node tests/artist-browser-service.test.mjs && node tests/artist-backup.test.mjs && node tests/artist-resources.test.mjs && node tests/artist-pack.test.mjs && node tests/artist-pack-producer.test.mjs && node tests/artist-pack-catalog.test.mjs && node tests/artist-roster-producer.test.mjs && node tests/artist-pack-remote.test.mjs && node tests/artist-pack-annotation-producer.test.mjs && node tests/artist-library-view-paging.test.mjs"
   }
 }

@@ -1559,12 +1559,15 @@ body:not(.tag-layout-legacy) [data-artist-panel="tasks"] [data-automation-action
 .codex-grid > .codex-col { display: flex; flex: 1 1 0; flex-direction: column; min-width: 0; }
 .codex-grid > .codex-empty { flex: 1 1 100%; }
 body:not(.tag-layout-legacy) .tag-add:not(.character-tag-add),
-body:not(.tag-layout-legacy) .character-tag-add { grid-template-columns: minmax(0, 1fr) auto auto auto; column-gap: 0; }
+body:not(.tag-layout-legacy) .character-tag-add { display: flex; align-items: center; gap: 4px; }
+body:not(.tag-layout-legacy) .tag-add > input { flex: 1 1 0%; min-width: 0; }
 body:not(.tag-layout-legacy) .tag-add .tag-extra-actions { display: contents; }
-body:not(.tag-layout-legacy) .tag-add .tag-add-button { width: 34px; min-width: 34px; height: 30px; min-height: 30px; margin-left: 8px; border-radius: 15px 0 0 15px; }
-body:not(.tag-layout-legacy) .tag-add .tag-extra-actions > .whole-add-button { height: 30px; min-height: 30px; padding: 0 11px 0 9px; border-radius: 0 15px 15px 0; background: color-mix(in srgb, var(--hue, var(--accent)) 13%, transparent); box-shadow: inset 1px 0 0 color-mix(in srgb, var(--hue, var(--accent)) 35%, transparent); color: var(--hue, var(--accent)); font-weight: 600; }
+body:not(.tag-layout-legacy) .tag-add .tag-add-button { order: 2; flex: none; }
+body:not(.tag-layout-legacy) .tag-add .tag-extra-actions > .whole-add-button { order: 1; flex: none; height: 30px; min-height: 30px; padding: 0 6px; background: none; box-shadow: none; color: var(--hue, var(--accent)); font-size: 12.5px; font-weight: 650; }
 body:not(.tag-layout-legacy) .tag-add .tag-extra-actions > .whole-add-button::before { content: none; }
-body:not(.tag-layout-legacy) .tag-add .tag-extra-actions > .semantic-open-button { height: 30px; min-height: 30px; margin-left: 8px; padding: 0 9px; background: none; box-shadow: inset 0 0 0 1px #ffffff14; }
+body:not(.tag-layout-legacy) .tag-add:not(.has-multiple) .tag-extra-actions > .whole-add-button { display: none; }
+body:not(.tag-layout-legacy) .tag-add .tag-extra-actions > .semantic-open-button { order: 3; flex: none; width: 30px; min-width: 30px; height: 30px; padding: 0; justify-content: center; border-radius: 50%; background: none; box-shadow: none; font-size: 0; }
+body:not(.tag-layout-legacy) .tag-add .tag-extra-actions > .semantic-open-button::before { font-size: 15px; opacity: .85; }
 body:not(.tag-layout-legacy).position-sheet-open .position-sheet { gap: 12px; }
 .position-auto { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 4px 0 10px; border-radius: 16px; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--muted); }
 .position-auto::after { width: 34px; height: 20px; border-radius: 10px; background: #ffffff1a radial-gradient(circle at 10px 50%, #cfc8bc 6px, transparent 6.5px); content: ""; transition: background .15s; }
@@ -1576,17 +1579,25 @@ body:not(.tag-layout-legacy).position-sheet-open .position-sheet { gap: 12px; }
 .position-auto-note { right: 10px; bottom: 8px; padding: 2px 8px; border-radius: 10px; background: #0000004d; }
 .position-readout { justify-self: center; padding: 6px 14px; border-radius: 16px; background: #ffffff0a; font-size: 13px; }
 .position-readout.manual { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--text); }
-.semantic-step { display: none; }
-body:not(.tag-layout-legacy) #semanticDialog .semantic-step { display: grid; gap: 2px; margin: 0; }
-body:not(.tag-layout-legacy) #semanticDialog .semantic-step b { color: var(--hue); font-size: 14px; font-weight: 750; letter-spacing: .04em; }
-body:not(.tag-layout-legacy) #semanticDialog .semantic-step small { color: var(--muted); font-size: 12px; }
-body:not(.tag-layout-legacy) #semanticDialog .semantic-recommendation-heading > strong { display: none; }
-body:not(.tag-layout-legacy) #semanticDialog .semantic-recommendation-heading { display: grid; gap: 10px; }
+body:not(.tag-layout-legacy) #semanticDialog .semantic-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin: 4px 0 14px; padding: 3px; border-radius: 19px; background: #ffffff0b; }
+body:not(.tag-layout-legacy) #semanticDialog .semantic-tabs button { min-height: 34px; height: 34px; border: 0; border-radius: 16px; background: none; color: var(--muted); font-size: 14px; font-weight: 650; box-shadow: none; }
+body:not(.tag-layout-legacy) #semanticDialog .semantic-tabs button[aria-selected="true"] { background: color-mix(in srgb, var(--hue) 22%, transparent); color: var(--hue); }
+.semantic-tabs { display: none; }
+body:not(.tag-layout-legacy) #semanticDialog[data-tab="explore"] :is(.semantic-search-workbench, #semanticStatus, .semantic-result-toolbar, #semanticResults) { display: none; }
+body:not(.tag-layout-legacy) #semanticDialog:not([data-tab="explore"]) .semantic-recommendation-panel { display: none; }
+body:not(.tag-layout-legacy) #semanticDialog .semantic-recommendation-panel { margin-top: 0; padding-top: 0; border-top: 0; }
+body:not(.tag-layout-legacy) #semanticDialog .semantic-recommendation-heading > strong,
+body:not(.tag-layout-legacy) #semanticDialog #semanticAdvancedSummary { display: none; }
 body:not(.tag-layout-legacy) #semanticDialog :is(.semantic-mode-chips, .semantic-seed-chips) { flex-wrap: nowrap; gap: 0; padding: 2px; border-radius: 17px; background: #ffffff0b; width: fit-content; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 body:not(.tag-layout-legacy) #semanticDialog :is(.semantic-mode-chips, .semantic-seed-chips) button { background: none; white-space: nowrap; }
-body:not(.tag-layout-legacy) #semanticDialog .semantic-seed-chips::before { align-self: center; padding: 0 6px 0 10px; color: var(--muted); font-size: 12px; content: "依据"; }
 body:not(.tag-layout-legacy) #semanticDialog .semantic-nsfw { margin-left: auto; background: none; box-shadow: inset 0 0 0 1px #ffffff17; }
 body:not(.tag-layout-legacy) #semanticSearchButton { flex: 1 1 100%; margin: 4px 0 0; height: 40px; min-height: 40px; }
-body:not(.tag-layout-legacy) #semanticDialog .semantic-recommendation-panel { margin-top: 22px; padding-top: 18px; }
 body:not(.tag-layout-legacy) #semanticDialog .semantic-recommendation-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 body:not(.tag-layout-legacy) #semanticDialog .semantic-recommendation-control-pair { justify-content: space-between; padding: 6px 10px 6px 6px; border-radius: 20px; background: #ffffff07; }
+body:not(.tag-layout-legacy) #semanticDialog .semantic-credit { margin-top: 18px; opacity: .6; }
+body:not(.tag-layout-legacy) .tag-add:not(.character-tag-add),
+body:not(.tag-layout-legacy) .character-tag-add { flex-wrap: wrap; }
+body:not(.tag-layout-legacy) .tag-add > .suggestion-menu { order: 9; flex: 1 1 100%; }
+body:not(.tag-layout-legacy) .tag-add > .suggestion-menu:has(> .suggestion-empty) { display: none; }
+body:not(.tag-layout-legacy) #semanticDialog .semantic-advanced > summary { justify-content: flex-start; }
+body:not(.tag-layout-legacy) #semanticDialog #semanticRecommendationStatus:has(+ .empty-state) { display: none; }

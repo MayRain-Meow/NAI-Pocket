@@ -31,22 +31,36 @@ export function createArtistLibraryView({ store, preferences, roster = [], names
   for (const row of roster) builtIn.set(normalizeArtistIdentity(row.artist), { name: row.artist, aliases: row.aliases || [] });
   let cache = null;
 
-  async function catalog() {
-    const revision = await store.revision();
-    if (cache?.revision === revision) return cache;
-    const { profiles, examples, observations, preferences: saved } = await store.snapshot();
+  // Pages of rows small enough for the native bridge; see the storage module.
+  const PAGE = 1000;
+  async function pages(read) {
+    const rows = [];
+    for (let after = ''; ;) {
+      const page = await read(after, PAGE);
+      rows.push(...page);
+      if (page.length < PAGE) return rows;
+      after = page.at(-1).id;
+    }
+  }
+
+  async function load(revision) {
+    const profiles = await store.profiles(), saved = await store.preferences();
+    const examples = await pages(store.examplesPage), observations = await pages(store.observationsPage);
     const prepared = new Map(profiles.map(row => [row.artist, row]));
     const prefs = new Map(saved.map(row => [row.artist, row]));
     const exampleMap = new Map();
+    examples.sort((a, b) => a.position - b.position || (a.id < b.id ? -1 : 1));
     for (const row of examples) {
       const storage = prepared.get(row.artist)?.storage_id || '';
       if (!exampleMap.has(row.artist)) exampleMap.set(row.artist, []);
       exampleMap.get(row.artist).push({ id: row.id, model: 'original', source_type: 'original', rotation_sample: 0, storage });
     }
-    const evidence = new Map();
+    const evidence = new Map(), byId = new Map();
     for (const row of observations) {
+      const item = observation(row);
+      byId.set(item.id, item);
       if (!evidence.has(row.artist)) evidence.set(row.artist, []);
-      evidence.get(row.artist).push(observation(row));
+      evidence.get(row.artist).push(item);
     }
     const keys = new Set([...builtIn.keys(), ...prepared.keys(), ...prefs.keys()]);
     const entries = [];
@@ -60,8 +74,22 @@ export function createArtistLibraryView({ store, preferences, roster = [], names
         coverUrl: cover ? imageUrl(cover.id, 'thumb', cover.storage) : '', coverModel: cover ? 'original' : '', coverSourceType: cover ? 'original' : '',
         coverExampleId: '', exampleModels: images.length ? ['original'] : [] });
     }
-    cache = { revision, entries, examples: exampleMap };
-    return cache;
+    return { revision, entries, examples: exampleMap, byId, notes: false };
+  }
+
+  async function catalog({ notes = false } = {}) {
+    for (let attempt = 0; ; attempt++) {
+      const revision = await store.revision();
+      if (cache?.revision !== revision) cache = await load(revision);
+      // Descriptions are only searched by a typed query; they are attached once, on demand.
+      if (notes && !cache.notes) {
+        for (const row of await pages(store.notesPage)) { const item = cache.byId.get(row.id); if (item) item.note = row.note; }
+        cache.notes = true;
+      }
+      // Pages are separate bridge commands; a pack replacement in between means reading again.
+      if (await store.revision() === revision || attempt >= 2) return cache;
+      cache = null;
+    }
   }
 
   async function profile(value) {
@@ -92,7 +120,7 @@ export function createArtistLibraryView({ store, preferences, roster = [], names
         annotated: boolParam(query.annotated), confirmedOnly: boolParam(query.confirmedOnly), includeAutomatic: query.includeAutomatic !== '0',
         offset: query.offset, limit: query.limit, sort: query.sort || 'default' };
       const { model, sort } = artistListOptions(options, fail);
-      const { entries, examples } = await catalog();
+      const { entries, examples } = await catalog({ notes: Boolean(String(options.query || '').trim()) });
       return listArtistsView(entries, examples, options, { model, sort, fail, thumbUrl: cover => imageUrl(cover.id, 'thumb', cover.storage) });
     },
     profile,

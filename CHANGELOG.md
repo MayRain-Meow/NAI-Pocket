@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.3 — Preview
+
+- Fixed: opening the artist page after installing the annotation packs could crash the app; annotations are now read in bounded pages and descriptions only for text searches.
+- Editor: the round ＋ is the one add action; 整块 appears only when the input holds several items; 语义 is a ✦ icon. The 语义 workbench has two tabs, 查词 and 联想, with less explanatory text.
+
 ## 0.3.2 — Preview
 
 - Startup shows a launch screen instead of briefly flashing the login page.

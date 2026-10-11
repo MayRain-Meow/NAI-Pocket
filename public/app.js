@@ -1232,6 +1232,7 @@ async function runSemanticRelated(options = {}) {
     return;
   }
   semanticLastRecommendationKind = 'related';
+  setSemanticTab('explore');
   setSemanticBusy(true, `正在根据 ${tags.length} 个 Tag 查询共现关系…`);
   els.semanticRecommendationStatus.textContent = `相关推荐：${tags.slice(0, 6).join(', ')}${tags.length > 6 ? '…' : ''}`;
   setSemanticRecommendationLoading('正在查询相关推荐…');
@@ -1254,6 +1255,7 @@ async function runSemanticArtists(options = {}) {
     return;
   }
   semanticLastRecommendationKind = 'artists';
+  setSemanticTab('explore');
   setSemanticBusy(true, `正在根据 ${tags.length} 个 Tag 推荐画师…`);
   const positiveContext = els.semanticSeedSource?.value === 'target' && semanticTarget?.scope === 'character' && semanticTarget.kind === 'uc';
   els.semanticRecommendationStatus.textContent = `${positiveContext ? '使用正向提示词推荐画师' : '画师推荐'}：${tags.slice(0, 6).join(', ')}${tags.length > 6 ? '…' : ''}`;
@@ -1309,6 +1311,7 @@ function openSemanticSearch(target, initialQuery = '') {
   els.semanticStatus.textContent = '';
   restoreSemanticSettings();
   updateSemanticSelectionSummary();
+  setSemanticTab('search');
   els.semanticDialog.showModal();
   requestAnimationFrame(() => els.semanticQuery.focus());
 }
@@ -10097,7 +10100,25 @@ function switchTabTo(name) {
   requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo({ top: targetY, left: 0, behavior: 'auto' })));
 }
 
+// 整块 only differs from ＋ when the input holds several items, so the row shows it only then.
+function syncWholeAddButtons() {
+  document.querySelectorAll('.tag-add').forEach(row => {
+    row.classList.toggle('has-multiple', /[,，;；|\n]/.test(row.querySelector('input')?.value || ''));
+  });
+}
+
+// 语义工作台 has two pages: 查词 (describe → tags) and 联想 (from existing tags).
+function setSemanticTab(tab) {
+  const page = tab === 'explore' ? 'explore' : 'search';
+  if (els.semanticDialog) els.semanticDialog.dataset.tab = page;
+  document.querySelectorAll('[data-semantic-tab]').forEach(button => button.setAttribute('aria-selected', String(button.dataset.semanticTab === page)));
+}
+
 function initBindings() {
+  document.addEventListener('input', event => { if (event.target.closest?.('.tag-add')) syncWholeAddButtons(); });
+  document.addEventListener('click', event => { if (event.target.closest?.('.tag-add')) requestAnimationFrame(syncWholeAddButtons); });
+  document.addEventListener('keydown', event => { if (event.key === 'Enter' && event.target.closest?.('.tag-add')) requestAnimationFrame(syncWholeAddButtons); });
+  document.querySelectorAll('[data-semantic-tab]').forEach(button => button.addEventListener('click', () => setSemanticTab(button.dataset.semanticTab)));
   observeToastClearance($('#toastHost'), els.floatingGenerateBar);
   document.addEventListener('click', event => {
     const button = event.target.closest('[data-open-artist-library]');

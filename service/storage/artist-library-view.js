@@ -2,6 +2,9 @@ import { flow } from '../port-flow.js';
 
 // Read-only queries for the artist-library view over installed resource packs. Writes stay
 // in the resource installer (packs) and the preference store (favourite/note).
+// Bulk reads are keyset pages: on the phone every result crosses the native bridge, and one
+// query returning all ~29k annotations (≈43 MB with descriptions) crashed the WebView.
+
 export function createArtistLibraryViewStore(db) {
   return {
     // Cheap change marker: a new pack version or a preference edit invalidates the cached catalog.
@@ -10,15 +13,25 @@ export function createArtistLibraryViewStore(db) {
       const prefs = yield db.prepare('SELECT COUNT(*) AS count, COALESCE(MAX(updated_at),0) AS updated FROM artist_preferences').get();
       return `${sets?.value || ''}|${prefs?.count || 0}:${prefs?.updated || 0}`;
     }),
-    // Everything the list needs, without wide metadata or provenance columns.
-    snapshot: flow(function* () {
-      const profiles = yield db.prepare(`SELECT p.artist,p.display_name,p.aliases_json,p.set_id,COALESCE(s.directory,p.set_id) AS storage_id
+    profiles: flow(function* () {
+      return yield db.prepare(`SELECT p.artist,p.display_name,p.aliases_json,p.set_id,COALESCE(s.directory,p.set_id) AS storage_id
         FROM artist_resource_profiles p LEFT JOIN artist_resource_storage s ON s.set_id=p.set_id`).all();
-      const examples = yield db.prepare('SELECT id,artist,position FROM artist_resource_examples ORDER BY artist,position,id').all();
-      const observations = yield db.prepare(`SELECT o.id,o.example_id,e.artist,o.model,o.facets_json,o.attributes_json,o.note,o.schema_version,o.source,o.reviewed,o.updated_at
-        FROM artist_resource_observations o JOIN artist_resource_examples e ON e.id=o.example_id ORDER BY e.artist,e.position,o.id`).all();
-      const preferences = yield db.prepare('SELECT artist,favorite,note,updated_at FROM artist_preferences').all();
-      return { profiles, examples, observations, preferences };
+    }),
+    preferences: flow(function* () { return yield db.prepare('SELECT artist,favorite,note,updated_at FROM artist_preferences').all(); }),
+    examplesPage: flow(function* (after, limit) {
+      return yield db.prepare('SELECT id,artist,position FROM artist_resource_examples WHERE id>? ORDER BY id LIMIT ?').all(after, limit);
+    }),
+    // Attributes only: legacy facets are read only where no typed attributes exist, and the
+    // description text is fetched separately, on demand (text search).
+    observationsPage: flow(function* (after, limit) {
+      return yield db.prepare(`SELECT o.id,o.example_id,e.artist,o.model,
+        CASE WHEN o.attributes_json IN ('','{}') THEN o.facets_json ELSE '{}' END AS facets_json,
+        o.attributes_json,o.schema_version,o.source,o.reviewed,o.updated_at
+        FROM artist_resource_observations o JOIN artist_resource_examples e ON e.id=o.example_id
+        WHERE o.id>? ORDER BY o.id LIMIT ?`).all(after, limit);
+    }),
+    notesPage: flow(function* (after, limit) {
+      return yield db.prepare("SELECT id,note FROM artist_resource_observations WHERE id>? AND note<>'' ORDER BY id LIMIT ?").all(after, limit);
     }),
     artist: flow(function* (artist) {
       const profile = yield db.prepare(`SELECT p.*,COALESCE(d.directory,p.set_id) AS storage_id FROM artist_resource_profiles p

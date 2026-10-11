@@ -737,10 +737,10 @@
       <button id="closeSemanticDialog" class="icon-button" type="button" aria-label="关闭">×</button>
     </div>
     <div class="semantic-body">
+      <div class="semantic-tabs" role="tablist" aria-label="语义工作台" data-new-layout-only=""><button type="button" role="tab" data-semantic-tab="search" aria-selected="true">查词</button><button type="button" role="tab" data-semantic-tab="explore" aria-selected="false">联想</button></div>
       <section class="semantic-search-workbench">
-        <p class="semantic-step" data-new-layout-only=""><b>① 查词</b><small>用一句话描述想要的元素，找到对应的 Danbooru Tag</small></p>
         <label>自然语言、模糊写法或完整画面描述
-          <textarea id="semanticQuery" rows="3" spellcheck="false" enterkeyhint="search" placeholder="例如：低机位仰视人物；紧身衣勒入皮肤；城市雨夜积水反光"></textarea>
+          <textarea id="semanticQuery" rows="3" spellcheck="false" enterkeyhint="search" placeholder="描述想要的画面，如：雨夜霓虹街道"></textarea>
         </label>
         <div class="semantic-primary-options">
           <div class="semantic-mode-chips" role="group" aria-label="搜索模式" data-new-layout-only="">
@@ -831,7 +831,6 @@
 
       <section class="semantic-recommendation-panel">
         <div class="panel-title-row semantic-recommendation-heading compact-section-heading">
-          <p class="semantic-step" data-new-layout-only=""><b>② 联想</b><small>从已有 Tag 找相关标签和画师</small></p>
           <strong>关联探索</strong>
           <div class="semantic-seed-chips" role="group" aria-label="推荐依据" data-new-layout-only="">
             <button type="button" data-semantic-seed-chip="selected">所选</button>
