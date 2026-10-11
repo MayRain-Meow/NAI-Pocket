@@ -40,3 +40,12 @@ body.native-mode .artist-library-page { padding-top: 4px; }
 .native-update-toast { display: flex; align-items: center; gap: 10px; pointer-events: auto; }
 .native-update-toast span { flex: 1 1 auto; min-width: 0; font-weight: 600; }
 .native-update-toast button { flex: none; min-height: 34px; padding: 0 14px; }
+
+/* Settings → 关于 */
+.native-about-section .native-about-name { display: flex; align-items: baseline; gap: 6px; margin: 0; font-size: 15px; }
+.native-about-section .native-about-name span { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.native-about-section .native-about-author { margin: 4px 0 0; color: var(--text-secondary, var(--text)); font-size: 13.5px; }
+.native-about-section .native-about-link { display: inline-block; margin-top: 4px; color: var(--accent); font-size: 13px; text-decoration: none; overflow-wrap: anywhere; }
+.native-about-section .native-about-actions { display: flex; gap: 8px; margin-top: 12px; }
+#settingsDialog .native-about-section > p, #settingsDialog .native-about-section > a { margin-top: 2px; margin-bottom: 0; }
+#settingsDialog .native-about-section > .native-about-name { margin-top: 6px; }

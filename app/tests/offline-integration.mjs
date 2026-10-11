@@ -366,7 +366,11 @@ try {
   await page.waitForFunction(()=>document.querySelector('#galleryGrid img')?.naturalWidth>0,{},{timeout:10000});
   await page.screenshot({path:path.join(temporary,'native-gallery.png'),fullPage:false});
   await page.locator('#openSettingsButton').click();
-  await page.getByRole('button',{name:'关于 / 开源许可',exact:true}).click();
+  // Settings → 关于 carries the author and the repository, and opens the licence view.
+  const about=page.locator('.native-about-section');
+  assert.match(await about.textContent(),/MayRain-Meow/);
+  assert.equal(await about.locator('a.native-about-link').getAttribute('href'),'https://github.com/MayRain-Meow/NAI-Pocket');
+  await about.getByRole('button',{name:'开源许可',exact:true}).click();
   await page.waitForSelector('.native-license-dialog[open]');
   assert.match(await page.locator('.native-license-dialog pre').textContent(),/GNU AFFERO GENERAL PUBLIC LICENSE/);
   assert.match(await page.locator('.native-license-dialog pre').textContent(),/SQLCipher/);

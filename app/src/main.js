@@ -25,6 +25,25 @@ import { appUpdateSection } from './update-section.js';
 
 document.body.classList.add('native-mode');
 // Native-only settings row, created here so the shared web markup stays unchanged.
+// Settings → 关于: who makes the app and where its source and releases live.
+export const APP_AUTHOR = 'MayRain-Meow';
+export const APP_REPOSITORY = 'https://github.com/MayRain-Meow/NAI-Pocket';
+function aboutSection(version, licenseButton) {
+  const section = document.createElement('section'); section.className = 'settings-dialog-section native-about-section';
+  const heading = document.createElement('div'); heading.className = 'settings-section-heading';
+  heading.innerHTML = '<span class="workspace-eyebrow">About</span><h2>关于</h2>';
+  const name = document.createElement('p'); name.className = 'native-about-name';
+  name.append(Object.assign(document.createElement('strong'), { textContent: 'NAI Pocket' }), Object.assign(document.createElement('span'), { textContent: ` ${version}` }));
+  const author = document.createElement('p'); author.className = 'native-about-author'; author.textContent = `作者 ${APP_AUTHOR}`;
+  const link = document.createElement('a'); link.className = 'native-about-link'; link.href = APP_REPOSITORY; link.target = '_blank'; link.rel = 'noopener';
+  link.textContent = APP_REPOSITORY.replace(/^https:\/\//, '');
+  const actions = document.createElement('div'); actions.className = 'native-about-actions';
+  licenseButton.textContent = '开源许可';
+  actions.append(licenseButton);
+  section.append(heading, name, author, link, actions);
+  return section;
+}
+
 async function phoneAlbumSection(queue) {
   const section = document.createElement('section'); section.className = 'settings-dialog-section native-album-section';
   const heading = document.createElement('div'); heading.className = 'settings-section-heading';
@@ -89,7 +108,7 @@ try {
   const resourcesSection = artistResourcesSection({ request, defaultCatalogUrl: DEFAULT_ARTIST_CATALOG_URL, notice });
   const updateSection = appUpdateSection({ updater: createUpdater({ fetch: http.fetch, state: queue.state, currentVersion: appVersion }),
     native: registerPlugin('AppUpdate'), currentVersion: appVersion });
-  settingsBody?.append(await phoneAlbumSection(queue), resourcesSection, updateSection, licenseButton);
+  settingsBody?.append(await phoneAlbumSection(queue), resourcesSection, updateSection, aboutSection(appVersion, licenseButton));
   document.getElementById('artistLibraryMount')?.before(artistResourceNotice({ request, section: resourcesSection }));
   await media.registerAll();
   await import('../../public/app.js');

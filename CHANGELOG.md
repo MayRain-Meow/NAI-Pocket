@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.9 — Preview
+
+- 用此图创作 redesigned as grouped icon tiles (继续创作 / 作为参考 / 官方工具) with Chinese names and one-line notes.
+- 部分恢复 uses the pressable buttons; the editor top bar (side switch, 文本, icon buttons, 快删) is restyled, and 文本 now shows its on state right away.
+- Settings → 关于: version, author MayRain-Meow and the GitHub address, with the licence view.
+
 ## 0.3.8 — Preview
 
 - Text mode redesigned: weighted spans are tinted (warm for raised, cool for lowered weight, deeper for stronger), a soft text box, one compact 复制, and the 拆分 / 覆盖 / 顺序 actions grouped.

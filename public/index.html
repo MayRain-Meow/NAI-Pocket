@@ -1065,18 +1065,33 @@
       <button id="closeImageCreateDialog" class="icon-button" type="button" aria-label="关闭">×</button>
     </div>
     <div class="action-choice-body image-create-choice-body">
-      <button class="action-choice-card" type="button" data-create-from-image="img2img"><strong>图生图</strong><span>保留整张图的大方向继续变化。</span></button>
-      <button class="action-choice-card" type="button" data-create-from-image="enhance"><strong>官方 Enhance</strong><span>调用 NovelAI 官方二次扩散与放大参数。</span></button>
-      <button class="action-choice-card" type="button" data-create-from-image="upscale"><strong>官方 Upscale</strong><span>调用 NovelAI 专用放大接口，不进行创意重绘。</span></button>
-      <button class="action-choice-card" type="button" data-create-from-image="lineart"><strong>Director · Line Art</strong><span>调用官方线稿提取工具。</span></button>
-      <button class="action-choice-card" type="button" data-create-from-image="sketch"><strong>Director · Sketch</strong><span>调用官方草图提取工具。</span></button>
-      <button class="action-choice-card" type="button" data-create-from-image="bg-removal"><strong>Director · Remove BG</strong><span>调用官方背景移除工具。</span></button>
-      <button class="action-choice-card" type="button" data-create-from-image="declutter"><strong>Director · Declutter</strong><span>调用官方画面清理工具。</span></button>
-      <button class="action-choice-card" type="button" data-create-from-image="colorize"><strong>Director · Colorize</strong><span>调用官方线稿上色工具。</span></button>
-      <button class="action-choice-card" type="button" data-create-from-image="emotion"><strong>Director · Emotion</strong><span>调用官方表情修改工具。</span></button>
-      <button class="action-choice-card" type="button" data-create-from-image="inpaint"><strong>局部重绘</strong><span>把这张图装进 Mask 编辑器，只修选中区域。</span></button>
-      <button class="action-choice-card" type="button" data-create-from-image="precise"><strong>Precise Reference</strong><span>作为角色 / 画风精确参考。</span></button>
-      <button class="action-choice-card" type="button" data-create-from-image="vibe"><strong>Vibe Transfer</strong><span>提取配色、质感与视觉气氛。</span></button>
+      <section class="image-create-group">
+        <h3>继续创作</h3>
+        <div class="image-create-grid">
+          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="img2img"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="12" height="12" rx="2.5"></rect><path d="M8 19.5h9.5a3 3 0 0 0 3-3V7"></path><path d="M7 13l2.5-2.5L12 13"></path></svg><strong>图生图</strong><span>沿用整张图继续变化</span></button>
+          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="inpaint"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 4.5l5 5-8.5 8.5H6v-5z"></path><path d="M12.5 6.5l5 5"></path><path d="M4 20.5h16"></path></svg><strong>局部重绘</strong><span>只修涂选的区域</span></button>
+        </div>
+      </section>
+      <section class="image-create-group">
+        <h3>作为参考</h3>
+        <div class="image-create-grid">
+          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="precise"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"></circle><circle cx="12" cy="12" r="3.5"></circle><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"></path></svg><strong>精确参考</strong><span>角色或画风 · Precise Reference</span></button>
+          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="vibe"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.2 0 1.8-.8 1.8-1.7 0-1.4-1.3-1.6-1.3-2.9 0-1 .8-1.7 1.9-1.7h2a4.1 4.1 0 0 0 4.1-4.1C20.5 6.7 16.7 3.5 12 3.5z"></path><circle cx="7.8" cy="11" r="1.1"></circle><circle cx="10.5" cy="7.3" r="1.1"></circle><circle cx="15" cy="7.6" r="1.1"></circle></svg><strong>Vibe 迁移</strong><span>借用配色与氛围</span></button>
+        </div>
+      </section>
+      <section class="image-create-group">
+        <h3>官方工具</h3>
+        <div class="image-create-grid">
+          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="enhance"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l1.9 5 5.1 1.9-5.1 1.9-1.9 5-1.9-5L5 10.4l5.1-1.9z"></path><path d="M18.5 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"></path></svg><strong>增强</strong><span>二次扩散并放大 · Enhance</span></button>
+          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="upscale"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-6.5 6.5M4 20l6.5-6.5"></path></svg><strong>放大</strong><span>不重绘，只放大 · Upscale</span></button>
+          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="lineart"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19l3.5-1 10-10-2.5-2.5-10 10z"></path><path d="M14.5 6.5l2.5 2.5"></path><path d="M4 21c3-1 5-1 8 0s5 1 8 0"></path></svg><strong>线稿</strong><span>提取线稿 · Line Art</span></button>
+          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="sketch"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17c2-4 4-9 7-9 2.5 0 1 5 3.5 5 2 0 3-3 5.5-3"></path><path d="M4 21h16"></path></svg><strong>草图</strong><span>转成草图 · Sketch</span></button>
+          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="bg-removal"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.5"></circle><path d="M5.5 20a6.5 6.5 0 0 1 13 0"></path><path d="M3.5 3.5l17 17" stroke-dasharray="2 2.5"></path></svg><strong>去背景</strong><span>移除背景 · Remove BG</span></button>
+          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="declutter"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4.5l10.5 10.5-4.5 4.5H9.5L4.5 14.5z"></path><path d="M8.5 9l6.5 6.5"></path><path d="M9.5 19.5H20"></path></svg><strong>清理杂物</strong><span>去掉文字与杂物 · Declutter</span></button>
+          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="colorize"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5c3.5 4.2 6 7.3 6 10.3a6 6 0 0 1-12 0c0-3 2.5-6.1 6-10.3z"></path><path d="M9.3 14.5a2.8 2.8 0 0 0 2.7 2.6"></path></svg><strong>上色</strong><span>给线稿上色 · Colorize</span></button>
+          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="emotion"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M8.5 14.2c1.8 2.2 5.2 2.2 7 0"></path><path d="M9 9.5h.01M15 9.5h.01" stroke-width="2.6"></path></svg><strong>改表情</strong><span>修改人物表情 · Emotion</span></button>
+        </div>
+      </section>
     </div>
   </dialog>
 
