@@ -1,5 +1,6 @@
 import { CapacitorSQLite, SQLiteConnection } from '@capacitor-community/sqlite';
 import { APP_SCHEMA } from '../../service/storage/schema.js';
+import { ARTIST_DANBOORU_STATS_SCHEMA } from '../../service/storage/artist-danbooru-stats.js';
 import { runSteps } from '../../service/port-flow.js';
 
 export async function openDatabase() {
@@ -7,6 +8,7 @@ export async function openDatabase() {
   const connection = await sqlite.createConnection('nai-pocket', false, 'no-encryption', 1, false);
   await connection.open();
   await connection.execute(APP_SCHEMA);
+  await connection.execute(ARTIST_DANBOORU_STATS_SCHEMA);
   let tail = Promise.resolve();
   const serial = work => {
     const result = tail.then(work); tail = result.catch(() => {}); return result;

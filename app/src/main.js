@@ -1,6 +1,8 @@
 
 import { Buffer } from 'buffer';
 import { App } from '@capacitor/app';
+import { registerPlugin } from '@capacitor/core';
+import { version as appVersion } from '../package.json';
 import { createGenerationClient } from '../../service/generation.js';
 import { createSchemesService } from '../../service/schemes.js';
 import { createSchemesStore } from '../../service/storage/schemes.js';
@@ -18,6 +20,8 @@ import { settings } from './settings.js';
 import { artistResourcesSection, artistResourceNotice } from './artist-resources-section.js';
 import { createImageLoader } from './image-loader.js';
 import { DEFAULT_ARTIST_CATALOG_URL } from './artist-resource-source.js';
+import { createUpdater } from './updater.js';
+import { appUpdateSection } from './update-section.js';
 
 document.body.classList.add('native-mode');
 // Native-only settings row, created here so the shared web markup stays unchanged.
@@ -83,7 +87,9 @@ try {
     const data = await response.json(); if (!response.ok) throw new Error(data.error || '本机操作失败。'); return data;
   };
   const resourcesSection = artistResourcesSection({ request, defaultCatalogUrl: DEFAULT_ARTIST_CATALOG_URL, notice });
-  settingsBody?.append(await phoneAlbumSection(queue), resourcesSection, licenseButton);
+  const updateSection = appUpdateSection({ updater: createUpdater({ fetch: http.fetch, state: queue.state, currentVersion: appVersion }),
+    native: registerPlugin('AppUpdate'), currentVersion: appVersion });
+  settingsBody?.append(await phoneAlbumSection(queue), resourcesSection, updateSection, licenseButton);
   document.getElementById('artistLibraryMount')?.before(artistResourceNotice({ request, section: resourcesSection }));
   await media.registerAll();
   await import('../../public/app.js');
@@ -93,6 +99,7 @@ try {
   if (revealed()) document.body.classList.remove('native-booting');
   else new MutationObserver((_, observer) => { if (revealed()) { observer.disconnect(); document.body.classList.remove('native-booting'); } }).observe(appView, { attributes: true, attributeFilter: ['class'] });
   await queue.start();
+  updateSection.autoCheck(); // not awaited: startup never waits for GitHub
   await App.addListener('appStateChange', state => { if (state.isActive) queue.kick(); });
   await App.addListener('backButton', async () => {
     const dialogs = [...document.querySelectorAll('dialog[open]')];

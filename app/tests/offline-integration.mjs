@@ -31,6 +31,13 @@ const albumCopies = []; let albumFailure = false;
 const generationCalls = [], encodingCalls = [], naxCalls = [], danbooruCalls = [];
 let packMode='valid',packSequence=0;const packStages=new Set(),discardedPacks=[];
 const recoveryCalls=[];
+// App update: GitHub Releases API through the fixture HTTP port, native download/install stubs.
+const appVersion=JSON.parse(await fs.readFile(path.join(import.meta.dirname,'../package.json'),'utf8')).version;
+const newerVersion=appVersion.replace(/\d+$/,patch=>String(Number(patch)+1));
+const releaseAssetBase='https://github.com/MayRain-Meow/NAI-Pocket/releases/download/';
+const releaseFixture=version=>({tag_name:`v${version}-preview`,name:`NAI Pocket ${version} preview`,draft:false,prerelease:true,body:'## 本版\n- **新增** 应用内更新\n- 修复若干问题\n- 第四行不显示',
+  assets:[`NAI-Pocket-v${version}-preview.apk`,`NAI-Pocket-v${version}-preview.apk.sha256`,`NAI-Pocket-v${version}-source.zip`].map(name=>({name,size:1024,browser_download_url:`${releaseAssetBase}v${version}-preview/${name}`}))});
+let githubReleases=[releaseFixture(appVersion)];const githubCalls=[],updateDownloads=[],updateInstalls=[];
 let downloadMode='valid',resumeDownload=null,installBarrier=null,resumeInstall=null,resumeCancelAck=null;
 let packStatus={phase:'idle',receivedBytes:0,totalBytes:0,cancellable:false},packOperationId='';const packDownloads=[];
 const token = 'pst-'+ 'fixture'.repeat(10), secondToken = 'pst-'+ 'second'.repeat(10), rbqToken = 'rbq-'+'fixture'.repeat(6);
@@ -105,6 +112,13 @@ async function rpc(name,args) {
     const directory=local(`artist-resources/${args.directory}`);
     await fs.rm(directory,{recursive:true});packStages.delete(args.directory);discardedPacks.push(args.directory);return {};
   }
+  if(name.startsWith('AppUpdate.')) {
+    if(preview)throw new Error('应用更新需在安卓手机上验证；本预览不下载安装包。');
+    if(name==='AppUpdate.updateStatus')return {phase:'download',receivedBytes:512,totalBytes:1024};
+    if(name==='AppUpdate.cancelUpdate')return {};
+    if(name==='AppUpdate.downloadUpdate'){updateDownloads.push(args);return {path:'/data/user/0/app.naipocket.local/cache/updates/NAI-Pocket-update.apk',sha256:'a'.repeat(64),verified:true,bytes:1024};}
+    if(name==='AppUpdate.installUpdate'){updateInstalls.push(args);return updateInstalls.length===1?{needsPermission:true}:{started:true};}
+  }
   if (preview && name === 'Fixture.claimSeed') { const seed = !previewSeeded; previewSeeded = true; return { seed, ...demoTokens }; }
   if(name==='db.execute'){db.exec(args.sql);return {};}
   if(name==='db.query')return {values:db.prepare(args.sql).all(...args.values)};
@@ -158,6 +172,12 @@ async function rpc(name,args) {
     if(url.hostname==='gnai.rbq.my'&&url.pathname==='/user/info'){
       assert.equal(args.headers.authorization,`Bearer ${rbqToken}`);
       return {status:200,headers:{'content-type':'application/json'},body:Buffer.from(JSON.stringify({name:'Synthetic RBQ',is_active:true,total_images:2,quota_images:100,max_concurrent:1})).toString('base64')};
+    }
+    if(!preview&&url.hostname==='api.github.com'&&url.pathname==='/repos/MayRain-Meow/NAI-Pocket/releases'){
+      assert.equal(args.method,'GET');assert.equal(url.search,'?per_page=10');
+      assert.equal(Object.keys(args.headers).some(key=>['authorization','cookie'].includes(key.toLowerCase())),false,'the update check sends no credentials');
+      githubCalls.push(url.search);
+      return {status:200,headers:{'content-type':'application/json'},body:Buffer.from(JSON.stringify(githubReleases)).toString('base64')};
     }
     throw new Error(preview ? '此体验预览不连接外部服务，请在真机验证联网功能。' : 'Fixture forbids upstream network');
   }
@@ -375,7 +395,10 @@ try {
   { const text=await viewAnnotation('fixture-anmi-1');assert.match(text,/AI 初标 · 未人工确认/);assert.match(text,/合成标注 A/); }
   { const text=await viewAnnotation('fixture-anmi-2');assert.match(text,/人工已确认/);assert.doesNotMatch(text,/合成标注 A/);assert.match(text,/合成标注 B/); }
   assert.match(await viewAnnotation('fixture-anmi-3'),/暂无可查看的标注结果/);
-  assert.deepEqual(await library.locator('.artist-library-detail-tabs button').allTextContents(),['资料','风格概览'],'no 添加例图 tab without management');
+  // One scrolling page: 资料 and 画风概览 are sections; without management there is no ⋯ menu.
+  assert.equal(await library.locator('.artist-library-detail-menu').count(),0,'no management menu without management');
+  assert.equal(await library.locator('[data-detail-section="profile"]').count(),1);
+  assert.equal(await library.locator('[data-detail-section="evidence"]').count(),1);
   assert.equal(await library.locator('[data-generate-artist-samples]').count(),0);
   const exampleMenu=library.locator('[data-example-id="fixture-anmi-1"] .artist-library-example-menu');
   await exampleMenu.locator('summary').click();
@@ -384,12 +407,13 @@ try {
   assert.match(await exampleMenu.textContent(),/打开来源链接/);
   await page.keyboard.press('Escape');
   await page.setViewportSize({width:360,height:800});
+  // The swipe strip re-lays its full-width slides on resize; measure after that frame.
+  await page.waitForTimeout(250);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'per-image annotations fit a narrow phone');
   await page.screenshot({path:path.join(temporary,'native-artist-resources.png'),fullPage:true});
-  // Notes are edited in the 资料 panel; a failed save is reported and nothing is stored.
-  const profilePanel=library.locator('dialog[data-artist-panel="profile"]'),noteBox=profilePanel.locator('textarea[name="note"]');
+  // Notes are edited in the 资料 section; a failed save is reported and nothing is stored.
+  const profilePanel=library.locator('[data-detail-section="profile"]'),noteBox=profilePanel.locator('textarea[name="note"]');
   db.exec("CREATE TRIGGER refuse_artist_note BEFORE UPDATE ON artist_preferences WHEN NEW.note='synthetic-save-failure' BEGIN SELECT RAISE(ABORT,'Synthetic artist note save failure'); END;");
-  await library.locator('.artist-library-detail-tabs').getByRole('button',{name:'资料',exact:true}).click();
   await noteBox.fill('synthetic-save-failure');
   await profilePanel.getByRole('button',{name:'保存资料',exact:true}).click();
   await page.getByText('Synthetic artist note save failure',{exact:true}).first().waitFor();
@@ -398,14 +422,12 @@ try {
   await profilePanel.getByRole('button',{name:'保存资料',exact:true}).click();
   await page.getByText('画师资料已保存。',{exact:true}).first().waitFor();
   assert.equal((await call('/api/artists/profile?artist=anmi')).data.artist.note,'星空方案，线条与色彩待比较。','note saved from the 资料 panel persists');
-  // Back navigation: the library consumes the app's cancelable back event (panel, then detail).
-  assert.equal(await libraryBack(),true,'the library consumes back while a panel is open');
-  assert.equal(await profilePanel.evaluate(node=>node.open),false);
-  await library.locator('.artist-library-detail-toolbar').waitFor();
-  await library.locator('.artist-library-detail-tabs').getByRole('button',{name:'资料',exact:true}).click();
+  // Back navigation: an open dialog closes first (here the annotation viewer), then the detail.
+  await library.locator('[data-view-annotation="fixture-anmi-1"]').click();
+  await viewer.locator('.artist-result-info').waitFor();
   await page.evaluate(()=>globalThis.fixtureApp.emit('backButton'));
-  assert.equal(await profilePanel.evaluate(node=>node.open),false,'native back closes the open panel first');
-  assert.equal(await library.locator('.artist-library-detail-toolbar').isVisible(),true,'closing the panel keeps the detail');
+  assert.equal(await viewer.evaluate(node=>node.open),false,'native back closes the open dialog first');
+  assert.equal(await library.locator('.artist-library-detail-toolbar').isVisible(),true,'closing the dialog keeps the detail');
   await page.locator('#openSettingsButton').click();
   await page.evaluate(()=>globalThis.fixtureApp.emit('backButton'));
   assert.equal(await page.locator('#settingsDialog').evaluate(el=>el.open),false,'back closes the top dialog before navigating');
@@ -454,9 +476,7 @@ try {
   await page.getByText('备份已导入，包含 1 位画师的收藏和备注。',{exact:true}).waitFor();
   await libraryCard('anmi').getByRole('button',{name:'取消收藏 anmi',exact:true}).waitFor();
   await libraryCard('anmi').getByRole('button',{name:'查看 anmi 的资料与例图',exact:true}).click();
-  await library.locator('.artist-library-detail-tabs').getByRole('button',{name:'资料',exact:true}).click();
   assert.equal(await noteBox.inputValue(),'星空方案，线条与色彩待比较。','backup import restores the note');
-  await page.evaluate(()=>globalThis.fixtureApp.emit('backButton'));
   await page.evaluate(()=>globalThis.fixtureApp.emit('backButton'));
   await library.locator('.artist-library-card').first().waitFor();
   assert.equal(await libraryBack(),false,'on the list the library leaves back to the host');
@@ -552,8 +572,60 @@ try {
   assert.deepEqual(await remoteRead(),[200,'image/jpeg',24]);assert.deepEqual(await remoteRead(),[200,'image/jpeg',24]);
   assert.deepEqual(danbooruCalls,['/360x360/ed/f8/edf829c359d0737baa2999ca09e3952c.jpg'],'second read comes from the local cache');
   await fs.access(local('artist-cache/remote-fixture-thumb.jpg'));
+  // App update: the startup check asked GitHub once; WebView reloads within 12 hours did not ask again.
+  assert.equal(githubCalls.length,1,'automatic update check is throttled to once per 12 hours');
+  assert.equal(await page.locator('.native-update-toast').count(),0,'no toast without a newer release');
+  await page.setViewportSize({width:360,height:800});
+  await page.locator('#openSettingsButton').click();
+  const updates=page.locator('#nativeAppUpdate'),updateButton=name=>updates.getByRole('button',{name,exact:true});
+  const updateSays=async text=>{await page.waitForFunction(({text})=>document.querySelector('#nativeAppUpdate p[role="status"]')?.textContent===text,{text});};
+  await updates.scrollIntoViewIfNeeded();
+  assert.equal(await updates.locator('h2').textContent(),'应用更新');
+  assert.equal(await updates.locator('.native-update-version').textContent(),`当前版本 ${appVersion}`);
+  await updateButton('检查更新').click();
+  await updateSays('已是最新版本');
+  assert.equal(githubCalls.length,2);assert.equal(await updateButton('下载并安装').isVisible(),false);
+  githubReleases=[releaseFixture(appVersion),releaseFixture(newerVersion)];
+  await updateButton('检查更新').click();
+  await updates.locator('.native-update-found').waitFor();
+  assert.equal(await updates.locator('.native-update-found strong').textContent(),`发现新版本 ${newerVersion}`);
+  assert.equal(await updates.locator('.native-update-title').textContent(),`NAI Pocket ${newerVersion} preview`);
+  assert.equal(await updates.locator('.native-update-notes').textContent(),'本版\n新增 应用内更新\n修复若干问题','release notes: first three lines, plain text');
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'update section fits a narrow phone');
+  await page.screenshot({path:path.join(temporary,'native-update.png'),fullPage:false});
+  await updateButton('下载并安装').click();
+  await updateSays('请允许本应用「安装未知应用」，返回后点「安装」');
+  assert.deepEqual(updateDownloads,[{url:`${releaseAssetBase}v${newerVersion}-preview/NAI-Pocket-v${newerVersion}-preview.apk`,sha256:'',sha256Url:`${releaseAssetBase}v${newerVersion}-preview/NAI-Pocket-v${newerVersion}-preview.apk.sha256`}]);
+  await updateButton('安装').click();
+  await updateSays('已打开系统安装程序');
+  assert.equal(updateDownloads.length,1,'a downloaded package is installed without downloading again');
+  assert.deepEqual(updateInstalls.map(item=>item.path),Array(2).fill('/data/user/0/app.naipocket.local/cache/updates/NAI-Pocket-update.apk'));
+  await updateButton('忽略此版本').click();
+  await updateSays(`已忽略 ${newerVersion}`);
+  assert.equal(await updates.locator('.native-update-found').isVisible(),false);
+  const updateState=key=>db.prepare('SELECT value FROM app_state WHERE key=?').get(key)?.value;
+  { const deadline=Date.now()+3000;while(updateState('app_update_skipped')!==newerVersion&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,50)); }
+  assert.equal(updateState('app_update_skipped'),newerVersion,'the skipped version persists in native SQLite state');
+  await page.locator('#closeSettingsButton').click();
+  // Past the 12-hour window a skipped version stays quiet; a not-skipped one gets a one-line toast that opens Settings → 应用更新.
+  db.prepare("UPDATE app_state SET value='0' WHERE key='app_update_last_check'").run();
+  await page.reload();await page.waitForFunction(()=>globalThis.NAI_RUNTIME&&!document.querySelector('#appView').classList.contains('hidden'));
+  { const deadline=Date.now()+5000;while(githubCalls.length<4&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,50)); }
+  assert.equal(githubCalls.length,4);await page.waitForTimeout(200);
+  assert.equal(await page.locator('.native-update-toast').count(),0,'a skipped version is not announced');
+  db.prepare("UPDATE app_state SET value='0' WHERE key='app_update_last_check'").run();db.prepare("DELETE FROM app_state WHERE key='app_update_skipped'").run();
+  await page.reload();await page.waitForFunction(()=>globalThis.NAI_RUNTIME&&!document.querySelector('#appView').classList.contains('hidden'));
+  const updateToast=page.locator('.native-update-toast');
+  await updateToast.waitFor();await page.screenshot({path:path.join(temporary,'native-update-toast.png'),fullPage:false});
+  assert.equal(await updateToast.locator('span').textContent(),`发现新版本 ${newerVersion}`);
+  await updateToast.getByRole('button',{name:'查看',exact:true}).click();
+  await updates.locator('.native-update-found').waitFor();
+  assert.equal(await page.locator('#settingsDialog').evaluate(el=>el.open),true,'the toast opens Settings');
+  assert.equal(await updateToast.count(),0);
+  await page.locator('#closeSettingsButton').click();
+  assert.equal(githubCalls.length,5);
   assert.deepEqual(errors,[]);
-  console.log('Offline native wiring passed: UI token entry/rollback, dual-provider routing, Vibe consent/cache, gallery/export, public NAX preview, shared artist library (search/favourites/资料 notes/style filters/reload/Prompt insertion/backup import, no management), Settings resource packs (import/catalog/download/cancel/atomic commit), native back through panels/detail/list and 360px layout. No upstream network used.');
+  console.log('Offline native wiring passed: UI token entry/rollback, dual-provider routing, Vibe consent/cache, gallery/export, public NAX preview, shared artist library (search/favourites/资料 notes/style filters/reload/Prompt insertion/backup import, no management), Settings resource packs (import/catalog/download/cancel/atomic commit), app update (12-hour throttle, check none/found, download/permission/install, skip, startup toast), native back through panels/detail/list and 360px layout. No upstream network used.');
   console.log(`Screenshot: ${path.join(temporary,'native-gallery.png')}`);
 } finally { if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));db.close(); }
 }

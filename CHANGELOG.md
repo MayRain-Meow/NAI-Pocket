@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.5 — Preview
+
+- Artist detail redesigned: big swipeable pictures first, then name, style tags and 加入画风, the examples grid, style overview and profile on one page.
+- Danbooru artist facts (post count, dates, profile links) sync in the app: per artist or for the whole library, paced.
+- In-app updates: the app checks GitHub releases (at most every 12 hours or on demand), downloads and verifies the APK, then opens the system installer.
+
 ## 0.3.4 — Preview
 
 - Less empty space between the top bar and page content on phones (gallery, schemes, queue, editor); the artist page no longer repeats the page title.

@@ -7,6 +7,7 @@ public class MainActivity extends BridgeActivity {
     @Override public void onCreate(Bundle savedInstanceState) {
         registerPlugin(PocketNativePlugin.class);
         registerPlugin(ArtistResourcesPlugin.class);
+        registerPlugin(AppUpdatePlugin.class);
         super.onCreate(savedInstanceState);
         getBridge().setWebViewClient(new PocketMediaClient(getBridge()));
     }

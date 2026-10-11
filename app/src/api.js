@@ -43,6 +43,7 @@ export function createLocalApi({ database, settings, providers, client, assets, 
     // The artist page is the shared artist-library UI; these follow the server's response shapes.
     if (pathname === '/api/artists' && method === 'GET') return references.artistLibrary.list(Object.fromEntries(query));
     if (pathname === '/api/artists/summary' && method === 'GET') return { summary: await references.artistLibrary.summary() };
+    if (pathname === '/api/artists/stats' && method === 'POST') { const data = await body(); return { stats: await references.artistDanbooru.sync({ artist: typeof data?.artist === 'string' ? data.artist : '' }, { signal: request.signal }) }; }
     if (pathname === '/api/artists/profile') {
       if (method === 'GET') return { artist: await references.artistLibrary.profile(query.get('artist')) };
       if (method === 'PUT') return { artist: await references.artistLibrary.save(await body()) };

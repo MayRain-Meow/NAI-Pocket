@@ -48,4 +48,6 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Phone album copy on Android 7-9 only; Android 10+ uses MediaStore without a permission. -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+    <!-- Self-update: hands a downloaded release APK to the system installer (the person confirms). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 </manifest>

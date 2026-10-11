@@ -2,6 +2,7 @@ import { isNaxV5Artist, normalizeArtistIdentity } from '../public/artist-index-v
 import { validateStyleAttributes, attributesFromLegacy, summarizeStyleEvidence, STYLE_ATTRIBUTES } from '../public/artist-style-schema.js';
 import { artistListOptions, listArtistsView, coverExample } from '../public/artist-list-view.js';
 import { normalizeArtistPreference } from './artist-browser.js';
+import { publicDanbooruStats } from './artist-danbooru-stats.js';
 
 // The local app serves the artist-library UI (the same UI as the server site) from installed
 // resource packs and the user's own favourites/notes. Responses follow the server's
@@ -25,7 +26,7 @@ function observation(row, withProvenance = false) {
 }
 const boolParam = value => value === '1' || value === true;
 
-export function createArtistLibraryView({ store, preferences, roster = [], names = [], imageUrl, clock = { now: () => Date.now() } }) {
+export function createArtistLibraryView({ store, preferences, roster = [], names = [], imageUrl, danbooru = null, clock = { now: () => Date.now() } }) {
   const builtIn = new Map();
   for (const name of names) builtIn.set(normalizeArtistIdentity(name), { name, aliases: [] });
   for (const row of roster) builtIn.set(normalizeArtistIdentity(row.artist), { name: row.artist, aliases: row.aliases || [] });
@@ -45,6 +46,7 @@ export function createArtistLibraryView({ store, preferences, roster = [], names
 
   async function load(revision) {
     const profiles = await store.profiles(), saved = await store.preferences();
+    const facts = new Map((store.danbooruPage ? await pages(async (after, limit) => (await store.danbooruPage(after, limit)).map(row => ({ ...row, id: row.artist }))) : []).map(row => [row.artist, publicDanbooruStats(row)]));
     const examples = await pages(store.examplesPage), observations = await pages(store.observationsPage);
     const prepared = new Map(profiles.map(row => [row.artist, row]));
     const prefs = new Map(saved.map(row => [row.artist, row]));
@@ -70,7 +72,7 @@ export function createArtistLibraryView({ store, preferences, roster = [], names
       const cover = coverExample(images, '');
       entries.push({ artist: key, name: pack?.display_name || known?.name || key, indexed: isNaxV5Artist(key),
         aliases: pack ? json(pack.aliases_json, []) : known?.aliases || [], favorite: Boolean(pref?.favorite), note: pref?.note || '',
-        danbooru: null, danbooruStatus: EMPTY_STATUS, observations: evidence.get(key) || [], exampleCount: images.length,
+        danbooru: facts.get(key) || null, danbooruStatus: EMPTY_STATUS, observations: evidence.get(key) || [], exampleCount: images.length,
         coverUrl: cover ? imageUrl(cover.id, 'thumb', cover.storage) : '', coverModel: cover ? 'original' : '', coverSourceType: cover ? 'original' : '',
         coverExampleId: '', exampleModels: images.length ? ['original'] : [] });
     }
@@ -104,7 +106,7 @@ export function createArtistLibraryView({ store, preferences, roster = [], names
     const cover = coverExample(examples, '');
     return { artist: key, name: pack?.display_name || known?.name || key, indexed: isNaxV5Artist(key),
       aliases: pack ? json(pack.aliases_json, []) : known?.aliases || [], favorite: Boolean(preference?.favorite), note: preference?.note || '',
-      danbooru: null, danbooruStatus: EMPTY_STATUS, examples, observations, naxPreviews: [], naxExample: null,
+      danbooru: danbooru ? await danbooru.get(key) : null, danbooruStatus: EMPTY_STATUS, examples, observations, naxPreviews: [], naxExample: null,
       evidenceSummary: { ...summarizeStyleEvidence(examples, observations, examples.length ? 'original' : ''), model: examples.length ? 'original' : '' },
       exampleCount: examples.length, naxPreviewCount: 0, coverUrl: cover?.thumbUrl || '', coverModel: cover ? 'original' : '', coverSourceType: cover ? 'original' : '',
       coverExampleId: cover ? cover.id : '', coverIsChosen: false, exampleModels: examples.length ? ['original'] : [],

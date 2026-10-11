@@ -29,3 +29,14 @@ body.native-booting::after { position: fixed; inset: 0; display: grid; place-ite
    (no library management in the app) it only left an empty band above the search. */
 body.native-mode .artist-library-header { display: none !important; }
 body.native-mode .artist-library-page { padding-top: 4px; }
+.native-update-section [hidden] { display: none !important; }
+.native-update-version { margin: 0 0 8px; font-weight: 600; }
+.native-update-found { margin: 0 0 8px; padding: 10px 12px; border-radius: 12px; background: rgba(214, 179, 138, .12); }
+.native-update-found p { margin: 4px 0 0; font-size: 13px; line-height: 1.5; }
+.native-update-notes { color: var(--muted); white-space: pre-line; overflow-wrap: anywhere; }
+.native-update-status { margin: 0 0 8px; }
+.native-update-section progress { width: 100%; margin: 0 0 8px; }
+.native-update-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.native-update-toast { display: flex; align-items: center; gap: 10px; pointer-events: auto; }
+.native-update-toast span { flex: 1 1 auto; min-width: 0; font-weight: 600; }
+.native-update-toast button { flex: none; min-height: 34px; padding: 0 14px; }
