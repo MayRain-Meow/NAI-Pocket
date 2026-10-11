@@ -1429,7 +1429,6 @@ body:not(.tag-layout-legacy) #schemeTab .scheme-card-actions { display: flex; fl
 body:not(.tag-layout-legacy) #schemeTab .scheme-card-actions button { width: auto; min-width: 0; min-height: 32px; height: 32px; padding: 0 14px; border: 0; border-radius: 16px; background: #ffffff0d; color: var(--text); font-size: 12.5px; box-shadow: none; }
 body:not(.tag-layout-legacy) #schemeTab .scheme-card-actions [data-scheme-detail] { display: none; }
 body:not(.tag-layout-legacy) #schemeTab .scheme-card-actions [data-scheme-restore] { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); font-weight: 650; }
-body:not(.tag-layout-legacy) #schemeTab .scheme-card:not(.menu-open) .scheme-card-actions :is([data-scheme-default], [data-scheme-delete]) { display: none; }
 body:not(.tag-layout-legacy) #schemeTab .scheme-card-actions [data-scheme-delete] { color: #ff9aa8; }
 body:not(.tag-layout-legacy) #schemeTab .scheme-card-actions [data-scheme-default]:disabled { opacity: .5; }
 body:not(.tag-layout-legacy) #schemeTab .scheme-card-actions .scheme-card-more { width: 32px; margin-left: auto; padding: 0; background: none; color: var(--muted); font-size: 16px; }
@@ -1606,3 +1605,53 @@ body:not(.tag-layout-legacy) #semanticDialog #semanticRecommendationStatus:has(+
   body:not(.tag-layout-legacy) #editorTab .workspace { padding-top: 2px; }
   body:not(.tag-layout-legacy) #editorTab .prompt-panel { padding-top: 4px; }
 }
+
+body:not(.tag-layout-legacy) #galleryTab .gallery-selection-actions:has(> :not(.hidden)) { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: center; gap: 8px; margin: 8px 0 4px; }
+body:not(.tag-layout-legacy) #galleryTab .gallery-selection-actions > :not(.hidden) { margin: 0; }
+body:not(.tag-layout-legacy) #galleryTab .gallery-selection-actions button { min-height: 40px; padding: 0 6px; font-size: 13px; white-space: nowrap; }
+body:not(.tag-layout-legacy) #galleryTab #gallerySelectionText { order: -2; grid-column: 1 / 4; justify-self: start; margin: 0; padding-left: 2px; text-align: left; color: var(--text); font-size: 13.5px; font-weight: 600; }
+body:not(.tag-layout-legacy) #galleryTab #galleryExitSelection { order: -1; grid-column: 4; min-height: 34px; border: 0; background: none; box-shadow: none; color: var(--accent); font-weight: 650; }
+body:not(.tag-layout-legacy) .image-dialog .dialog-image-action-stack { padding: 10px 12px 12px; }
+body:not(.tag-layout-legacy) .image-dialog .dialog-image-action-stack .dialog-image-actions { gap: 8px; padding: 0 0 8px; border: 0; background: none; backdrop-filter: none; }
+body:not(.tag-layout-legacy) .image-dialog .dialog-image-action-stack .dialog-creative-actions { padding-bottom: 0; }
+body:not(.tag-layout-legacy) .image-dialog .dialog-image-actions > button,
+body:not(.tag-layout-legacy) .image-dialog .restore-split-action > button,
+body:not(.tag-layout-legacy) #schemeTab .scheme-card-actions button,
+body:not(.tag-layout-legacy) #schemeDialog .scheme-restore-grid > button,
+body:not(.tag-layout-legacy) #galleryTab .gallery-selection-actions button {
+  border: 1px solid #ffffff12; border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff12, #ffffff06);
+  color: var(--text); font-weight: 600;
+  box-shadow: inset 0 1px 0 #ffffff12, 0 1px 2px #00000066;
+  transition: transform .08s ease, background-color .12s ease, box-shadow .12s ease;
+}
+body:not(.tag-layout-legacy) .image-dialog .dialog-image-actions > button { min-height: 44px; font-size: 13.5px; }
+body:not(.tag-layout-legacy) :is(.image-dialog .dialog-image-actions > button, .image-dialog .restore-split-action > button, #schemeTab .scheme-card-actions button, #schemeDialog .scheme-restore-grid > button, #galleryTab .gallery-selection-actions button):active:not(:disabled) {
+  transform: translateY(1px); background: #ffffff08; box-shadow: inset 0 1px 3px #00000080;
+}
+body:not(.tag-layout-legacy) :is(.image-dialog .restore-split-action > button, #schemeTab .scheme-card-actions [data-scheme-restore], #schemeDialog .scheme-restore-grid > .primary) {
+  border-color: #ecd6b8; background: linear-gradient(180deg, #e6caa5, #c99f6e); color: var(--on-accent); font-weight: 750;
+  box-shadow: inset 0 1px 0 #ffffff66, 0 4px 14px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+body:not(.tag-layout-legacy) :is(.image-dialog .restore-split-action > button, #schemeTab .scheme-card-actions [data-scheme-restore], #schemeDialog .scheme-restore-grid > .primary):active {
+  background: linear-gradient(180deg, #d4b289, #b98e5f); box-shadow: inset 0 1px 3px #0000004d;
+}
+body:not(.tag-layout-legacy) .image-dialog .restore-split-action { gap: 2px; }
+body:not(.tag-layout-legacy) .image-dialog .restore-split-action > #dialogReuse { border-radius: 12px 4px 4px 12px; }
+body:not(.tag-layout-legacy) .image-dialog .restore-split-action > .restore-split-menu { border-radius: 4px 12px 12px 4px; }
+body:not(.tag-layout-legacy) :is(.image-dialog .dialog-image-actions > .danger, #schemeTab .scheme-card-actions [data-scheme-delete], #galleryTab #galleryDeleteSelected) {
+  border-color: #ff7a8a26; background: linear-gradient(180deg, #ff7a8a14, #ff7a8a08); color: #ff9aa8;
+}
+body:not(.tag-layout-legacy) .image-dialog .dialog-favorite-button.active { color: #ffd86f; }
+body:not(.tag-layout-legacy) #schemeTab #schemeLibrarySaveCurrent { min-height: 38px; height: 38px; padding: 0 16px; border: 1px solid #ecd6b8; border-radius: 12px; background: linear-gradient(180deg, #e6caa5, #c99f6e); color: var(--on-accent); font-size: 13.5px; font-weight: 750; box-shadow: inset 0 1px 0 #ffffff66, 0 4px 14px color-mix(in srgb, var(--accent) 22%, transparent); }
+body:not(.tag-layout-legacy) #schemeTab .scheme-card-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; max-width: 320px; margin-top: 8px; }
+body:not(.tag-layout-legacy) #schemeTab .scheme-card .scheme-card-actions :is([data-scheme-default], [data-scheme-delete]) { display: inline-flex; align-items: center; justify-content: center; }
+body:not(.tag-layout-legacy) #schemeTab .scheme-card-actions button { width: 100%; min-height: 36px; height: 36px; padding: 0 8px; font-size: 13px; }
+body:not(.tag-layout-legacy) #schemeTab .scheme-card-actions [data-scheme-default]:disabled { opacity: 1; color: var(--muted); background: none; box-shadow: none; border-color: #ffffff0d; }
+body:not(.tag-layout-legacy) #schemeTab .scheme-card-actions .scheme-card-more { display: none; }
+body:not(.tag-layout-legacy) #schemeDialog .scheme-restore-panel { display: grid; gap: 8px; padding: 14px 0 4px; border: 0; border-top: 1px solid #ffffff0b; border-radius: 0; background: none; }
+body:not(.tag-layout-legacy) #schemeDialog .scheme-restore-panel .hint { margin: 0; font-size: 12px; }
+body:not(.tag-layout-legacy) #schemeDialog .scheme-restore-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+body:not(.tag-layout-legacy) #schemeDialog .scheme-restore-grid > button { min-width: 0; min-height: 40px; padding: 0 6px; font-size: 13px; white-space: nowrap; }
+body:not(.tag-layout-legacy) #schemeDialog .scheme-restore-grid > .primary { grid-column: 1 / -1; min-height: 46px; font-size: 15px; }
+body:not(.tag-layout-legacy) #schemeDialog .scheme-restore-grid > [data-scheme-restore-mode="params"] { grid-column: 1 / -1; }

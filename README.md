@@ -2,9 +2,9 @@
 
 **手机上的 NovelAI 工作台。** 写 Prompt、挑画风、排队生成、管理作品，一只手就够。
 
-用你自己的 NovelAI Token（或 RBQ Key），在手机本地运行，不需要服务器，也不经过任何第三方中转。
+用你自己的 NovelAI Token，或你选择的第三方中转，在手机本地运行，不需要服务器。
 
-[![下载 APK](https://img.shields.io/badge/下载-Android%20APK-d6a774)](https://github.com/MayRain-Meow/NAI-Pocket/releases/tag/v0.3.6-preview) ![Android](https://img.shields.io/badge/Android-7.0%2B-7fbf95) ![Status](https://img.shields.io/badge/status-0.3%20preview-ab9cf0) [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-8a8a8a)](LICENSE)
+[![下载 APK](https://img.shields.io/badge/下载-Android%20APK-d6a774)](https://github.com/MayRain-Meow/NAI-Pocket/releases/tag/v0.3.7-preview) ![Android](https://img.shields.io/badge/Android-7.0%2B-7fbf95) ![Status](https://img.shields.io/badge/status-0.3%20preview-ab9cf0) [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-8a8a8a)](LICENSE)
 
 <p align="center"><img src="docs/screenshots/demo-sort.gif" width="300" alt="粘贴一段 Prompt，自动分进场景、镜头、画风、其他四栏"></p>
 
@@ -24,6 +24,9 @@
 ### 生成与管理
 文生图、图生图、局部重绘、角色参考、Vibe Transfer 都在。任务进**后台队列**，可暂停、取消、重试；生成的图进入本机**图库**，搜索、收藏、一键恢复参数，并自动存一份到手机相册。常用设置存成**方案**，随时切换、导入导出。
 
+### 官方账号或第三方中转
+可以同时保存多个 NovelAI 官方 Token；也可以在「管理第三方中转」里添加 RBQ，或其他与 NovelAI 生图接口兼容的中转，生成时随时切换。中转返回的图片格式会自动识别。
+
 <p align="center">
 <img src="docs/screenshots/editor.png" width="200" alt="四栏 Tag 编辑">
 <img src="docs/screenshots/helpers.png" width="200" alt="辅助功能">
@@ -35,8 +38,8 @@
 
 ## 开始使用
 
-1. 从 [Releases](https://github.com/MayRain-Meow/NAI-Pocket/releases/tag/v0.3.6-preview) 下载 APK 安装（首次需允许「安装未知应用」）。
-2. 打开设置，添加账号：NovelAI 官方用 `pst-…` Persistent API Token，或填 RBQ Key。
+1. 从 [Releases](https://github.com/MayRain-Meow/NAI-Pocket/releases/tag/v0.3.7-preview) 下载 APK 安装（首次需允许「安装未知应用」）。
+2. 打开设置，添加账号：NovelAI 官方用 `pst-…` Persistent API Token；用中转的话，在「管理第三方中转」里添加。
 3. 写好 Prompt，点生成。
 
 画师例图需要另外安装**标注资料包**：设置 → 画师标注资料 → 读取目录 → 下载。资料包只有标注和图片地址，例图打开时从 Danbooru 按需加载。
@@ -49,7 +52,7 @@
 
 **数据存在哪？** 全部在手机本地：Token 由 Android Keystore 加密保存，图库和方案存在应用私有目录。卸载前请先导出需要的图片和备份。
 
-**会联网做什么？** 生成请求直接发往你选择的渠道。反推会上传所选图片到公共 WD Tagger 服务；Tag 搜索、翻译、画师例图与更新检查访问相应的公共服务。
+**会联网做什么？** 生成请求直接发往你选择的渠道：NovelAI 官方，或你添加的中转（Key 只发往那个地址）。反推会上传所选图片到公共 WD Tagger 服务；Tag 搜索、翻译、画师例图与更新检查访问相应的公共服务。
 
 **稳定吗？** 目前是**预览版**。真机上的长时间后台运行、各厂商系统的通知和相册行为还在验证，遇到问题欢迎提 [Issue](https://github.com/MayRain-Meow/NAI-Pocket/issues)。
 

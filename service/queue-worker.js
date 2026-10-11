@@ -1,3 +1,4 @@
+import { providerCapabilities } from '../public/provider-route.js';
 
 export function createQueueWorker({ store, settings, activeJobControllers = new Map(), clock = { now: () => Date.now() },
   sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), appendJobLog, providerLabel, ensureResources, currentJobStatus, cancelledError, isV5State, safeSubscriptionSnapshot, generateImage, calculateUsageDelta, billingMessage, saveImage, rateLimitDelayMs, setAppState, retryable, pauseForAccountError }) {
@@ -24,7 +25,7 @@ async function processOne(job) {
   const run = (async () => {
     await ensureResources();
     if ((await currentJobStatus(job.id)) === 'cancelled') throw cancelledError();
-    const shouldTrackBilling = state.provider !== 'rbq' && (isV5State(state) || (state.imageTool?.type && state.imageTool.type !== 'none') || state.imageWorkflow?.enhance === true);
+    const shouldTrackBilling = providerCapabilities(state.provider).anlasBilling && (isV5State(state) || (state.imageTool?.type && state.imageTool.type !== 'none') || state.imageWorkflow?.enhance === true);
     const usageBefore = shouldTrackBilling ? await safeSubscriptionSnapshot(job.id, '生成前', state) : null;
     const result = await generateImage(state, job.seed, {
       signal: controller.signal,

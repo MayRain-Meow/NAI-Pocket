@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.7 — Preview
+
+- Third-party relays: RBQ is now one entry under 管理第三方中转 (listed once it has a Key), and any NovelAI-compatible relay can be added with an https address and a Key. Relays get plain generation; Vibe references are encoded with an official account first, as with RBQ before.
+- Relay responses are recognised by their content (raw image, ZIP, NovelAI or OpenAI-style JSON, an https image link, event streams), and an upstream error message is shown as-is instead of a generic failure.
+- Option lists and confirmations use the app's own sheets instead of system dialogs; 自定义始末 in the gallery starts on the last 30 days.
+- Buttons in the image viewer, schemes and the artist example menu get a pressable look; the example menu no longer opens off-screen.
+
 ## 0.3.6 — Preview
 
 - Artist detail back to a compact layout: cover beside the name, style tags and 加入画风, with every action in one grid right below; 资料 and 画风概览 open as sheets; tapping an example opens the full viewer.

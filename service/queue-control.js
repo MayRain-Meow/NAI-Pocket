@@ -1,3 +1,4 @@
+import { normalizeProviderId, isOfficialProvider, providerCapabilities } from '../public/provider-route.js';
 import { flow } from './port-flow.js';
 
 export function createQueueControl({ db, transaction, settings, getAppState, setAppState, generationProvider, activeJobControllers, randomSeed, clock = { now: () => Date.now() }, isV5GenerationModel, logger = console }) {
@@ -7,7 +8,8 @@ function isV5State(state) {
   return isV5GenerationModel(state?.model);
 }
 function providerLabel(state) {
-  return state?.provider === 'rbq' ? 'RBQ 中转' : 'NovelAI 官方';
+  const provider = normalizeProviderId(state?.provider);
+  return provider === 'official' ? 'NovelAI 官方' : provider === 'rbq' ? 'RBQ 中转' : '第三方中转';
 }
 function billingMessage(delta) {
   if (!delta) return '本次计费状态暂不可用。';
@@ -116,7 +118,7 @@ const pauseForAccountError = flow(function* (jobId, state, status, message) {
   (yield setAppState('queue_paused', '1'));
   (yield setAppState('queue_pause_reason', JSON.stringify({
     kind: 'account', status, jobId, label, at: clock.now(),
-    route: { provider: state.provider === 'rbq' ? 'rbq' : 'official', officialAccountId: String(state.officialAccountId || '') },
+    route: { provider: normalizeProviderId(state.provider), officialAccountId: String(state.officialAccountId || '') },
     message: String(message || '').slice(0, 300)
   })));
 });
@@ -138,7 +140,7 @@ const cancelQueuedJobs = flow(function* ({ includeRunning = false } = {}) {
   return { ok: true, cancelled: Number(result.changes || 0) };
 });
 const rerouteQueuedJobs = flow(function* ({ provider, officialAccountId = '' } = {}) {
-  const target = { provider: provider === 'rbq' ? 'rbq' : 'official', officialAccountId: provider === 'rbq' ? '' : String(officialAccountId || '') };
+  const target = { provider: normalizeProviderId(provider), officialAccountId: isOfficialProvider(provider) ? String(officialAccountId || '') : '' };
   const route = (yield generationProvider(target.provider, target.officialAccountId));
   if (route.accountId) target.officialAccountId = route.accountId;
   const reason = (yield queuePauseReason());
@@ -154,7 +156,7 @@ const rerouteQueuedJobs = flow(function* ({ provider, officialAccountId = '' } =
     for (const row of rows) {
       let state;
       try { state = JSON.parse(row.request_json); } catch { skipped += 1; continue; }
-      if (target.provider === 'rbq' && state.imageTool?.type && state.imageTool.type !== 'none') { skipped += 1; continue; }
+      if (!providerCapabilities(target.provider).imageTools && state.imageTool?.type && state.imageTool.type !== 'none') { skipped += 1; continue; }
       state.provider = target.provider;
       state.officialAccountId = target.officialAccountId;
       const json = JSON.stringify(state);

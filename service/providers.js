@@ -5,8 +5,14 @@ const OFFICIAL_DEFAULT_ACCOUNT_STATE_KEY = 'provider_official_default_account_v1
 const OFFICIAL_ENV_OVERRIDE_STATE_KEY = 'provider_official_env_override_v1';
 const OFFICIAL_ENV_ACCOUNT_ID = 'env';
 const MAX_OFFICIAL_ACCOUNTS = 30;
+const RELAYS_STATE_KEY = 'provider_relays_v1';
+const MAX_RELAYS = 20;
+const RELAY_PREFIX = 'relay:';
 
-export function createProviderService({ settings, state, secrets, ids, clock = { now: () => Date.now() }, http = { fetch: (...args) => globalThis.fetch(...args) } }) {
+// allowCustomRelays: user-entered relay addresses are fetched by whoever runs this service.
+// On a phone that is the user's own device; a shared server must first refuse private and
+// loopback targets, so it leaves this off until it has that guard.
+export function createProviderService({ settings, state, secrets, ids, clock = { now: () => Date.now() }, http = { fetch: (...args) => globalThis.fetch(...args) }, allowCustomRelays = false }) {
 const getAppState = (key, fallback) => state.get(key, fallback);
 const setAppState = (key, value) => state.set(key, value);
 const encryptToken = value => secrets.encrypt(value);
@@ -31,6 +37,93 @@ function saveRbqToken(rawToken) {
   const token = validateRbqToken(rawToken);
   setAppState(RBQ_TOKEN_STATE_KEY, encryptToken(token));
   return providerStatus();
+}
+
+function deleteRbqToken() {
+  setAppState(RBQ_TOKEN_STATE_KEY, '');
+  return providerStatus();
+}
+
+function relayError(message, status = 400) {
+  return Object.assign(new Error(message), { status });
+}
+
+function validateRelayUrl(raw) {
+  const text = String(raw || '').trim();
+  let url;
+  try { url = new URL(text); } catch { throw relayError('中转接口地址无效，请填写完整的 https:// 地址。'); }
+  if (url.protocol !== 'https:') throw relayError('中转接口地址必须以 https:// 开头。');
+  if (url.username || url.password) throw relayError('中转接口地址不能包含用户名或密码。');
+  if (url.href.length > 500) throw relayError('中转接口地址过长。');
+  url.hash = '';
+  return url.href;
+}
+
+function validateRelayKey(raw) {
+  const key = String(raw || '').trim();
+  if (key.length < 8 || key.length > 500 || /[\s\u0000-\u001f\u007f]/.test(key)) throw relayError('中转 Key 格式不正确。');
+  return key;
+}
+
+function storedRelays() {
+  let parsed;
+  try { parsed = JSON.parse(getAppState(RELAYS_STATE_KEY, '[]') || '[]'); }
+  catch { throw relayError('第三方中转列表损坏，请重新添加。', 500); }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.slice(0, MAX_RELAYS).filter(item => /^[A-Za-z0-9-]{8,80}$/.test(String(item?.id || ''))).map(item => ({
+    id: String(item.id),
+    name: sanitizeAccountName(item.name, '第三方中转'),
+    apiUrl: String(item.apiUrl || ''),
+    encryptedKey: String(item.encryptedKey || ''),
+    createdAt: Math.max(0, Number(item.createdAt || 0)),
+    updatedAt: Math.max(0, Number(item.updatedAt || 0))
+  }));
+}
+
+function relayRecord(providerId) {
+  const id = String(providerId || '').startsWith(RELAY_PREFIX) ? String(providerId).slice(RELAY_PREFIX.length) : String(providerId || '');
+  const record = storedRelays().find(item => item.id === id);
+  if (!record) throw relayError('这个第三方中转已不存在，请重新选择生成通道。', 404);
+  return record;
+}
+
+// Create (no id) or update a relay. On update an empty key keeps the stored one.
+function saveRelay({ id = '', name, apiUrl, key } = {}) {
+  if (!allowCustomRelays) throw relayError('此版本暂不支持自定义中转。', 403);
+  const records = storedRelays();
+  const url = validateRelayUrl(apiUrl);
+  const now = clock.now();
+  const existingId = String(id || '').replace(RELAY_PREFIX, '');
+  if (existingId) {
+    const record = records.find(item => item.id === existingId);
+    if (!record) throw relayError('这个第三方中转已不存在。', 404);
+    record.name = sanitizeAccountName(name, record.name);
+    record.apiUrl = url;
+    if (String(key || '').trim()) record.encryptedKey = encryptToken(validateRelayKey(key));
+    record.updatedAt = now;
+    setAppState(RELAYS_STATE_KEY, JSON.stringify(records));
+    return { providerId: `${RELAY_PREFIX}${record.id}`, providers: providerStatus() };
+  }
+  if (records.length >= MAX_RELAYS) throw relayError(`最多保存 ${MAX_RELAYS} 个第三方中转。`);
+  const record = { id: ids.next(), name: sanitizeAccountName(name, `中转 ${records.length + 1}`), apiUrl: url, encryptedKey: encryptToken(validateRelayKey(key)), createdAt: now, updatedAt: now };
+  records.push(record);
+  setAppState(RELAYS_STATE_KEY, JSON.stringify(records));
+  return { providerId: `${RELAY_PREFIX}${record.id}`, providers: providerStatus() };
+}
+
+function deleteRelay(providerId) {
+  const record = relayRecord(providerId);
+  setAppState(RELAYS_STATE_KEY, JSON.stringify(storedRelays().filter(item => item.id !== record.id)));
+  return providerStatus();
+}
+
+function publicRelay(record) {
+  let hint = '', error = '';
+  try { hint = tokenHint(decryptToken(record.encryptedKey, `中转「${record.name}」的 Key`)); }
+  catch (cause) { error = String(cause?.message || cause); }
+  let host = '';
+  try { host = new URL(record.apiUrl).host; } catch {}
+  return { id: `${RELAY_PREFIX}${record.id}`, name: record.name, label: record.name, endpoint: record.apiUrl, host, configured: Boolean(hint), tokenHint: hint, error };
 }
 
 function validateOfficialToken(raw) {
@@ -370,8 +463,15 @@ function providerStatus() {
       tokenHint: tokenHint(rbqToken),
       source: storedToken ? 'ui' : (settings.rbqNaiToken ? 'env' : ''),
       error: rbqError
-    }
+    },
+    relays: relayStatus(),
+    customRelays: Boolean(allowCustomRelays)
   };
+}
+
+function relayStatus() {
+  try { return storedRelays().map(publicRelay); }
+  catch (error) { return [{ id: '', name: '第三方中转', label: '第三方中转', configured: false, error: String(error?.message || error) }]; }
 }
 
 function generationProvider(providerId, officialAccountId = '') {
@@ -384,6 +484,13 @@ function generationProvider(providerId, officialAccountId = '') {
     }
     return { id: 'rbq', label: 'RBQ 中转', apiUrl: settings.rbqNaiImageApi, token };
   }
+  if (String(providerId || '').startsWith(RELAY_PREFIX)) {
+    const record = relayRecord(providerId);
+    let token;
+    try { token = validateRelayKey(decryptToken(record.encryptedKey, `中转「${record.name}」的 Key`)); }
+    catch (cause) { cause.status = 400; throw cause; }
+    return { id: `${RELAY_PREFIX}${record.id}`, label: `中转 · ${record.name}`, apiUrl: validateRelayUrl(record.apiUrl), token };
+  }
   const account = resolveOfficialAccount(officialAccountId);
   return {
     id: 'official',
@@ -395,5 +502,5 @@ function generationProvider(providerId, officialAccountId = '') {
   };
 }
 
-return { getRbqToken, saveRbqToken, saveOfficialToken, updateOfficialToken, resetOfficialEnvOverride, setDefaultOfficialAccount, deleteOfficialToken, resolveOfficialAccount, normalizeRbqAccount, getRbqAccountStatus, providerStatus, generationProvider };
+return { getRbqToken, saveRbqToken, deleteRbqToken, saveRelay, deleteRelay, saveOfficialToken, updateOfficialToken, resetOfficialEnvOverride, setDefaultOfficialAccount, deleteOfficialToken, resolveOfficialAccount, normalizeRbqAccount, getRbqAccountStatus, providerStatus, generationProvider };
 }

@@ -1,6 +1,7 @@
 import { DIRECTOR_TOOL_TYPES } from '../public/parameter-semantics.js';
 import { DEFAULT_ENHANCE_UPSCALE_FACTOR } from '../public/generation-state.js';
 import { buildPayload, apiModelFor, safeEnhanceTargetDimensions } from '../public/generation-payload.js';
+import { createImageResponseParser } from './image-response.js';
 
 
 // binary is a byte-buffer codec; inflateRaw must enforce maxOutputLength.
@@ -64,6 +65,8 @@ function extractZipImage(buffer) {
   }
   throw new Error('ZIP 响应中没有 PNG / WebP / JPEG 图片。');
 }
+
+const responseParser = createImageResponseParser({ binary, extractZipImage });
 
 function parseRetryAfterMs(value) {
   if (!value) return 0;
@@ -256,7 +259,7 @@ async function generateImage(state, seed, options = {}) {
 
     const provider = await generationProvider(state.provider, state.officialAccountId);
     if (state.imageTool?.type && state.imageTool.type !== 'none') {
-      if (provider.id !== 'official') throw new Error('NovelAI 官方图片工具不支持 RBQ 中转，请切换到官网 Token。');
+      if (provider.id !== 'official') throw new Error('NovelAI 官方图片工具不支持第三方中转，请切换到官网 Token。');
       const result = await generateOfficialImageTool(state, seed, provider, controller, emit);
       return { ...result, effectiveState: state };
     }
@@ -306,29 +309,26 @@ async function generateImage(state, seed, options = {}) {
       throw error;
     }
 
-    if (contentType.includes('application/json')) {
-      const json = await response.json();
-      const item = json?.images?.[0];
-      if (!item?.image) throw new Error('NovelAI JSON 返回中没有图片。');
-      const buffer = binary.from(String(item.image).replace(/^data:image\/[^;]+;base64,/, ''), 'base64');
-      emit('info', 'received', `已收到 NovelAI 图片数据 · ${Math.round(buffer.length / 1024)} KB`, { requestId, bytes: buffer.length });
-      return {
-        buffer,
-        mime: detectMime(buffer, requestState.params.imageFormat === 'webp' ? 'image/webp' : 'image/png'),
-        seed: Number.isInteger(item.seed) ? item.seed : seed,
-        payload,
-        effectiveState: requestState
-      };
+    // The body is identified by its bytes (image, ZIP, JSON, event stream, bare base64), so a
+    // relay that labels or wraps the image differently still works; a JSON link is followed once.
+    const readImageBody = (buffer, bodyType, { allowUrl, bodySeed }) => {
+      const kind = responseParser.sniff(buffer);
+      const structured = kind === 'json' || kind === 'sse';
+      if (!structured) emit('info', 'received', `已收到 NovelAI 返回数据 · ${Math.round(buffer.length / 1024)} KB`, { requestId, bytes: buffer.length, contentType: bodyType });
+      const parsed = responseParser.parse({ bytes: buffer, defaultSeed: bodySeed, noImageMessage: 'NovelAI JSON 返回中没有图片。', allowUrl });
+      if (parsed.kind === 'url') return parsed;
+      if (structured) emit('info', 'received', `已收到 NovelAI 图片数据 · ${Math.round(parsed.buffer.length / 1024)} KB`, { requestId, bytes: parsed.buffer.length });
+      if (parsed.source === 'zip') emit('info', 'received', `已从 ZIP 解出 ${parsed.filename} · ${Math.round(parsed.buffer.length / 1024)} KB`, { requestId, bytes: parsed.buffer.length, filename: parsed.filename });
+      return parsed;
+    };
+    let image = readImageBody(binary.from(await response.arrayBuffer()), contentType, { allowUrl: true, bodySeed: seed });
+    if (image.kind === 'url') {
+      emit('info', 'received', `返回的是图片链接，正在下载 · ${new URL(image.url).host}`, { requestId, url: image.url });
+      const linked = await http.fetch(image.url, { method: 'GET', signal: controller.signal });
+      if (!linked.ok) throw Object.assign(new Error(`图片链接下载失败：HTTP ${linked.status}`), { status: 502 });
+      image = readImageBody(binary.from(await linked.arrayBuffer()), linked.headers.get('content-type') || '', { allowUrl: false, bodySeed: image.seed });
     }
-
-    const buffer = binary.from(await response.arrayBuffer());
-    emit('info', 'received', `已收到 NovelAI 返回数据 · ${Math.round(buffer.length / 1024)} KB`, { requestId, bytes: buffer.length, contentType });
-    if (contentType.includes('zip') || buffer.subarray(0, 2).toString() === 'PK') {
-      const image = extractZipImage(buffer);
-      emit('info', 'received', `已从 ZIP 解出 ${image.filename} · ${Math.round(image.buffer.length / 1024)} KB`, { requestId, bytes: image.buffer.length, filename: image.filename });
-      return { ...image, seed, payload, effectiveState: requestState };
-    }
-    return { buffer, mime: contentType.startsWith('image/') ? contentType.split(';')[0] : 'image/png', seed, payload, effectiveState: requestState };
+    return { buffer: image.buffer, mime: image.mime, ...(image.filename ? { filename: image.filename } : {}), seed: image.seed, payload, effectiveState: requestState };
   } catch (error) {
     if (cancelledByCaller) {
       emit('warn', 'cancelled', 'NovelAI 请求已由用户停止。');

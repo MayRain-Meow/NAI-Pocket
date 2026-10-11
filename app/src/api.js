@@ -55,8 +55,24 @@ export function createLocalApi({ database, settings, providers, client, assets, 
     if (pathname === '/api/providers' && method === 'GET') return { providers: await providerCall('providerStatus') };
     if (pathname === '/api/providers/rbq' && method === 'POST') return { providers: await providerCall('saveRbqToken', (await body()).token) };
     if (pathname === '/api/providers/rbq/account') return providerCall('getRbqAccountStatus');
+    if (pathname === '/api/providers/rbq' && method === 'DELETE') {
+      const active = await serial(() => db.prepare("SELECT COUNT(*) AS count FROM jobs WHERE status IN ('pending','running') AND json_extract(request_json,'$.provider')='rbq'").get());
+      if (Number(active.count)) throw failure(409, `仍有 ${active.count} 个任务使用 RBQ，请先完成或取消任务。`);
+      return { providers: await providerCall('deleteRbqToken') };
+    }
+    if (pathname === '/api/providers/relays' && method === 'POST') return providerCall('saveRelay', await body());
     if (pathname === '/api/providers/official/accounts' && method === 'POST') { const data = await body(); return providerCall('saveOfficialToken', data.name, data.token); }
-    let match = pathname.match(/^\/api\/providers\/official\/accounts\/([^/]+)(\/default)?$/);
+    let match = pathname.match(/^\/api\/providers\/relays\/([^/]+)$/);
+    if (match) {
+      const id = `relay:${decodeURIComponent(match[1])}`;
+      if (method === 'PUT') return providerCall('saveRelay', { ...(await body()), id });
+      if (method === 'DELETE') {
+        const active = await serial(() => db.prepare("SELECT COUNT(*) AS count FROM jobs WHERE status IN ('pending','running') AND json_extract(request_json,'$.provider')=?").get(id));
+        if (Number(active.count)) throw failure(409, `仍有 ${active.count} 个任务使用这个中转，请先完成或取消任务。`);
+        return { providers: await providerCall('deleteRelay', id) };
+      }
+    }
+    match = pathname.match(/^\/api\/providers\/official\/accounts\/([^/]+)(\/default)?$/);
     if (match) {
       const id = decodeURIComponent(match[1]);
       if (method === 'PUT' && match[2]) return { providers: await providerCall('setDefaultOfficialAccount', id) };

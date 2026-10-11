@@ -1,3 +1,4 @@
+import { normalizeProviderId } from '../public/provider-route.js';
 
 export class JobsServiceError extends Error {
   constructor(status, message) {
@@ -27,7 +28,7 @@ export function createJobsService({ store, cursors, state, queue }) {
         const billing = parseJson(row.billing_detail_json);
         const experiment = parseJson(row.experiment_json);
         const { billing_detail_json, experiment_json, ...safeRow } = row;
-        return { ...safeRow, billing, provider: row.provider === 'rbq' ? 'rbq' : 'official', experiment };
+        return { ...safeRow, billing, provider: normalizeProviderId(row.provider), experiment };
       });
 
       const counts = await store.countJobs();

@@ -1,3 +1,5 @@
+import { isOfficialProvider } from '../../public/provider-route.js';
+import { confirmAction } from '../../public/confirm-sheet.js';
 import { Buffer } from 'buffer';
 import { createAssetsService } from '../../service/assets.js';
 import { createAssetsStore } from '../../service/storage/assets.js';
@@ -21,19 +23,19 @@ export function openAssets(database, settings, http, providers) {
     return { resolved, info, cache, cached };
   }
   async function vibeAccount(id) {
-    if (!id) throw Object.assign(new Error('RBQ Vibe 首次编码需要官网 Token。请在设置中添加并选择 Vibe 编码账号。'), { status: 400 });
+    if (!id) throw Object.assign(new Error('中转的 Vibe 参考图首次编码需要官网 Token。请在设置中添加并选择 Vibe 编码账号。'), { status: 400 });
     return providers.generationProvider('official', id);
   }
   return { ...assets, resolveImageRef: assets.resolve,
     async prepareVibeGeneration(state) {
-      if (state.provider !== 'rbq' || state.referenceControl?.mode !== 'vibe') return;
+      if (isOfficialProvider(state.provider) || state.referenceControl?.mode !== 'vibe') return;
       let missing = 0;
       for (const item of state.referenceControl.vibes) {
         if (!(await vibeInput(item.image, state.model, item.informationExtracted)).cached?.length) missing++;
       }
       if (!missing) return;
       const account = await vibeAccount(state.officialAccountId);
-      if (!window.confirm(`有 ${missing} 张 Vibe 参考图需要由官网账号「${account.accountName}」编码，参考图会发送给 NovelAI，并可能消耗该账号的额度。图片生成仍使用 RBQ。继续？`)) {
+      if (!(await confirmAction(`有 ${missing} 张 Vibe 参考图需要由官网账号「${account.accountName}」编码，参考图会发送给 NovelAI，并可能消耗该账号的额度。图片生成仍使用所选中转。`, { title: '需要编码 Vibe 参考图', confirmLabel: '编码并生成' }))) {
         throw Object.assign(new Error('已取消 Vibe 编码，未加入队列。'), { status: 409 });
       }
     },

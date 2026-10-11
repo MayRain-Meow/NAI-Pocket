@@ -11,6 +11,7 @@ import {
 import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.6.81';
 import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.6.81';
 import { repairImportedPrompt } from './import-repair.js?v=1.6.81';
+import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.6.81';
 import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity } from './artist-index-v5.js?v=1.6.81';
 import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.6.81';
 import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.6.81';
@@ -19,6 +20,8 @@ import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-ut
 import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.6.81';
 import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.6.81';
 import { observeToastClearance } from './toast-layout.js?v=1.6.81';
+import { installSelectSheets } from './select-sheet.js?v=1.6.81';
+import { confirmAction, promptText } from './confirm-sheet.js?v=1.6.81';
 import { createTaggerPanel } from './tagger-panel.js?v=1.6.81';
 import { createCodexPanel } from './codex-panel.js?v=1.6.81';
 import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.6.81';
@@ -68,7 +71,7 @@ const els = {
   queueList: $('#queueList'), queueSummary: $('#queueSummary'), cleanAdvancedOverridesButton: $('#cleanAdvancedOverridesButton'),
   galleryGrid: $('#galleryGrid'), loadMoreButton: $('#loadMoreButton'), favoriteOnly: $('#favoriteOnly'), gallerySearch: $('#gallerySearch'), galleryScopeGallery: $('#galleryScopeGallery'), galleryScopeRotation: $('#galleryScopeRotation'), galleryAgeFilter: $('#galleryAgeFilter'), galleryMonthFilter: $('#galleryMonthFilter'), galleryCustomRange: $('#galleryCustomRange'), galleryDateFrom: $('#galleryDateFrom'), galleryDateTo: $('#galleryDateTo'), galleryNewImagesButton: $('#galleryNewImagesButton'), galleryResultSummary: $('#galleryResultSummary'), storageMeter: $('#storageMeter'), storageAuditButton: $('#storageAuditButton'), queueBadge: $('#queueBadge'),
   charactersList: $('#charactersList'), addCharacterButton: $('#addCharacterButton'), characterUseCoords: $('#characterUseCoords'),
-  galleryCleanupToggle: $('#galleryCleanupToggle'), gallerySelectToggle: $('#gallerySelectToggle'), gallerySelectAll: $('#gallerySelectAll'), gallerySelectNonFavorites: $('#gallerySelectNonFavorites'), galleryClearSelection: $('#galleryClearSelection'), galleryDeleteSelected: $('#galleryDeleteSelected'), gallerySelectionText: $('#gallerySelectionText'),
+  galleryCleanupToggle: $('#galleryCleanupToggle'), gallerySelectToggle: $('#gallerySelectToggle'), gallerySelectAll: $('#gallerySelectAll'), gallerySelectNonFavorites: $('#gallerySelectNonFavorites'), galleryClearSelection: $('#galleryClearSelection'), galleryDeleteSelected: $('#galleryDeleteSelected'), gallerySelectionText: $('#gallerySelectionText'), galleryExitSelection: $('#galleryExitSelection'),
   cleanupActionBar: $('#cleanupActionBar'), cleanupSessionStatus: $('#cleanupSessionStatus'), cleanupUndoButton: $('#cleanupUndoButton'), cleanupDeleteButton: $('#cleanupDeleteButton'), cleanupKeepButton: $('#cleanupKeepButton'), cleanupLoadOriginalButton: $('#cleanupLoadOriginalButton'),
   cleanupFavoriteButton: $('#cleanupFavoriteButton'), cleanupJumpControls: $('#cleanupJumpControls'), cleanupJumpInput: $('#cleanupJumpInput'), cleanupJumpTotal: $('#cleanupJumpTotal'), cleanupJumpButton: $('#cleanupJumpButton'), imageDialogTitle: $('#imageDialogTitle'),
   imageDialog: $('#imageDialog'), dialogImage: $('#dialogImage'), dialogImageStage: $('#dialogImageStage'), dialogMeta: $('#dialogMeta'), dialogNote: $('#dialogNote'), dialogFavorite: $('#dialogFavorite'), dialogLoadOriginal: $('#dialogLoadOriginal'),
@@ -2671,9 +2674,9 @@ function renderCharacters() {
     renderCharacters();
     updatePromptPreviewFromStructure();
   }));
-  els.charactersList.querySelectorAll('[data-character-delete]').forEach(el => el.addEventListener('click', event => {
+  els.charactersList.querySelectorAll('[data-character-delete]').forEach(el => el.addEventListener('click', async event => {
     const idx = appState.characters.findIndex(item => item.id === event.target.dataset.characterDelete);
-    if (idx < 0 || !confirm(`删除角色 ${idx + 1}？`)) return;
+    if (idx < 0 || !(await confirmAction(`删除角色 ${idx + 1}？`, { confirmLabel: '删除', danger: true }))) return;
     appState.characters.splice(idx, 1);
     renderCharacters();
     updatePromptPreviewFromStructure();
@@ -5015,11 +5018,11 @@ async function saveTagEditor() {
   toast('Tag 已保存。', 'success');
 }
 
-function deleteEditingTag() {
+async function deleteEditingTag() {
   if (!editingTagRef) return;
   const ref = { ...editingTagRef };
   const found = getScopedTag(ref);
-  if (!found || !confirm(`删除 Tag“${found.tag.text}”？`)) return;
+  if (!found || !(await confirmAction(`删除 Tag“${found.tag.text}”？`, { confirmLabel: '删除', danger: true }))) return;
   found.group.splice(found.index, 1);
   closeTagEditor();
   if (ref.scope === 'character') renderCharacters();
@@ -5052,13 +5055,13 @@ async function autoTranslateEditorTag() {
 
 function parseStructuredPrompt(raw) { return parseStructuredPromptUtil(raw); }
 
-function importPromptToCards(smart = true) {
+async function importPromptToCards(smart = true) {
   const raw = els.promptPreview.value;
   if (!raw.trim()) return toast('当前 Prompt 为空。', 'error');
   const parsedStructured = parseStructuredPrompt(raw);
   const tokens = splitPrompt(parsedStructured.globalPrompt);
   const existingCount = GROUP_DEFS.reduce((sum, [key]) => sum + appState.groups[key].length, 0) + appState.characters.length;
-  if (existingCount && !confirm('这会替换现有角色与全局 Tag 卡片，但不会修改当前 Prompt。继续吗？')) return;
+  if (existingCount && !(await confirmAction('这会替换现有角色与全局 Tag 卡片，但不会修改当前 Prompt。', { confirmLabel: '替换' }))) return;
   for (const [key] of GROUP_DEFS) appState.groups[key] = [];
   appState.characters = parsedStructured.characters.slice(0, characterLimitForModel(appState.model)).map(item => createCharacter({
     name: item.name,
@@ -6359,7 +6362,7 @@ async function prepareGenerationState(rawState, useLiveMask = true) {
 
 function currentGenerationRoute() {
   return {
-    provider: els.generationProvider?.value === 'rbq' ? 'rbq' : 'official',
+    provider: normalizeProviderId(els.generationProvider?.value),
     officialAccountId: String(els.officialAccountSelect?.value || appState.officialAccountId || '')
   };
 }
@@ -6495,7 +6498,7 @@ function serializeState() {
   }
 
   return {
-    provider: els.generationProvider?.value === 'rbq' ? 'rbq' : 'official',
+    provider: normalizeProviderId(els.generationProvider?.value),
     officialAccountId: String(els.officialAccountSelect?.value || appState.officialAccountId || ''),
     groups: Object.fromEntries(GROUP_DEFS.map(([key]) => [key, (appState.groups[key] || []).map(cloneTagForStorage)])),
     characters,
@@ -6723,7 +6726,7 @@ function normalizeStoredState(raw) {
     ...defaults,
     ...storedFields,
     model: restoreModel,
-    provider: rawObject.provider === 'rbq' ? 'rbq' : 'official',
+    provider: normalizeProviderId(rawObject.provider),
     officialAccountId: /^[0-9a-f-]{16,80}$/i.test(String(rawObject.officialAccountId || '')) || rawObject.officialAccountId === 'env'
       ? String(rawObject.officialAccountId)
       : '',
@@ -6783,7 +6786,7 @@ function hydrateState(raw) {
   updatePromptModeHint();
   autoGrowTextarea(els.promptPreview);
   $('#model').value = appState.model;
-  if (els.generationProvider) els.generationProvider.value = appState.provider === 'rbq' ? 'rbq' : 'official';
+  appState.provider = normalizeProviderId(appState.provider);
   syncProviderUi();
   const sampling = syncSamplingOptions(appState.model, { sampler: appState.params.sampler, noiseSchedule: appState.params.noiseSchedule });
   appState.params.sampler = sampling.sampler;
@@ -7062,7 +7065,7 @@ async function saveCurrentImageAsScheme() {
   const image = currentImage.params ? currentImage : await fetchImageDetail(currentImage.id);
   if (!image?.params) throw new Error('这张图片没有可恢复的完整参数。');
   const suggested = String(image.note || '').trim().slice(0, 50);
-  const name = window.prompt('给这个方案命名：', suggested);
+  const name = await promptText('给这个方案命名', suggested, { confirmLabel: '保存', maxLength: 60 });
   if (name === null) return;
   const schemeState = withoutGenerationRoute(image.params);
   schemeState.seedMode = 'fixed';
@@ -7131,7 +7134,7 @@ async function setDefaultScheme(scheme) {
 
 async function deleteScheme(scheme) {
   if (!scheme?.id) throw new Error('方案不存在。');
-  if (!confirm(`删除方案“${scheme.name}”？图库图片不会被删除。`)) return;
+  if (!(await confirmAction(`删除方案“${scheme.name}”？图库图片不会被删除。`, { confirmLabel: '删除', danger: true }))) return;
   await api(`/api/schemes/${scheme.id}`, { method: 'DELETE' });
   if (currentSchemeDetail?.id === scheme.id) {
     currentSchemeDetail = null;
@@ -7163,7 +7166,7 @@ function renderSnippets() {
       toast(`已应用 ${item.name}，新增 ${added} 个 Tag。`, 'success');
     });
     card.querySelector('[data-delete]').addEventListener('click', async () => {
-      if (!confirm(`删除片段“${item.name}”？`)) return;
+      if (!(await confirmAction(`删除片段“${item.name}”？`, { confirmLabel: '删除', danger: true }))) return;
       await api(`/api/snippets/${item.id}`, { method: 'DELETE' });
       await loadSnippets();
     });
@@ -7258,7 +7261,7 @@ async function enqueue(count, stateOverride = null) {
       if (decision === 'random') state.seedMode = 'random';
     }
     state = await prepareGenerationState(state, !stateOverride);
-    if (state.provider === 'rbq' && providerCatalog?.rbq?.configured === false) throw new Error('先在设置中保存 RBQ API Key。');
+    if (!isOfficialProvider(state.provider) && !providerConfigured(state.provider)) throw new Error(state.provider === 'rbq' ? '先在设置中保存 RBQ API Key。' : '这个中转还没有可用的 Key，请在设置里检查。');
     if (state.provider === 'official' && (!state.officialAccountId || providerCatalog?.official?.configured === false)) throw new Error('先在设置中添加并选择 NovelAI 官网 Token。');
     const hasCharacterPrompt = state.characters.some(character => character.enabled !== false && character.promptTags.some(tag => tag.enabled !== false && tag.text.trim()));
     if (state.imageTool?.type === 'none' && !state.prompt.trim() && !hasCharacterPrompt) throw new Error('至少填写全局 Prompt 或一个角色 Prompt。');
@@ -7383,7 +7386,7 @@ function chooseStormSeed(state) {
 async function generateArtistStorm() {
   currentStormPlan();
   let baseState = await prepareGenerationState(serializeState());
-  if (baseState.provider === 'rbq' && providerCatalog?.rbq?.configured === false) throw new Error('先在设置中保存 RBQ API Key。');
+  if (!isOfficialProvider(baseState.provider) && !providerConfigured(baseState.provider)) throw new Error(baseState.provider === 'rbq' ? '先在设置中保存 RBQ API Key。' : '这个中转还没有可用的 Key，请在设置里检查。');
   if (baseState.provider === 'official' && (!baseState.officialAccountId || providerCatalog?.official?.configured === false)) throw new Error('先添加并选择一个 NovelAI 官网 Token。');
   if (els.stormUseExternalArtists?.checked && !stormExternalArtistPool.length) {
     await loadStormExternalArtists();
@@ -7597,9 +7600,126 @@ function beginOfficialTokenEdit(accountId) {
   els.officialApiToken?.focus();
 }
 
+// Third-party relays: the RBQ preset plus relays the user adds (public/provider-route.js).
+// RBQ is listed only once it has a Key, so a fresh install shows NovelAI alone.
+let editingRelayId = '';
+function relayHost(url) {
+  try { return new URL(url).host; } catch { return ''; }
+}
+function relayCatalog() {
+  const list = [];
+  const rbq = providerCatalog?.rbq;
+  if (rbq?.configured || rbq?.error) list.push({ id: 'rbq', name: 'RBQ 中转', host: relayHost(rbq.endpoint), tokenHint: rbq.tokenHint, source: rbq.source, configured: Boolean(rbq.configured), error: rbq.error || '' });
+  for (const relay of providerCatalog?.relays || []) if (relay.id) list.push({ ...relay, source: 'ui' });
+  return list;
+}
+function relayById(id) {
+  return relayCatalog().find(item => item.id === id) || null;
+}
+function providerConfigured(provider) {
+  if (!providerCatalog) return true;
+  if (isOfficialProvider(provider)) return providerCatalog.official?.configured !== false;
+  return Boolean(relayById(normalizeProviderId(provider))?.configured);
+}
+// The channel select lists NovelAI plus every configured relay. appState.provider is the
+// source of truth: before the catalog arrives the saved relay keeps a placeholder option, so
+// an early generate can never fall back to the official account by accident.
+function syncProviderOptions() {
+  const select = els.generationProvider;
+  const group = $('#relayProviderGroup');
+  if (!select || !group) return;
+  const current = normalizeProviderId(appState.provider);
+  const relays = relayCatalog();
+  group.replaceChildren(...relays.map(relay => new Option(relay.name, relay.id)));
+  if (!isOfficialProvider(current) && !relays.some(relay => relay.id === current) && !providerCatalog) {
+    group.append(new Option(current === 'rbq' ? 'RBQ 中转' : '第三方中转', current));
+  }
+  group.hidden = !group.children.length;
+  const available = [...select.options].some(option => option.value === current);
+  select.value = available ? current : 'official';
+  if (!available && providerCatalog) appState.provider = 'official';
+}
+function renderRelayList() {
+  const list = $('#relayList');
+  if (!list) return;
+  const relays = relayCatalog();
+  list.innerHTML = relays.map(relay => `
+    <div class="provider-account-row${relay.error ? ' is-error' : ''}">
+      <span class="provider-account-copy"><strong>${escapeHtml(relay.name)}</strong><small>${escapeHtml(relay.error || [relay.host, relay.tokenHint, relay.source === 'env' ? '.env' : ''].filter(Boolean).join(' · '))}</small></span>
+      <span class="provider-account-actions">
+        <button class="ghost" type="button" data-edit-relay="${escapeHtml(relay.id)}">修改</button>
+        ${relay.source === 'env' ? '' : `<button class="ghost danger" type="button" data-delete-relay="${escapeHtml(relay.id)}">删除</button>`}
+      </span>
+    </div>`).join('');
+  list.hidden = !relays.length;
+}
+function syncRelayForm() {
+  const kind = $('#relayKind'), name = $('#relayName'), url = $('#relayApiUrl'), hint = $('#relayCustomHint');
+  const customAllowed = providerCatalog?.customRelays === true;
+  if (kind) {
+    kind.querySelector('[value="custom"]')?.toggleAttribute('disabled', !customAllowed);
+    if (!customAllowed) kind.value = 'rbq';
+    kind.hidden = Boolean(editingRelayId) || !customAllowed;
+  }
+  const custom = editingRelayId ? editingRelayId.startsWith('relay:') : kind?.value === 'custom';
+  for (const node of [name, url, hint]) if (node) node.hidden = !custom;
+  if (els.rbqApiKey) els.rbqApiKey.placeholder = editingRelayId.startsWith('relay:') ? '新的 Key；留空则不改' : custom ? '粘贴中转 Key' : '粘贴 RBQ API Key';
+  if (els.saveRbqKeyButton) els.saveRbqKeyButton.textContent = editingRelayId ? '保存修改' : '保存';
+  $('#cancelRelayEdit')?.classList.toggle('hidden', !editingRelayId);
+}
+function resetRelayForm() {
+  editingRelayId = '';
+  for (const id of ['#relayName', '#relayApiUrl']) { const node = $(id); if (node) node.value = ''; }
+  if (els.rbqApiKey) els.rbqApiKey.value = '';
+  syncRelayForm();
+}
+function beginRelayEdit(id) {
+  const relay = relayById(id);
+  if (!relay) return;
+  editingRelayId = relay.id;
+  if (relay.id.startsWith('relay:')) {
+    $('#relayName').value = relay.name;
+    $('#relayApiUrl').value = relay.endpoint || '';
+  }
+  if (els.rbqApiKey) els.rbqApiKey.value = '';
+  syncRelayForm();
+  els.rbqApiKey?.focus();
+}
+async function deleteRelay(id) {
+  const relay = relayById(id);
+  if (!relay || !(await confirmAction(`删除「${relay.name}」？保存的 Key 会一起删除。`, { confirmLabel: '删除', danger: true }))) return;
+  const path = id === 'rbq' ? '/api/providers/rbq' : `/api/providers/relays/${encodeURIComponent(id.slice('relay:'.length))}`;
+  const data = await api(path, { method: 'DELETE' });
+  providerCatalog = data.providers || providerCatalog;
+  if (editingRelayId === id) resetRelayForm();
+  syncProviderUi();
+  toast(`已删除：${relay.name}`, 'success');
+}
+async function saveCustomRelay() {
+  const key = String(els.rbqApiKey?.value || '').trim();
+  const body = { name: String($('#relayName')?.value || '').trim(), apiUrl: String($('#relayApiUrl')?.value || '').trim(), key };
+  if (!body.apiUrl) throw new Error('请填写中转的接口地址。');
+  if (!editingRelayId && !key) throw new Error('请先粘贴中转 Key。');
+  const editing = editingRelayId;
+  const data = editing
+    ? await api(`/api/providers/relays/${encodeURIComponent(editing.slice('relay:'.length))}`, { method: 'PUT', body })
+    : await api('/api/providers/relays', { method: 'POST', body });
+  providerCatalog = data.providers || providerCatalog;
+  resetRelayForm();
+  if (!editing && data.providerId) appState.provider = data.providerId;
+  syncProviderUi();
+  if (!editing && data.providerId) els.generationProvider?.dispatchEvent(new Event('change', { bubbles: true }));
+  toast(editing ? '中转已更新。' : '中转已保存，并设为当前通道。', 'success');
+}
+
 function syncAccountUsageSummary() {
   if (!els.accountUsageSummary) return;
-  if (els.generationProvider?.value === 'rbq') {
+  const route = normalizeProviderId(els.generationProvider?.value);
+  if (route !== 'rbq' && !isOfficialProvider(route)) {
+    els.accountUsageSummary.textContent = `${relayById(route)?.name || '第三方中转'} · 额度由中转管理`;
+    return;
+  }
+  if (route === 'rbq') {
     const remaining = latestRbqAccount?.usage?.remainingImages;
     els.accountUsageSummary.textContent = remaining == null ? 'RBQ 额度 · 读取中…' : `RBQ 额度 · 剩余 ${Number(remaining).toLocaleString()}`;
     return;
@@ -7613,23 +7733,27 @@ function syncAccountUsageSummary() {
 }
 
 function syncProviderUi() {
-  const provider = els.generationProvider?.value === 'rbq' ? 'rbq' : 'official';
+  syncProviderOptions();
+  const provider = normalizeProviderId(els.generationProvider?.value);
   const official = providerCatalog?.official || null;
-  const rbq = providerCatalog?.rbq || null;
+  const relayRoute = !isOfficialProvider(provider);
+  const relay = relayRoute ? relayById(provider) : null;
   syncOfficialAccountOptions();
   renderOfficialAccountList();
+  renderRelayList();
+  syncRelayForm();
   if (els.officialProviderPanel) {
-    els.officialProviderPanel.hidden = provider !== 'official' && !globalThis.NAI_RUNTIME?.native;
+    els.officialProviderPanel.hidden = relayRoute && !globalThis.NAI_RUNTIME?.native;
     if (globalThis.NAI_RUNTIME?.native) {
       let help = $('#nativeVibeAccountHelp');
       if (!help) {
         help = document.createElement('p'); help.id = 'nativeVibeAccountHelp'; help.className = 'muted';
-        help.textContent = 'RBQ 普通生成只需 Key。Vibe 编码缓存不足时需要下方选中的官网账号，发送参考图前会确认。';
+        help.textContent = '中转普通生成只需 Key。Vibe 编码缓存不足时需要下方选中的官网账号，发送参考图前会确认。';
         els.officialProviderPanel.prepend(help);
       }
-      help.hidden = provider !== 'rbq';
+      help.hidden = !relayRoute;
       const label = els.officialProviderPanel.querySelector('.provider-account-picker');
-      if (label?.firstChild) label.firstChild.textContent = provider === 'rbq' ? 'Vibe 编码账号（普通生成无需）' : '本次使用';
+      if (label?.firstChild) label.firstChild.textContent = relayRoute ? 'Vibe 编码账号（普通生成无需）' : '本次使用';
     }
     els.officialProviderPanel.classList.toggle('is-ready', provider === 'official' && official?.configured === true && !official?.error);
     els.officialProviderPanel.classList.toggle('is-error', provider === 'official' && (official?.configured === false || Boolean(official?.error)));
@@ -7642,26 +7766,28 @@ function syncProviderUi() {
     else els.officialProviderStatus.textContent = `${official.accounts.length} 个 · 当前 ${selected?.name || '未选择'}`;
   }
   if (els.rbqProviderPanel) {
-    els.rbqProviderPanel.hidden = provider !== 'rbq';
-    els.rbqProviderPanel.classList.toggle('is-ready', provider === 'rbq' && rbq?.configured === true);
-    els.rbqProviderPanel.classList.toggle('is-error', provider === 'rbq' && (rbq?.configured === false || Boolean(rbq?.error)));
+    els.rbqProviderPanel.hidden = !relayRoute;
+    els.rbqProviderPanel.classList.toggle('is-ready', relayRoute && relay?.configured === true);
+    els.rbqProviderPanel.classList.toggle('is-error', relayRoute && Boolean(providerCatalog) && (!relay?.configured || Boolean(relay?.error)));
   }
+  const relayName = $('#relayProviderName');
+  if (relayName) relayName.textContent = relay?.name || (provider === 'rbq' ? 'RBQ 中转' : '第三方中转');
   if (els.rbqProviderStatus) {
-    if (!rbq) els.rbqProviderStatus.textContent = '正在读取配置…';
-    else if (rbq.error) els.rbqProviderStatus.textContent = rbq.error;
-    else if (rbq.configured) els.rbqProviderStatus.textContent = `已配置 ${rbq.tokenHint || ''}${rbq.source === 'env' ? ' · .env' : ' · UI'}`;
+    if (!providerCatalog) els.rbqProviderStatus.textContent = '正在读取配置…';
+    else if (relay?.error) els.rbqProviderStatus.textContent = relay.error;
+    else if (relay?.configured) els.rbqProviderStatus.textContent = [relay.host, relay.tokenHint, relay.source === 'env' ? '.env' : ''].filter(Boolean).join(' · ');
     else els.rbqProviderStatus.textContent = '未配置 Key';
   }
-  if (els.naiAccountUsage) els.naiAccountUsage.hidden = provider !== 'official';
+  if (els.naiAccountUsage) els.naiAccountUsage.hidden = relayRoute;
   if (els.rbqAccountUsage) els.rbqAccountUsage.hidden = provider !== 'rbq';
   syncAccountUsageSummary();
   // First run on the phone: nothing can be generated until the user adds their own credential.
   // The server site always has its configured accounts, so the hint is native-only.
   const firstRun = $('#firstRunHint');
-  if (firstRun) firstRun.hidden = !globalThis.NAI_RUNTIME?.native || !providerCatalog || official?.configured === true || rbq?.configured === true;
+  if (firstRun) firstRun.hidden = !globalThis.NAI_RUNTIME?.native || !providerCatalog || official?.configured === true || relayCatalog().some(item => item.configured);
   const hint = $('#generateHint');
-  if (hint) hint.textContent = provider === 'rbq'
-    ? 'RBQ 中转'
+  if (hint) hint.textContent = relayRoute
+    ? (relay?.name || '第三方中转')
     : `NovelAI${selectedOfficialAccount()?.name ? ` · ${selectedOfficialAccount().name}` : ''}`;
 }
 
@@ -7678,14 +7804,18 @@ async function refreshProviderStatus(showError = false) {
 }
 
 async function saveRbqKey() {
+  if (editingRelayId.startsWith('relay:') || (!editingRelayId && $('#relayKind')?.value === 'custom')) return saveCustomRelay();
   const token = String(els.rbqApiKey?.value || '').trim();
   if (!token) throw new Error('请先粘贴 RBQ API Key。');
+  const firstKey = !providerCatalog?.rbq?.configured;
   if (els.saveRbqKeyButton) els.saveRbqKeyButton.disabled = true;
   try {
     const data = await api('/api/providers/rbq', { method: 'POST', body: { token } });
     providerCatalog = data.providers || null;
-    if (els.rbqApiKey) els.rbqApiKey.value = '';
+    resetRelayForm();
+    if (firstKey) appState.provider = 'rbq';
     syncProviderUi();
+    if (firstKey) els.generationProvider?.dispatchEvent(new Event('change', { bubbles: true }));
     toast(globalThis.NAI_RUNTIME?.native ? 'RBQ Key 已在本机加密保存。' : 'RBQ Key 已在服务端加密保存。', 'success');
     await refreshRbqAccount(false);
   } finally {
@@ -7730,7 +7860,7 @@ async function setDefaultOfficialAccount(accountId) {
 }
 
 async function resetOfficialEnvToken() {
-  if (!window.confirm('恢复使用服务器 .env 中的 NOVELAI_API_TOKEN？')) return;
+  if (!(await confirmAction('恢复使用服务器 .env 中的 NOVELAI_API_TOKEN？', { confirmLabel: '恢复' }))) return;
   const data = await api('/api/providers/official/accounts/env/override', { method: 'DELETE' });
   providerCatalog = data.providers || null;
   appState.officialAccountId = 'env';
@@ -7744,7 +7874,7 @@ async function resetOfficialEnvToken() {
 async function deleteOfficialAccount(accountId) {
   const account = officialAccounts().find(item => item.id === accountId);
   if (!account?.removable) return;
-  if (!window.confirm(`删除官网 Token「${account.name}」？此操作不会删除已生成图片。`)) return;
+  if (!(await confirmAction(`删除官网 Token「${account.name}」？此操作不会删除已生成图片。`, { confirmLabel: '删除', danger: true }))) return;
   const data = await api(`/api/providers/official/accounts/${encodeURIComponent(accountId)}`, { method: 'DELETE' });
   providerCatalog = data.providers || null;
   if (appState.officialAccountId === accountId) appState.officialAccountId = String(providerCatalog?.official?.defaultAccountId || '');
@@ -7794,7 +7924,7 @@ async function refreshRbqAccount(showError = false) {
 }
 
 async function refreshNaiAccount(showError = false) {
-  if (els.generationProvider?.value === 'rbq') return null;
+  if (!isOfficialProvider(els.generationProvider?.value)) return null;
   try {
     const accountId = String(els.officialAccountSelect?.value || appState.officialAccountId || '');
     if (!accountId) throw new Error('请先添加或选择 NovelAI 官网 Token。');
@@ -7897,6 +8027,7 @@ let queueCancelArmedUntil = 0;
 
 function queueRouteName(job) {
   if (job.provider === 'rbq') return 'RBQ';
+  if (!isOfficialProvider(job.provider)) return relayById(job.provider)?.name || '中转';
   return officialAccounts().find(account => account.id === job.official_account_id)?.name || '官方';
 }
 
@@ -7934,7 +8065,7 @@ function renderQueueControl(data) {
 
 function queueRouteChoices() {
   const choices = officialAccounts().map(account => ({ provider: 'official', officialAccountId: account.id, label: account.name }));
-  if (providerCatalog?.rbq?.configured !== false) choices.push({ provider: 'rbq', officialAccountId: '', label: 'RBQ 中转' });
+  for (const relay of relayCatalog()) if (relay.configured) choices.push({ provider: relay.id, officialAccountId: '', label: relay.name });
   return choices;
 }
 
@@ -7949,7 +8080,7 @@ function openQueueRouteMenu() {
   const dead = queueLastData?.pauseReason?.kind === 'account' ? queueLastData.pauseReason.route : null;
   const choices = queueRouteChoices();
   menu.innerHTML = `<p>把等待中的任务改用：</p>${choices.map((choice, index) => {
-    const isDead = dead && dead.provider === choice.provider && (choice.provider === 'rbq' || dead.officialAccountId === choice.officialAccountId);
+    const isDead = dead && dead.provider === choice.provider && (!isOfficialProvider(choice.provider) || dead.officialAccountId === choice.officialAccountId);
     return `<button type="button" data-queue-route="${index}"${isDead ? ' class="dead"' : ''}>${escapeHtml(choice.label)}${isDead ? '<small>刚才失败</small>' : ''}</button>`;
   }).join('') || '<p>还没有可用的渠道；先在设置里添加 Token。</p>'}<small class="queue-route-hint">改用后会继续队列，之后新生成的图也用这个渠道。</small>`;
   menu.querySelectorAll('[data-queue-route]').forEach(node => node.addEventListener('click', () => rerouteQueue(choices[Number(node.dataset.queueRoute)])));
@@ -7962,7 +8093,8 @@ async function rerouteQueue(choice) {
   $('#queueRerouteButton')?.setAttribute('aria-expanded', 'false');
   // New jobs from the editor take the same route.
   if (els.generationProvider && els.generationProvider.value !== choice.provider) {
-    els.generationProvider.value = choice.provider;
+    appState.provider = choice.provider;
+    syncProviderOptions();
     els.generationProvider.dispatchEvent(new Event('change', { bubbles: true }));
   }
   if (choice.provider === 'official' && els.officialAccountSelect && els.officialAccountSelect.value !== choice.officialAccountId) {
@@ -7971,7 +8103,7 @@ async function rerouteQueue(choice) {
   }
   const parts = [`${result.moved + result.retried} 个任务改用 ${choice.label}`];
   if (result.retried) parts.push(`其中 ${result.retried} 个失败的已重新排队`);
-  if (result.skipped) parts.push(`${result.skipped} 个官方图片工具任务没有改（RBQ 不支持）`);
+  if (result.skipped) parts.push(`${result.skipped} 个官方图片工具任务没有改（中转不支持）`);
   toast(`${parts.join('，')}；队列已继续。`, 'success');
   refreshJobs();
 }
@@ -8665,6 +8797,7 @@ function updateGallerySelectionUi() {
   els.galleryClearSelection?.classList.toggle('hidden', !gallerySelectionMode);
   els.galleryDeleteSelected?.classList.toggle('hidden', !gallerySelectionMode);
   els.gallerySelectionText?.classList.toggle('hidden', !gallerySelectionMode);
+  els.galleryExitSelection?.classList.toggle('hidden', !gallerySelectionMode);
   if (els.gallerySelectionText) els.gallerySelectionText.textContent = `已选择 ${selected} 张`;
   if (els.gallerySelectToggle) {
     els.gallerySelectToggle.textContent = gallerySelectionMode ? '退出批量选择' : '批量选择';
@@ -9269,7 +9402,7 @@ async function toggleGalleryFavorite(image) {
 }
 
 async function deleteGalleryImageInline(image) {
-  if (!confirm('删除这张图片、缩略图和图库记录？')) return;
+  if (!(await confirmAction('删除这张图片、缩略图和图库记录？', { confirmLabel: '删除', danger: true }))) return;
   const wasCurrent = currentImage?.id === image.id;
   const wasLatest = $('#quickLatest')?.dataset.imageId === image.id;
   const oldIndex = loadedGalleryIndex(image.id);
@@ -9297,7 +9430,7 @@ async function deleteGalleryImageInline(image) {
 
 async function deleteSelectedGallery() {
   if (!selectedGalleryIds.size) return toast('先选择要删除的图片。');
-  if (!confirm(`确定批量删除 ${selectedGalleryIds.size} 张图片？`)) return;
+  if (!(await confirmAction(`删除选中的 ${selectedGalleryIds.size} 张图片？`, { confirmLabel: '删除', danger: true }))) return;
   const ids = [...selectedGalleryIds];
   const removedLatest = ids.includes($('#quickLatest')?.dataset.imageId || '');
   let handled = 0;
@@ -9498,6 +9631,13 @@ function syncGalleryTimeControls() {
   if (mode === 'month' && !els.galleryMonthFilter?.value) {
     const now = new Date();
     els.galleryMonthFilter.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  }
+  // 自定义始末 opens on the last 30 days instead of an empty range that can only error.
+  if (mode === 'custom' && els.galleryDateFrom && els.galleryDateTo && !els.galleryDateFrom.value && !els.galleryDateTo.value) {
+    const day = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    const today = new Date();
+    els.galleryDateTo.value = day(today);
+    els.galleryDateFrom.value = day(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 29));
   }
   els.galleryMonthFilter?.classList.toggle('hidden', mode !== 'month');
   els.galleryCustomRange?.classList.toggle('hidden', mode !== 'custom');
@@ -10032,7 +10172,7 @@ async function switchFavorite() {
 }
 
 async function deleteCurrentImage() {
-  if (!currentImage || !confirm('删除这张图片、缩略图和图库记录？')) return;
+  if (!currentImage || !(await confirmAction('删除这张图片、缩略图和图库记录？', { confirmLabel: '删除', danger: true }))) return;
   const deleting = { ...currentImage };
   const oldIndex = loadedGalleryIndex(deleting.id);
   const wasLatest = $('#quickLatest')?.dataset.imageId === deleting.id;
@@ -10120,6 +10260,7 @@ function initBindings() {
   document.addEventListener('keydown', event => { if (event.key === 'Enter' && event.target.closest?.('.tag-add')) requestAnimationFrame(syncWholeAddButtons); });
   document.querySelectorAll('[data-semantic-tab]').forEach(button => button.addEventListener('click', () => setSemanticTab(button.dataset.semanticTab)));
   observeToastClearance($('#toastHost'), els.floatingGenerateBar);
+  installSelectSheets({ isEnabled: () => !document.body.classList.contains('tag-layout-legacy') });
   document.addEventListener('click', event => {
     const button = event.target.closest('[data-open-artist-library]');
     if (!button) return;
@@ -10540,8 +10681,8 @@ function initBindings() {
     compilePromptToPreview(true);
     toast('已用 Tag 卡片重新编译 Prompt。', 'success');
   });
-  $('#clearTagsButton').addEventListener('click', () => {
-    if (!confirm('清空全部 Tag？')) return;
+  $('#clearTagsButton').addEventListener('click', async () => {
+    if (!(await confirmAction('清空全部 Tag？', { confirmLabel: '清空', danger: true }))) return;
     for (const [key] of GROUP_DEFS) appState.groups[key] = [];
     appState.characters = [];
     renderCharacters();
@@ -10574,8 +10715,8 @@ function initBindings() {
     updatePromptModeHint();
     toast(appState.promptOrderMode === 'original' ? '已切到保持顺序：分类整理不再改变生成先后。' : '已切到分类顺序：按画风 → 场景 → 镜头 → 其他构造。');
   });
-  els.rebuildPromptOrderButton?.addEventListener('click', () => {
-    if (!confirm('把当前卡片的分类排列写成新的“保持顺序”？这会明确重设 Global Tag 的生成先后。')) return;
+  els.rebuildPromptOrderButton?.addEventListener('click', async () => {
+    if (!(await confirmAction('把当前卡片的分类排列写成新的“保持顺序”？这会明确重设 Global Tag 的生成先后。', { confirmLabel: '重设' }))) return;
     const count = rebuildGlobalOriginalOrderFromGrouped();
     appState.promptOrderMode = 'original';
     compilePromptToPreview();
@@ -10679,11 +10820,11 @@ function initBindings() {
   });
 
   els.generationProvider?.addEventListener('change', event => {
-    appState.provider = event.target.value === 'rbq' ? 'rbq' : 'official';
+    appState.provider = normalizeProviderId(event.target.value);
     syncProviderUi();
     if (authContext.role !== 'owner') return;
     if (appState.provider === 'official') refreshNaiAccount(false).catch(() => {});
-    else refreshRbqAccount(false).catch(() => {});
+    else if (appState.provider === 'rbq') refreshRbqAccount(false).catch(() => {});
   });
   els.officialAccountSelect?.addEventListener('change', event => {
     appState.officialAccountId = String(event.target.value || '');
@@ -10708,6 +10849,14 @@ function initBindings() {
     }
   });
   els.saveRbqKeyButton?.addEventListener('click', () => saveRbqKey().catch(error => toast(error.message, 'error')));
+  $('#relayKind')?.addEventListener('change', syncRelayForm);
+  $('#cancelRelayEdit')?.addEventListener('click', resetRelayForm);
+  $('#relayList')?.addEventListener('click', event => {
+    const edit = event.target.closest('[data-edit-relay]');
+    if (edit) return beginRelayEdit(edit.dataset.editRelay);
+    const remove = event.target.closest('[data-delete-relay]');
+    if (remove) deleteRelay(remove.dataset.deleteRelay).catch(error => toast(error.message, 'error'));
+  });
 
   $('#sizePreset').addEventListener('change', event => {
     if (event.target.value === 'custom') return;
@@ -10800,6 +10949,8 @@ function initBindings() {
     updateGallerySelectionUi();
     if (!gallerySelectionMode) tryAutoLoadPendingGalleryImages();
   });
+  // 完成 sits beside the count, so leaving batch mode does not require the ⋯ menu.
+  els.galleryExitSelection?.addEventListener('click', () => { if (gallerySelectionMode) els.gallerySelectToggle?.click(); });
   els.gallerySelectAll?.addEventListener('click', () => {
     selectedGalleryIds.clear();
     document.querySelectorAll('[data-gallery-id]').forEach(card => selectedGalleryIds.add(card.dataset.galleryId));

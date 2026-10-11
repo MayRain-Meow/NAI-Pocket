@@ -6,7 +6,7 @@ export const PocketNative = registerPlugin('PocketNative');
 export async function openProviders(settings, http) {
   let snapshot = JSON.parse((await PocketNative.readVault()).value || '{}');
   snapshot.state ||= {}; snapshot.secrets ||= {};
-  const service = createProviderService({ settings, http, ids: { next: () => crypto.randomUUID() },
+  const service = createProviderService({ settings, http, allowCustomRelays: true, ids: { next: () => crypto.randomUUID() },
     state: { get: (key, fallback) => snapshot.state[key] ?? fallback, set: (key, value) => { snapshot.state[key] = value; } },
     secrets: {
       encrypt(value) { const id = `native-v1:${crypto.randomUUID()}`; snapshot.secrets[id] = value; return id; },

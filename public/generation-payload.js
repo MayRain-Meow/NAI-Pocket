@@ -4,6 +4,7 @@
 // host through configureGenerationPayload(); the defaults are NovelAI's public ones.
 
 import { formatTag } from './prompt-utils.js?v=1.6.81';
+import { normalizeProviderId } from './provider-route.js?v=1.6.81';
 import { extractQuotedText, prepareV5Prompt } from './v5-utils.js?v=1.6.81';
 import { DIRECTOR_TOOL_TYPES, filterAdvancedOverrides } from './parameter-semantics.js?v=1.6.81';
 import { DEFAULT_GENERATION_MODEL, DEFAULT_GENERATION_PARAMS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.6.81';
@@ -501,7 +502,7 @@ export function sanitizeGenerationState(raw, { allowMissingMedia = false } = {})
   }
 
   return {
-    provider: raw?.provider === 'rbq' ? 'rbq' : 'official',
+    provider: normalizeProviderId(raw?.provider),
     officialAccountId: /^[0-9a-f-]{16,80}$/i.test(String(raw?.officialAccountId || '')) || raw?.officialAccountId === 'env'
       ? String(raw.officialAccountId)
       : '',

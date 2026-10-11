@@ -3,6 +3,8 @@ import { createArtistResultViewer } from './artist-result.js?v=1.6.81';
 import { observeFittedChips } from './artist-chip-layout.js?v=1.6.81';
 import { buildNaxV5ArtistSearchUrl } from './artist-index-v5.js?v=1.6.81';
 import { modelDisplayName } from './model-utils.js?v=1.6.81';
+import { normalizeProviderId } from './provider-route.js?v=1.6.81';
+import { confirmAction } from './confirm-sheet.js?v=1.6.81';
 import { STYLE_ATTRIBUTES, STYLE_SCHEMA_VERSION, validateStyleAttributes, attributesFromLegacy, legacyFromAttributes, summarizeStyleEvidence } from './artist-style-schema.js?v=1.6.81';
 
 const PAGE_SIZE = 40;
@@ -931,6 +933,7 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
   // account key rather than the plain env token.
   function routeLabel(route = {}) {
     if (route.provider === 'rbq') return 'RBQ 中转';
+    if (String(route.provider || '').startsWith('relay:')) return '第三方中转';
     const account = String(route.officialAccountId || '');
     return account && account !== 'env' ? `NovelAI 官方 · ${account}` : 'NovelAI 官方';
   }
@@ -946,7 +949,7 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     if (typeof resolveRotationRoute !== 'function') return { provider: 'official', officialAccountId: '' };
     try {
       const route = resolveRotationRoute() || {};
-      return { provider: route.provider === 'rbq' ? 'rbq' : 'official', officialAccountId: String(route.officialAccountId || '') };
+      return { provider: normalizeProviderId(route.provider), officialAccountId: String(route.officialAccountId || '') };
     } catch { return { provider: 'official', officialAccountId: '' }; }
   }
 
@@ -1017,9 +1020,9 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
       const cancelRun = button('取消本轮采集', 'ghost');
       cancelRun.disabled = ingestionBusy || !active;
       cancelRun.title = '放弃本轮计划；已采集的例图与进度记录都会保留';
-      cancelRun.addEventListener('click', () => {
+      cancelRun.addEventListener('click', async () => {
         menu.open = false;
-        if (globalThis.confirm?.('取消本轮采集？已采集的例图会保留，进度记录也会保留。')) mutateIngestion('cancel', {});
+        if (await confirmAction('取消本轮采集？已采集的例图会保留，进度记录也会保留。', { confirmLabel: '取消采集', cancelLabel: '继续采集', danger: true })) mutateIngestion('cancel', {});
       });
       menuBody.append(cancelRun);
       menu.append(menuBody);
@@ -2637,7 +2640,7 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     const remove = button('删除', 'ghost danger');
     remove.disabled = manageLocked();
     const deleteWrite = () => runMutation.run(`delete:${example.id}`, async () => {
-      if (!globalThis.confirm?.('删除这张画师例图及其标注？此操作不会删除原图库图片。')) return;
+      if (!(await confirmAction('删除这张画师例图及其标注？此操作不会删除原图库图片。', { confirmLabel: '删除', danger: true }))) return;
       remove.disabled = true;
       try {
         await api(`/api/artists/examples/${encodeURIComponent(example.id)}`, { method: 'DELETE' });
@@ -2663,7 +2666,7 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     removeBoth.addEventListener('click', () => {
       if (manageLocked()) return;
       runMutation.run(`delete-both:${example.id}`, async () => {
-        if (!globalThis.confirm?.('删除这条例图及其标注，并删除图库中的原图？此操作不可撤销。')) return;
+        if (!(await confirmAction('删除这条例图及其标注，并删除图库中的原图？此操作不可撤销。', { confirmLabel: '一起删除', danger: true }))) return;
         removeBoth.disabled = true;
         try {
           // The image goes first: it removes the derived example as part of the same
@@ -2700,6 +2703,11 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
       const trigger = menuSummary.getBoundingClientRect();
       const available = window.innerHeight - trigger.bottom;
       menu.classList.toggle('is-above', available < Math.min(menuBody.scrollHeight || 260, 260) + 16 && trigger.top > available);
+      // The popover hangs from the trigger's right edge; a trigger in the left column would
+      // push it off the left of the screen, so it hangs from the left edge instead. (Phones
+      // show it as a bottom sheet, see artist-library.css.)
+      const width = menuBody.offsetWidth || 232;
+      menu.classList.toggle('is-start', trigger.right - width < 8);
     });
     show.addEventListener('click', () => { menu.open = false; });
     remove.addEventListener('click', () => { menu.open = false; });

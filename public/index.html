@@ -509,11 +509,12 @@
             <button id="gallerySelectToggle" class="ghost" type="button" aria-pressed="false" data-owner-only="">批量选择</button>
           </div>
           <div class="gallery-selection-actions">
-            <button id="gallerySelectAll" class="ghost hidden" type="button">已加载全选</button>
-            <button id="gallerySelectNonFavorites" class="ghost hidden" type="button">已加载非收藏</button>
-            <button id="galleryClearSelection" class="ghost hidden" type="button">清空选择</button>
-            <button id="galleryDeleteSelected" class="ghost danger hidden" type="button" data-owner-only="">删除选中</button>
+            <button id="gallerySelectAll" class="ghost hidden" type="button" title="选中已载入的全部图片">全选</button>
+            <button id="gallerySelectNonFavorites" class="ghost hidden" type="button" title="选中已载入的未收藏图片">非收藏</button>
+            <button id="galleryClearSelection" class="ghost hidden" type="button">清空</button>
+            <button id="galleryDeleteSelected" class="ghost danger hidden" type="button" data-owner-only="">删除</button>
             <span id="gallerySelectionText" class="hint hidden">已选择 0 张</span>
+            <button id="galleryExitSelection" class="ghost hidden" type="button">完成</button>
           </div>
         </div>
         <div class="gallery-filter-row">
@@ -617,7 +618,7 @@
             <label class="settings-route-field">当前通道
               <select id="generationProvider">
                 <option value="official">NovelAI 官方</option>
-                <option value="rbq">RBQ 中转</option>
+                <optgroup id="relayProviderGroup" label="第三方中转" hidden=""></optgroup>
               </select>
             </label>
             <div id="officialProviderPanel" class="provider-settings" data-owner-only="">
@@ -639,12 +640,26 @@
               </details>
             </div>
             <div id="rbqProviderPanel" class="provider-settings" hidden="" data-owner-only="">
-              <div class="provider-status-line"><strong>RBQ 中转</strong><span id="rbqProviderStatus">尚未读取配置</span></div>
-              <div class="provider-key-row">
-                <input id="rbqApiKey" type="password" autocomplete="new-password" spellcheck="false" placeholder="粘贴 RBQ API Key">
-                <button id="saveRbqKeyButton" class="ghost" type="button">保存 Key</button>
-              </div>
+              <div class="provider-status-line"><strong id="relayProviderName">第三方中转</strong><span id="rbqProviderStatus">尚未读取配置</span></div>
             </div>
+            <details id="relayManager" class="relay-manager" data-owner-only="">
+              <summary>管理第三方中转</summary>
+              <div id="relayList" class="provider-account-list" aria-live="polite"></div>
+              <div class="relay-form">
+                <select id="relayKind" aria-label="中转类型">
+                  <option value="rbq">RBQ</option>
+                  <option value="custom">NovelAI 兼容</option>
+                </select>
+                <input id="relayName" type="text" maxlength="60" autocomplete="off" placeholder="名称" hidden="">
+                <input id="relayApiUrl" type="url" maxlength="500" autocomplete="off" spellcheck="false" placeholder="https://…/generate-image" hidden="">
+                <input id="rbqApiKey" type="password" autocomplete="new-password" spellcheck="false" placeholder="粘贴 Key">
+                <div class="official-token-form-actions">
+                  <button id="saveRbqKeyButton" class="ghost" type="button">保存</button>
+                  <button id="cancelRelayEdit" class="ghost hidden" type="button">取消</button>
+                </div>
+                <p id="relayCustomHint" class="hint" hidden="">接口需与 NovelAI 生图接口一致；Key 只会发往这个地址。</p>
+              </div>
+            </details>
           </section>
 
           <section class="settings-dialog-section usage-settings-section" data-owner-only="">
@@ -933,7 +948,7 @@
               <button id="dialogReuseMenu" class="primary restore-split-menu" type="button" aria-label="选择部分恢复内容" title="部分恢复">▾</button>
             </div>
             <button id="dialogSaveScheme" class="ghost">存方案</button>
-            <button id="dialogRegenerate" class="ghost">换Seed抽</button>
+            <button id="dialogRegenerate" class="ghost">换 Seed</button>
           </div>
         </div>
         <div id="cleanupActionBar" class="cleanup-action-bar hidden" aria-label="清理模式操作" data-owner-only="">

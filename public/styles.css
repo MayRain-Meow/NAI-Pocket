@@ -131,8 +131,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .provider-settings > small { line-height: 1.45; }
 .provider-account-picker { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 9px; color: var(--muted); font-size: 12px; }
 .provider-account-picker select { color: var(--text); }
-.provider-token-manager { border-top: 1px solid var(--line); padding-top: 7px; }
-.provider-token-manager > summary { cursor: pointer; color: var(--muted); font-size: 12px; list-style-position: inside; }
+.provider-token-manager, .relay-manager { border-top: 1px solid var(--line); padding-top: 7px; }
+.provider-token-manager > summary, .relay-manager > summary { cursor: pointer; color: var(--muted); font-size: 12px; list-style-position: inside; }
 .official-token-form { display: grid; grid-template-columns: minmax(110px, .55fr) minmax(180px, 1fr) auto; gap: 8px; margin-top: 8px; min-width: 0; }
 .official-token-form > input { min-width: 0; }
 .official-token-form-actions { display: flex; align-items: stretch; gap: 6px; }
@@ -2287,4 +2287,74 @@ body.editor-focus-mode .settings-column .generation-panel { display: block; }
   .provider-account-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); justify-content: stretch; }
   .provider-account-actions > * { width: 100%; justify-content: center; text-align: center; }
   .provider-account-actions > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+.relay-form { display: grid; gap: 8px; margin-top: 8px; min-width: 0; }
+.relay-form > :is(input, select) { min-width: 0; }
+.relay-form > [hidden] { display: none !important; }
+.relay-form .hint { margin: 0; font-size: 12px; }
+.relay-manager .provider-account-list[hidden] { display: none; }
+.select-sheet {
+  position: fixed; inset: auto; margin: 0; padding: 0;
+  width: min(340px, calc(100vw - 24px)); max-height: min(60dvh, 480px);
+  display: none; flex-direction: column; overflow: hidden;
+  border: 1px solid #ffffff14; border-radius: 16px;
+  background: linear-gradient(180deg, #2a2a25, #21211e); color: var(--text);
+  box-shadow: inset 0 1px 0 #ffffff10, 0 22px 50px #000000b3;
+}
+.select-sheet[open] { display: flex; }
+.select-sheet::backdrop { background: #0000004d; }
+.select-sheet-title { flex: none; padding: 14px 18px 6px; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .04em; }
+.select-sheet-title[hidden] { display: none; }
+.select-sheet-list { display: grid; align-content: start; gap: 2px; min-height: 0; padding: 6px 8px 10px; overflow-y: auto; overscroll-behavior: contain; }
+.select-sheet-option {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  width: 100%; min-height: 44px; padding: 0 12px;
+  border: 0; border-radius: 10px; background: none; box-shadow: none;
+  color: var(--text); font-size: 14.5px; font-weight: 500; text-align: left;
+}
+.select-sheet-option:hover:not(:disabled), .select-sheet-option:focus-visible { background: #ffffff0d; outline: none; }
+.select-sheet-option[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font-weight: 650; }
+.select-sheet-option[aria-selected="true"]::after { content: "✓"; font-size: 15px; }
+.select-sheet-option:disabled { opacity: .4; cursor: default; }
+.select-sheet-group { padding: 12px 12px 4px; color: var(--muted); font-size: 11.5px; font-weight: 600; letter-spacing: .04em; }
+@media (max-width: 640px) {
+  .select-sheet {
+    inset: auto 0 0 0; width: 100%; max-width: none; max-height: 72dvh;
+    border-width: 1px 0 0; border-radius: 20px 20px 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .select-sheet::backdrop { background: #00000080; }
+  .select-sheet-title { padding: 18px 20px 8px; font-size: 13px; }
+  .select-sheet-list { padding: 4px 10px 14px; }
+  .select-sheet-option { min-height: 50px; padding: 0 14px; font-size: 15.5px; }
+}
+@media (prefers-reduced-motion: no-preference) and (max-width: 640px) {
+  .select-sheet[open] { animation: select-sheet-up .18s ease-out; }
+  @keyframes select-sheet-up { from { transform: translateY(24px); opacity: .6; } to { transform: none; opacity: 1; } }
+}
+.confirm-sheet {
+  position: fixed; margin: auto; padding: 0;
+  width: min(380px, calc(100vw - 32px));
+  border: 1px solid #ffffff14; border-radius: 18px;
+  background: linear-gradient(180deg, #2a2a25, #21211e); color: var(--text);
+  box-shadow: inset 0 1px 0 #ffffff10, 0 24px 56px #000000b3;
+}
+.confirm-sheet::backdrop { background: #00000080; }
+.confirm-sheet-body { display: grid; gap: 14px; margin: 0; padding: 20px 20px 18px; }
+.confirm-sheet-title { font-size: 16px; font-weight: 700; line-height: 1.4; }
+.confirm-sheet-message { margin: 0; color: var(--text-secondary, var(--text)); font-size: 14.5px; line-height: 1.6; overflow-wrap: anywhere; }
+.confirm-sheet-input { width: 100%; min-height: 46px; padding: 8px 2px; border: 0; border-bottom: 1px solid #ffffff2a; border-radius: 0; background: none; color: var(--text); font-size: 16px; outline: none; }
+.confirm-sheet-input:focus { border-bottom-color: var(--accent); }
+.confirm-sheet-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 4px; }
+.confirm-sheet-actions > button {
+  min-height: 46px; padding: 0 12px; border: 1px solid #ffffff12; border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff12, #ffffff06); color: var(--text); font-size: 15px; font-weight: 650;
+  box-shadow: inset 0 1px 0 #ffffff12, 0 1px 2px #00000066;
+}
+.confirm-sheet-actions > button:active { transform: translateY(1px); box-shadow: inset 0 1px 3px #00000080; }
+.confirm-sheet-actions > .confirm-sheet-accept { border-color: #ecd6b8; background: linear-gradient(180deg, #e6caa5, #c99f6e); color: var(--on-accent); box-shadow: inset 0 1px 0 #ffffff66, 0 4px 14px color-mix(in srgb, var(--accent) 24%, transparent); }
+.confirm-sheet-actions > .confirm-sheet-accept.is-danger { border-color: #ff8a9a59; background: linear-gradient(180deg, #e0566a, #c03a50); color: #fff; box-shadow: inset 0 1px 0 #ffffff40, 0 4px 14px #c03a5040; }
+@media (max-width: 640px) {
+  .confirm-sheet { inset: auto 0 0 0; width: 100%; max-width: none; margin: 0; border-width: 1px 0 0; border-radius: 20px 20px 0 0; }
+  .confirm-sheet-body { padding: 22px 20px calc(18px + env(safe-area-inset-bottom, 0px)); }
 }

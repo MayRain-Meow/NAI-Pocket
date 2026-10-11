@@ -163,6 +163,12 @@ async function rpc(name,args) {
       if (preview) await new Promise(resolve=>setTimeout(resolve,800));
       return {status:200,headers:{'content-type':'image/png'},body:(preview ? previewImage(payload, generationCalls.length) : png).toString('base64')};
     }
+    if(url.hostname==='relay.example.test'&&url.pathname==='/v1/generate'){
+      const payload=JSON.parse(Buffer.from(args.body,'base64'));
+      generationCalls.push({host:url.hostname,authorization:args.headers.authorization,payload});
+      // OpenAI-shaped JSON under a generic content-type: recognised by its content.
+      return {status:200,headers:{'content-type':'text/plain'},body:Buffer.from(JSON.stringify({created:1,data:[{b64_json:png.toString('base64')}]})).toString('base64')};
+    }
     if(url.hostname==='image.novelai.net'&&url.pathname==='/ai/encode-vibe'){
       encodingCalls.push({authorization:args.headers.authorization,payload:JSON.parse(Buffer.from(args.body,'base64'))});
       assert.ok([`Bearer ${token}`,`Bearer ${secondToken}`].includes(args.headers.authorization),'Vibe encoding has an explicit official credential');
@@ -259,10 +265,13 @@ try {
   await page.waitForFunction(()=>document.querySelectorAll('#officialAccountList .provider-account-row').length===2);
   const accounts=(await call('/api/providers')).data.providers.official.accounts;
   const accountId=accounts.find(item=>item.name==='Synthetic').id, secondId=accounts.find(item=>item.name==='Second').id;
-  await page.locator('#generationProvider').selectOption('rbq');
+  // RBQ is a third-party relay preset: it joins the channel list once its Key is saved.
+  assert.equal(await page.locator('#generationProvider option[value="rbq"]').count(),0,'RBQ is not offered before it has a Key');
+  await page.locator('#relayManager > summary').click();
   await page.locator('#rbqApiKey').fill(rbqToken);
   await page.locator('#saveRbqKeyButton').click();
   await page.getByText('RBQ Key 已在本机加密保存。',{exact:true}).waitFor();
+  assert.equal(await page.locator('#generationProvider').inputValue(),'rbq','saving the first RBQ Key switches to it');
   assert.equal(await page.locator('#rbqApiKey').inputValue(),'');
   await page.locator('#closeSettingsButton').click();
   await page.locator('[data-edit-text]').click();
@@ -312,10 +321,14 @@ try {
   const scheme=await call('/api/schemes',{name:'Offline fixture',data:state,isDefault:true});assert.equal(scheme.status,200);
   const vibe={...state,provider:'rbq',referenceControl:{mode:'vibe',vibes:[{image:uploaded.ref,strength:0.6,informationExtracted:1}]}};
   const missing=await call('/api/jobs/enqueue',{state:{...vibe,officialAccountId:''},count:1});assert.equal(missing.status,400);assert.equal(encodingCalls.length,0);
-  page.once('dialog',dialog=>dialog.dismiss());
-  const cancelled=await call('/api/jobs/enqueue',{state:vibe,count:1});assert.equal(cancelled.status,409);assert.equal(generationCalls.length,2);assert.equal(encodingCalls.length,0);
-  page.once('dialog',dialog=>{assert.match(dialog.message(),/Synthetic/);return dialog.accept();});
-  assert.equal((await call('/api/jobs/enqueue',{state:vibe,count:1})).status,200);
+  // The Vibe encoding confirmation is the in-app sheet: cancel queues nothing, accept encodes once.
+  const cancelling=call('/api/jobs/enqueue',{state:vibe,count:1});
+  await page.locator('.confirm-sheet[open] [data-confirm-cancel]').click();
+  const cancelled=await cancelling;assert.equal(cancelled.status,409);assert.equal(generationCalls.length,2);assert.equal(encodingCalls.length,0);
+  const accepting=call('/api/jobs/enqueue',{state:vibe,count:1});
+  assert.match(await page.locator('.confirm-sheet[open]').textContent(),/Synthetic/);
+  await page.locator('.confirm-sheet[open] [data-confirm-accept]').click();
+  assert.equal((await accepting).status,200);
   await waitCompleted(3);
   assert.equal(encodingCalls.length,1);assert.equal(encodingCalls[0].authorization,`Bearer ${token}`);
   assert.equal(generationCalls[2].host,'gnai.rbq.my');assert.equal(generationCalls[2].authorization,`Bearer ${rbqToken}`);
@@ -328,10 +341,25 @@ try {
   assert.equal((await call('/api/jobs/enqueue',{state:vibe,count:1})).status,200);
   assert.equal((await call(`/api/providers/official/accounts/${accountId}`,null,'DELETE')).status,409,'pending RBQ Vibe keeps its official account pinned');
   await call('/api/jobs/cancel-all',{});await call('/api/jobs/resume',{});
-  const gallery=await call('/api/images');assert.equal(gallery.data.images.length,4);const image=gallery.data.images[0];
+  // A NovelAI-compatible relay added in Settings becomes the channel and receives its own Key.
+  await page.locator('#openSettingsButton').click();
+  if (!(await page.locator('#relayManager').evaluate(node=>node.open))) await page.locator('#relayManager > summary').click();
+  await page.locator('#relayKind').selectOption('custom');
+  await page.locator('#relayName').fill('Synthetic relay');
+  await page.locator('#relayApiUrl').fill('https://relay.example.test/v1/generate');
+  await page.locator('#rbqApiKey').fill('synthetic-relay-key-123');
+  await page.locator('#saveRbqKeyButton').click();
+  await page.getByText('中转已保存，并设为当前通道。',{exact:true}).waitFor();
+  assert.match(await page.locator('#generationProvider').inputValue(),/^relay:/);
+  assert.match(await page.locator('#relayList').textContent(),/Synthetic relay/);
+  await page.locator('#closeSettingsButton').click();
+  await page.locator('#floatingGenerateButton').click();
+  await waitCompleted(5);
+  assert.equal(generationCalls.at(-1).host,'relay.example.test');assert.equal(generationCalls.at(-1).authorization,'Bearer synthetic-relay-key-123');
+  const gallery=await call('/api/images');assert.equal(gallery.data.images.length,5);const image=gallery.data.images[0];
   assert.equal(image.width,64);assert.equal(image.height,64);
   const favorite=await call(`/api/images/${image.id}/favorite`,{favorite:true});assert.equal(favorite.data.favorite,true);
-  const exported=await call('/api/export');assert.equal(exported.data.schemes.length,1);for(const secret of [token,secondToken,rbqToken])assert.ok(!JSON.stringify(exported.data).includes(secret));
+  const exported=await call('/api/export');assert.equal(exported.data.schemes.length,1);for(const secret of [token,secondToken,rbqToken,'synthetic-relay-key-123'])assert.ok(!JSON.stringify(exported.data).includes(secret));
   const clean=await page.evaluate(async id=>{const response=await fetch(`/api/images/${id}/clean`);const blob=await response.blob();const image=await createImageBitmap(blob);return {status:response.status,width:image.width,type:blob.type};},image.id);
   assert.equal(clean.status,200);assert.equal(clean.width,64);assert.equal(clean.type,'image/png');
   await page.locator('[data-tab="gallery"]').click();
