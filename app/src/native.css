@@ -17,3 +17,11 @@ body.native-mode { overscroll-behavior-y: contain; }
 .native-artist-resources input[type="url"] { width: 100%; margin: 8px 0; }
 .native-artist-resources-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .native-artist-resources progress { width: 100%; margin-top: 8px; }
+/* Launch screen while the local database opens; the login view never shows in the app. */
+body.native-booting #appView { visibility: hidden; }
+body.native-booting::after { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg, #141412); color: var(--accent, #d6b38a); font-size: 22px; font-weight: 800; letter-spacing: .04em; content: "NAI Pocket"; }
+.native-artist-notice { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 12px 14px 4px; padding: 14px 16px; border-radius: 16px; background: rgba(214, 179, 138, .12); }
+.native-artist-notice[hidden] { display: none; }
+.native-artist-notice p { flex: 1 1 220px; margin: 0; font-size: 13.5px; line-height: 1.5; }
+.native-artist-notice button { flex: none; min-height: 38px; padding: 0 18px; border: 0; border-radius: 999px; background: var(--accent); color: #1a1712; font-weight: 700; }
+.native-artist-notice [hidden] { display: none !important; }

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2 — Preview
+
+- Startup shows a launch screen instead of briefly flashing the login page.
+- The artist page tells you when no annotation packs are installed (with a shortcut to download them) and when example images repeatedly fail to load from Danbooru.
+
 ## 0.3.1 — Preview
 
 - The image-free artist annotation packs are published as their own Release and are the default catalog in Settings.

@@ -15,7 +15,7 @@ import { openQueue } from './queue.js';
 import { openReferences } from './references.js';
 import { createLocalApi } from './api.js';
 import { settings } from './settings.js';
-import { artistResourcesSection } from './artist-resources-section.js';
+import { artistResourcesSection, artistResourceNotice } from './artist-resources-section.js';
 import { createImageLoader } from './image-loader.js';
 import { DEFAULT_ARTIST_CATALOG_URL } from './artist-resource-source.js';
 
@@ -82,9 +82,16 @@ try {
     const response = await api.fetch(path, { method, ...(body ? { body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } } : {}) });
     const data = await response.json(); if (!response.ok) throw new Error(data.error || '本机操作失败。'); return data;
   };
-  settingsBody?.append(await phoneAlbumSection(queue), artistResourcesSection({ request, defaultCatalogUrl: DEFAULT_ARTIST_CATALOG_URL, notice }), licenseButton);
+  const resourcesSection = artistResourcesSection({ request, defaultCatalogUrl: DEFAULT_ARTIST_CATALOG_URL, notice });
+  settingsBody?.append(await phoneAlbumSection(queue), resourcesSection, licenseButton);
+  document.getElementById('artistLibraryMount')?.before(artistResourceNotice({ request, section: resourcesSection }));
   await media.registerAll();
   await import('../../public/app.js');
+  // Keep the launch screen until the editor is actually shown (app.js reveals #appView).
+  const appView = document.getElementById('appView');
+  const revealed = () => !appView || !appView.classList.contains('hidden');
+  if (revealed()) document.body.classList.remove('native-booting');
+  else new MutationObserver((_, observer) => { if (revealed()) { observer.disconnect(); document.body.classList.remove('native-booting'); } }).observe(appView, { attributes: true, attributeFilter: ['class'] });
   await queue.start();
   await App.addListener('appStateChange', state => { if (state.isActive) queue.kick(); });
   await App.addListener('backButton', async () => {
@@ -96,6 +103,7 @@ try {
   });
 } catch (error) {
   document.getElementById('loginView')?.classList.add('hidden');
+  document.body.classList.remove('native-booting');
   const panel = document.createElement('main'); panel.className = 'native-startup-error';
   const title = document.createElement('h1'); title.textContent = '本机数据未能打开';
   const detail = document.createElement('p'); detail.textContent = error.message;

@@ -17,7 +17,7 @@ export function createImageLoader(fetchApi, { concurrency = 4, cacheSize = 240 }
         if (!response.ok) throw new Error(String(response.status));
         const objectUrl = URL.createObjectURL(await response.blob());
         remember(url, objectUrl); resolve(objectUrl);
-      }).catch(() => resolve('')).finally(() => { active--; pending.delete(url); pump(); });
+      }).catch(() => { window.dispatchEvent(new CustomEvent('nai-artist-image-failed', { detail: url })); resolve(''); }).finally(() => { active--; pending.delete(url); pump(); });
     }
   }
   function objectUrlFor(url) {
@@ -33,7 +33,7 @@ export function createImageLoader(fetchApi, { concurrency = 4, cacheSize = 240 }
       objectUrlFor(url).then(objectUrl => {
         if (image.dataset.apiSrc !== url) return;
         if (objectUrl) image.src = objectUrl;
-        else image.replaceWith(Object.assign(document.createElement('div'), { className: `${image.className} artist-library-image-placeholder`, textContent: '例图读取失败' }));
+        else image.replaceWith(Object.assign(document.createElement('div'), { className: `${image.className} artist-library-image-placeholder`, textContent: '例图读取失败（网络）' }));
       });
     }
   }, { rootMargin: '300px 0px' });

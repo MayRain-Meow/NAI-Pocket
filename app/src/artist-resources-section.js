@@ -85,6 +85,39 @@ export function artistResourcesSection({ request, defaultCatalogUrl = '', notice
     stop = true;
     try { await request('/api/artists/resources/cancel', { method: 'POST' }); } catch { /* the running request reports its own outcome */ }
   });
+  // Started from the artist page banner: read the catalog so the download button appears.
+  section.begin = () => { if (!catalog && !busy) read.click(); };
   refresh();
   return section;
+}
+
+// Artist page banner (app only): tells the user to download the annotation packs when none
+// are installed, and explains repeated image failures (Danbooru's CDN may be unreachable).
+export function artistResourceNotice({ request, section }) {
+  const banner = el('div', '', 'native-artist-notice'); banner.hidden = true; banner.setAttribute('role', 'status');
+  const text = el('p'), action = el('button', '', 'primary');
+  banner.append(text, action);
+  let failures = 0, installed = null;
+  action.addEventListener('click', () => {
+    document.getElementById('openSettingsButton')?.click();
+    requestAnimationFrame(() => { section.scrollIntoView({ block: 'start' }); if (installed === 0) section.begin?.(); });
+  });
+  function render() {
+    if (installed === 0) {
+      text.textContent = '还没有画师标注资料。下载后可看例图和逐图画风标注（约 79 MB，不含图片，例图从 Danbooru 按需读取）。';
+      action.textContent = '去下载'; action.hidden = false; banner.hidden = false;
+    } else if (failures >= 3) {
+      text.textContent = `已有 ${failures} 张例图读取失败：可能无法连接 Danbooru 图片服务器（cdn.donmai.us）。当前网络无法访问时，标注和筛选仍可使用。`;
+      action.hidden = true; banner.hidden = false;
+    } else banner.hidden = true;
+  }
+  async function refresh() {
+    try { installed = (await request('/api/artists/resources/sets')).sets.length; } catch { installed = null; }
+    if (installed) failures = 0;
+    render();
+  }
+  window.addEventListener('nai-artist-resources-changed', refresh);
+  window.addEventListener('nai-artist-image-failed', () => { failures++; render(); });
+  refresh();
+  return banner;
 }

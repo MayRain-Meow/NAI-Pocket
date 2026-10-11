@@ -25,6 +25,11 @@ export function publicHtml(source) {
       if (child.tagName === 'link' && /manifest\.webmanifest/.test(attrs.href || '')) return false;
       if (child.tagName === 'link' && /^\/artist-library\.css/.test(attrs.href || '')) child.attrs.find(attr => attr.name === 'href').value = '/artist-library.css';
       if (child.tagName === 'script' && /^\/app\.js/.test(attrs.src || '')) child.attrs.find(attr => attr.name === 'src').value = '/main.js';
+      // The app never logs in: start with the login view hidden and a launch screen until
+      // the local database is open (main.js removes native-booting), so nothing flashes.
+      const setClass = value => { const attr = child.attrs.find(item => item.name === 'class'); if (attr) attr.value = value; else child.attrs.push({ name: 'class', value }); };
+      if (child.tagName === 'body') setClass(`${attrs.class ? attrs.class + ' ' : ''}native-mode native-booting`);
+      if (attrs.id === 'loginView') setClass(`${attrs.class || ''} hidden`.trim());
       walk(child); return true;
     });
   }

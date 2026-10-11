@@ -15,12 +15,12 @@
 <link rel="stylesheet" href="/native.css">
 <link rel="stylesheet" href="/artist-browser.css">
 </head>
-<body>
+<body class="native-mode native-booting">
   <div id="toastHost" class="toast-host" aria-live="polite"></div>
   <div id="inspectDropOverlay" class="inspect-drop-overlay hidden" aria-hidden="true">松开即可读取 NovelAI PNG 参数</div>
   <input id="inspectImageFile" type="file" accept="image/png,.png" hidden="">
 
-  <main id="loginView" class="login-shell">
+  <main id="loginView" class="login-shell hidden">
     <form id="loginForm" class="login-card">
       <div class="brand-mark">N</div>
       <h1>NAI Pocket</h1>
