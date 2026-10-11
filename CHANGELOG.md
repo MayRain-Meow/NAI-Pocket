@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 — Preview
+
+- The image-free artist annotation packs are published as their own Release and are the default catalog in Settings.
+
 ## 0.3.0 — Preview
 
 - The artist page is now the same artist-library UI as the server site: cards, style filters, details with per-image annotations, favourites, notes and 加入画风; library management tools are not included.
