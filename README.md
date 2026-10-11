@@ -2,20 +2,20 @@
 
 **把 NovelAI 工作台装进口袋。** 一款为手机设计的 NovelAI 客户端：双语 Tag 积木编辑、自动分栏、多角色与参考图工作流、后台队列和本机图库。Android 本地运行，用你自己的 Token，不需要服务器。
 
-[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-d6a774)](LICENSE) ![Android](https://img.shields.io/badge/Android-7.0%2B-7fbf95) ![Status](https://img.shields.io/badge/status-0.2%20preview-ab9cf0)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-d6a774)](LICENSE) ![Android](https://img.shields.io/badge/Android-7.0%2B-7fbf95) ![Status](https://img.shields.io/badge/status-0.3%20preview-ab9cf0)
 
 <p align="center"><img src="docs/screenshots/demo-sort.gif" width="300" alt="粘贴一段 Prompt，自动分进场景、镜头、画风、其他四栏"></p>
 
-<p align="center">▶ <a href="docs/promo/nai-pocket-promo.mp4">观看 34 秒宣传片（MP4）</a></p>
+<p align="center">▶ <a href="docs/promo/nai-pocket-promo.mp4">观看 46 秒宣传片（MP4）</a></p>
 
 <p align="center">
-<img src="docs/screenshots/c-sorted.png" width="200" alt="四栏 Tag 编辑">
-<img src="docs/screenshots/d-chip.png" width="200" alt="Tag 积木：权重、停用、编辑">
-<img src="docs/screenshots/l-editor-bottom.png" width="200" alt="生成结果预览">
-<img src="docs/screenshots/g-queue-done.png" width="200" alt="后台生成队列">
+<img src="docs/screenshots/editor.png" width="200" alt="四栏 Tag 编辑">
+<img src="docs/screenshots/helpers.png" width="200" alt="⋯ 菜单里的辅助功能">
+<img src="docs/screenshots/codex.png" width="200" alt="法典：看图挑配方">
+<img src="docs/screenshots/artists.png" width="200" alt="画师资料库与逐图标注">
 </p>
 
-> 截图与宣传片来自离线预览，生成结果是合成占位图，不是真实生成作品，也不是真机实拍。
+> 截图与宣传片来自离线预览：法典画面是 QuickTagCloud 公开法典的内容，其余生成结果与例图为合成占位图，不是真实生成作品，也不是真机实拍。
 
 ## 亮点
 
@@ -30,7 +30,7 @@
 
 ## 当前状态
 
-**0.3.3 preview 预览版**，还不是正式稳定版。本地合成数据的集成检查已通过；以下项目**尚未验证**：
+**0.3.4 preview 预览版**，还不是正式稳定版。本地合成数据的集成检查已通过；以下项目**尚未验证**：
 - 真实设备上的生成、下载、后台持续运行和系统文件选择；
 - 真实付费生成。
 

@@ -1601,3 +1601,8 @@ body:not(.tag-layout-legacy) .tag-add > .suggestion-menu { order: 9; flex: 1 1 1
 body:not(.tag-layout-legacy) .tag-add > .suggestion-menu:has(> .suggestion-empty) { display: none; }
 body:not(.tag-layout-legacy) #semanticDialog .semantic-advanced > summary { justify-content: flex-start; }
 body:not(.tag-layout-legacy) #semanticDialog #semanticRecommendationStatus:has(+ .empty-state) { display: none; }
+@media (max-width: 720px) {
+  body:not(.tag-layout-legacy) .workspace-scroll > .tab-panel > .panel.standalone { margin-top: 0; padding-top: 0; }
+  body:not(.tag-layout-legacy) #editorTab .workspace { padding-top: 2px; }
+  body:not(.tag-layout-legacy) #editorTab .prompt-panel { padding-top: 4px; }
+}

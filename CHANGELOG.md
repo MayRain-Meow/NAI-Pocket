@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.4 — Preview
+
+- Less empty space between the top bar and page content on phones (gallery, schemes, queue, editor); the artist page no longer repeats the page title.
+- README: new demo, screenshots and a 46-second promo video.
+
 ## 0.3.3 — Preview
 
 - Fixed: opening the artist page after installing the annotation packs could crash the app; annotations are now read in bounded pages and descriptions only for text searches.

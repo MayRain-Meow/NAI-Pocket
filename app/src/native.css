@@ -25,3 +25,7 @@ body.native-booting::after { position: fixed; inset: 0; display: grid; place-ite
 .native-artist-notice p { flex: 1 1 220px; margin: 0; font-size: 13.5px; line-height: 1.5; }
 .native-artist-notice button { flex: none; min-height: 38px; padding: 0 18px; border: 0; border-radius: 999px; background: var(--accent); color: #1a1712; font-weight: 700; }
 .native-artist-notice [hidden] { display: none !important; }
+/* The library's own heading repeats the top bar title; without the coverage line beside it
+   (no library management in the app) it only left an empty band above the search. */
+body.native-mode .artist-library-header { display: none !important; }
+body.native-mode .artist-library-page { padding-top: 4px; }
