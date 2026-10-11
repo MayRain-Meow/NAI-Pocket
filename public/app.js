@@ -21,6 +21,7 @@ import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, 
 import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.6.81';
 import { observeToastClearance } from './toast-layout.js?v=1.6.81';
 import { installSelectSheets } from './select-sheet.js?v=1.6.81';
+import { attachWeightHighlight } from './weight-highlight.js?v=1.6.81';
 import { confirmAction, promptText } from './confirm-sheet.js?v=1.6.81';
 import { createTaggerPanel } from './tagger-panel.js?v=1.6.81';
 import { createCodexPanel } from './codex-panel.js?v=1.6.81';
@@ -7939,9 +7940,7 @@ async function refreshNaiAccount(showError = false) {
       else if (data?.usage && Number.isFinite(Number(data.usage.timeUntilNextPercent))) els.naiV5UsageHint.textContent = `约 ${secondsUntilText(data.usage.timeUntilNextPercent)} 后 +1% · 官方仅返回整数刻度`;
       else els.naiV5UsageHint.textContent = '当前订阅未返回 V5 动态额度状态';
     }
-    const fixed = Number(data?.anlas?.fixed || 0);
-    const purchased = Number(data?.anlas?.purchased || 0);
-    if (els.naiAnlasText) els.naiAnlasText.textContent = `${Number(data?.anlas?.total || 0).toLocaleString()}（订阅 ${fixed.toLocaleString()} + 购买 ${purchased.toLocaleString()}）`;
+    if (els.naiAnlasText) els.naiAnlasText.textContent = Number(data?.anlas?.total || 0).toLocaleString();
     if (els.naiAccountUsage) els.naiAccountUsage.classList.remove('is-error');
     syncAccountUsageSummary();
     return data;
@@ -10261,6 +10260,25 @@ function initBindings() {
   document.querySelectorAll('[data-semantic-tab]').forEach(button => button.addEventListener('click', () => setSemanticTab(button.dataset.semanticTab)));
   observeToastClearance($('#toastHost'), els.floatingGenerateBar);
   installSelectSheets({ isEnabled: () => !document.body.classList.contains('tag-layout-legacy') });
+  for (const area of [els.promptPreview, $('#negativePrompt')]) attachWeightHighlight(area, { isEnabled: () => !document.body.classList.contains('tag-layout-legacy') });
+  // 自动联想 floats over the page (tag-chips.css). Whichever render path shows a menu, it opens
+  // above its input when the room below, above the generate bar, is too short. The class is
+  // only touched when the placement changes, so this observer never feeds itself.
+  const placeSuggestionMenu = menu => {
+    const host = menu.parentElement;
+    if (!host || menu.classList.contains('hidden')) return;
+    const box = host.getBoundingClientRect();
+    const bar = els.floatingGenerateBar?.getBoundingClientRect();
+    const floor = bar && bar.height && bar.top > box.bottom ? bar.top : innerHeight;
+    const need = Math.min(menu.scrollHeight, 240) + 12;
+    menu.classList.toggle('is-above', floor - box.bottom < need && box.top > floor - box.bottom);
+  };
+  new MutationObserver(records => {
+    for (const record of records) {
+      const menu = record.target;
+      if (menu instanceof HTMLElement && menu.classList.contains('suggestion-menu')) placeSuggestionMenu(menu);
+    }
+  }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
   document.addEventListener('click', event => {
     const button = event.target.closest('[data-open-artist-library]');
     if (!button) return;

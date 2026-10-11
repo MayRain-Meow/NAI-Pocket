@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.8 — Preview
+
+- Text mode redesigned: weighted spans are tinted (warm for raised, cool for lowered weight, deeper for stronger), a soft text box, one compact 复制, and the 拆分 / 覆盖 / 顺序 actions grouped.
+- Tag suggestions float under the input instead of pushing the page down, and open above it when the generate bar leaves no room.
+- Confirmations appear in the middle of the screen; the image viewer's 恢复 lines up with the other buttons; Anlas is shown as one total.
+
 ## 0.3.7 — Preview
 
 - Third-party relays: RBQ is now one entry under 管理第三方中转 (listed once it has a Key), and any NovelAI-compatible relay can be added with an https address and a Key. Relays get plain generation; Vibe references are encoded with an official account first, as with RBQ before.

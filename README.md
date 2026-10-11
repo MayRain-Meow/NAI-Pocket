@@ -4,7 +4,7 @@
 
 用你自己的 NovelAI Token，或你选择的第三方中转，在手机本地运行，不需要服务器。
 
-[![下载 APK](https://img.shields.io/badge/下载-Android%20APK-d6a774)](https://github.com/MayRain-Meow/NAI-Pocket/releases/tag/v0.3.7-preview) ![Android](https://img.shields.io/badge/Android-7.0%2B-7fbf95) ![Status](https://img.shields.io/badge/status-0.3%20preview-ab9cf0) [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-8a8a8a)](LICENSE)
+[![下载 APK](https://img.shields.io/badge/下载-Android%20APK-d6a774)](https://github.com/MayRain-Meow/NAI-Pocket/releases/tag/v0.3.8-preview) ![Android](https://img.shields.io/badge/Android-7.0%2B-7fbf95) ![Status](https://img.shields.io/badge/status-0.3%20preview-ab9cf0) [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-8a8a8a)](LICENSE)
 
 <p align="center"><img src="docs/screenshots/demo-sort.gif" width="300" alt="粘贴一段 Prompt，自动分进场景、镜头、画风、其他四栏"></p>
 
@@ -36,7 +36,7 @@
 
 ## 开始使用
 
-1. 从 [Releases](https://github.com/MayRain-Meow/NAI-Pocket/releases/tag/v0.3.7-preview) 下载 APK 安装。
+1. 从 [Releases](https://github.com/MayRain-Meow/NAI-Pocket/releases/tag/v0.3.8-preview) 下载 APK 安装。
 2. 打开设置添加账号：NovelAI 官方 Token，或在「管理第三方中转」里添加中转。
 3. 写好 Prompt，点生成。
 

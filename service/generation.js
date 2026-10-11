@@ -405,12 +405,16 @@ function calculateUsageDelta(before, after, { v5 = false, model = '' } = {}) {
     before: {
       usagePercent: Number.isFinite(beforePercent) ? beforePercent : null,
       usageUnavailable: Boolean(before?.usage?.isNegative),
-      anlasTotal: Number.isFinite(beforeAnlas) ? beforeAnlas : null
+      anlasTotal: Number.isFinite(beforeAnlas) ? beforeAnlas : null,
+      anlasFixed: Number.isFinite(Number(before?.anlas?.fixed)) ? Number(before.anlas.fixed) : null,
+      anlasPurchased: Number.isFinite(Number(before?.anlas?.purchased)) ? Number(before.anlas.purchased) : null
     },
     after: {
       usagePercent: Number.isFinite(afterPercent) ? afterPercent : null,
       usageUnavailable: Boolean(after?.usage?.isNegative),
-      anlasTotal: Number.isFinite(afterAnlas) ? afterAnlas : null
+      anlasTotal: Number.isFinite(afterAnlas) ? afterAnlas : null,
+      anlasFixed: Number.isFinite(Number(after?.anlas?.fixed)) ? Number(after.anlas.fixed) : null,
+      anlasPurchased: Number.isFinite(Number(after?.anlas?.purchased)) ? Number(after.anlas.purchased) : null
     },
     delta: {
       usagePercentNet,

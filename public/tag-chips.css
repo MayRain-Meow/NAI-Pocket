@@ -1655,3 +1655,62 @@ body:not(.tag-layout-legacy) #schemeDialog .scheme-restore-grid { display: grid;
 body:not(.tag-layout-legacy) #schemeDialog .scheme-restore-grid > button { min-width: 0; min-height: 40px; padding: 0 6px; font-size: 13px; white-space: nowrap; }
 body:not(.tag-layout-legacy) #schemeDialog .scheme-restore-grid > .primary { grid-column: 1 / -1; min-height: 46px; font-size: 15px; }
 body:not(.tag-layout-legacy) #schemeDialog .scheme-restore-grid > [data-scheme-restore-mode="params"] { grid-column: 1 / -1; }
+body:not(.tag-layout-legacy) .tag-add { position: relative; }
+body:not(.tag-layout-legacy) .tag-add > .suggestion-menu {
+  position: absolute; z-index: 40; top: calc(100% + 4px); right: 0; bottom: auto; left: 0;
+  max-height: min(34dvh, 240px); margin: 0; padding: 10px; overflow-y: auto; overscroll-behavior: contain;
+  border: 1px solid #ffffff14; border-radius: 14px;
+  background: linear-gradient(180deg, #2a2a25, #21211e);
+  box-shadow: inset 0 1px 0 #ffffff10, 0 16px 36px #000000a6;
+}
+body:not(.tag-layout-legacy) .tag-add > .suggestion-menu.is-above { top: auto; bottom: calc(100% + 4px); }
+body:not(.tag-layout-legacy) .image-dialog .dialog-image-actions > .restore-split-action { padding: 0; min-height: 44px; }
+body:not(.tag-layout-legacy) .image-dialog .restore-split-action > button { min-height: 44px; font-size: 13.5px; }
+body:not(.tag-layout-legacy) .raw-panel > .panel-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 10px; }
+body:not(.tag-layout-legacy) .raw-panel .raw-title-cluster { display: flex; align-items: center; gap: 8px; min-width: 0; }
+body:not(.tag-layout-legacy) .raw-panel .raw-title-cluster h2 { margin: 0; color: var(--text); font-size: 14.5px; font-weight: 700; }
+body:not(.tag-layout-legacy) .raw-panel .prompt-mode-chip { padding: 2px 9px; border: 0; border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); font-size: 11px; font-weight: 650; }
+body:not(.tag-layout-legacy) .raw-panel .panel-collapse-button { display: none; }
+body:not(.tag-layout-legacy) .raw-panel #copyPromptButton {
+  min-width: 0; min-height: 32px; height: 32px; padding: 0 12px;
+  border: 1px solid #ffffff12; border-radius: 10px;
+  background: linear-gradient(180deg, #ffffff12, #ffffff06); color: var(--text); font-size: 12.5px; font-weight: 600;
+  box-shadow: inset 0 1px 0 #ffffff12, 0 1px 2px #00000066;
+}
+body:not(.tag-layout-legacy) .raw-panel #copyPromptButton::before { content: "⧉"; margin-right: 5px; color: var(--muted); }
+body:not(.tag-layout-legacy) .raw-panel > .collapsible-panel-body { display: grid; gap: 10px; }
+body:not(.tag-layout-legacy) :is(#promptPreview, #negativePrompt) {
+  width: 100%; padding: 14px; border: 1px solid #ffffff14; border-radius: 14px;
+  background: #ffffff05; color: var(--text); font-size: 14.5px; line-height: 1.75; box-shadow: none;
+}
+body:not(.tag-layout-legacy) :is(#promptPreview, #negativePrompt):focus { border-color: color-mix(in srgb, var(--accent) 55%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); outline: none; }
+.weight-highlight-wrap { position: relative; }
+.weight-highlight-mirror { display: none; }
+.weight-highlight-wrap.is-active > .weight-highlight-mirror {
+  display: block; position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+  border-style: solid; border-color: transparent; border-radius: 14px; background: #ffffff05;
+  color: transparent; white-space: pre-wrap; overflow-wrap: break-word;
+}
+.weight-highlight-wrap.is-active > textarea { position: relative; z-index: 1; background: transparent !important; }
+.weight-highlight-mirror mark { padding: 0; border-radius: 4px; color: transparent; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.weight-highlight-mirror .weight-up.weight-1 { background: rgba(232, 172, 92, .16); }
+.weight-highlight-mirror .weight-up.weight-2 { background: rgba(232, 172, 92, .27); }
+.weight-highlight-mirror .weight-up.weight-3 { background: rgba(232, 172, 92, .4); }
+.weight-highlight-mirror .weight-down.weight-1 { background: rgba(112, 162, 232, .16); }
+.weight-highlight-mirror .weight-down.weight-2 { background: rgba(112, 162, 232, .27); }
+.weight-highlight-mirror .weight-down.weight-3 { background: rgba(112, 162, 232, .4); }
+body:not(.tag-layout-legacy):not(.edit-text-mode) .weight-highlight-wrap:has(> #negativePrompt) { display: none; }
+body:not(.tag-layout-legacy) .raw-panel .prompt-import-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 2px 0 0; }
+body:not(.tag-layout-legacy) .raw-panel .prompt-import-actions > #syncPromptButton { grid-column: 1 / -1; }
+body:not(.tag-layout-legacy) .raw-panel :is(.prompt-import-actions > button, #rebuildPromptOrderButton, #promptOrderMode) {
+  width: 100%; min-width: 0; min-height: 42px; padding: 0 12px;
+  border: 1px solid #ffffff12; border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff12, #ffffff06); color: var(--text); font-size: 13.5px; font-weight: 600;
+  box-shadow: inset 0 1px 0 #ffffff12, 0 1px 2px #00000066;
+}
+body:not(.tag-layout-legacy) .raw-panel :is(.prompt-import-actions > button, #rebuildPromptOrderButton):active { transform: translateY(1px); background: #ffffff08; box-shadow: inset 0 1px 3px #00000080; }
+body:not(.tag-layout-legacy) .raw-panel #smartImportPromptButton { color: var(--accent); }
+body:not(.tag-layout-legacy) .raw-panel .prompt-order-inline { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; margin: 0; }
+body:not(.tag-layout-legacy) .raw-panel .prompt-order-select { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px; margin: 0; color: var(--muted); font-size: 12px; font-weight: 600; }
+body:not(.tag-layout-legacy) .raw-panel #promptOrderMode { text-align: left; }
+body:not(.tag-layout-legacy) .raw-panel #rebuildPromptOrderButton { width: auto; white-space: nowrap; }
