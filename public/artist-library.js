@@ -2625,13 +2625,15 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     if (ratio > 0) imageButton.style.setProperty('--example-ratio', String(Math.round(ratio * 1000) / 1000));
     else imageButton.dataset.exampleFluid = 'square';
     imageButton.append(imageNode(example.thumbUrl, `${profile.artist} 的例图`, 'artist-library-example-image'));
-    imageButton.addEventListener('click', () => showExamplePreview(example, previewHost));
+    const isStored = () => Boolean(example.id && profile.examples?.some(item => item.id === example.id));
+    const openLarge = () => (isStored() ? openResult({ artist: profile.artist, exampleId: example.id }) : showExamplePreview(example, previewHost));
+    imageButton.addEventListener('click', openLarge);
     const copy = el('div', { className: 'artist-library-example-copy' });
     if (example.model !== 'original') copy.append(el('strong', { text: friendlyModel(example.model) }));
     const sourceHref = safeSourceLink(example.sourceUrl);
     const actions = el('div', { className: 'artist-library-example-actions' });
     const show = button('预览', 'ghost');
-    show.addEventListener('click', () => showExamplePreview(example, previewHost));
+    show.addEventListener('click', openLarge);
     const remove = button('删除', 'ghost danger');
     remove.disabled = manageLocked();
     const deleteWrite = () => runMutation.run(`delete:${example.id}`, async () => {
@@ -3433,90 +3435,64 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     title.textContent = profile.artist || '画师详情';
     updateRole();
     const fragment = document.createDocumentFragment();
+    // 2026-10-11 (owner): v2's full-screen swiper pushed everything below the fold and buried
+    // the actions at the bottom. Back to a compact head, with every action in one grid right
+    // under it; 资料 and 画风概览 open as sheets again.
+    const profilePanel = makePanel('资料', profileEditor(profile), 'profile');
     const upload = makePanel('添加例图', uploadPanel(profile), 'upload');
-    const menuItems = [];
-    if (!manageLocked()) {
-      const generate = button('生成本画师例图', 'ghost', { 'data-generate-artist-samples': profile.artist });
-      generate.title = '只用这位画师跑一批例图；基准 Prompt 与其他设置沿用已保存的配置';
-      generate.addEventListener('click', () => {
-        if (manageLocked()) return;
-        generate.disabled = true;
-        Promise.resolve(generateArtistSamples(profile)).catch(error => notify(errorMessage(error), 'error'))
-          .finally(() => { if (generate.isConnected) generate.disabled = manageLocked(); });
-      });
-      menuItems.push(generate);
-      if (typeof onAnnotateArtist === 'function') {
-        const ds = button('DS 标注', 'ghost');
-        ds.addEventListener('click', () => { if (!manageLocked()) Promise.resolve(onAnnotateArtist(profile.artist)).catch(error => notify(errorMessage(error), 'error')); });
-        menuItems.push(ds);
-      }
-      const rotation = button('批量设置', 'ghost', { 'data-open-artist-rotation': 'true' });
-      rotation.title = '打开画师例图生成的完整设置（基准、张数、画师范围）';
-      rotation.addEventListener('click', () => openPanel(rotationPanelInstance));
-      const add = button('添加例图', 'ghost', { 'data-open-artist-upload': 'true' });
-      add.addEventListener('click', () => openPanel(upload));
-      menuItems.push(rotation, add);
-    }
-    const extra = [];
-    if (menuItems.length) {
-      const menu = el('details', { className: 'artist-library-detail-menu' });
-      menu.append(el('summary', { text: '⋯', attrs: { 'aria-label': '管理这位画师' } }), el('div', { className: 'artist-library-detail-menu-body' }, menuItems));
-      menuItems.forEach(item => item.addEventListener('click', () => { menu.open = false; }));
-      extra.push(menu);
-    }
-    fragment.append(detailToolbar(profile, [], { withAdd: false, extra }));
+    const evidence = el('section', { className: 'artist-library-evidence-summary', attrs: { 'data-artist-evidence-summary': 'true' } });
+    renderSampleEvidence(evidence, profile);
+    const evidencePanel = makePanel('画风概览', evidence, 'evidence');
+    fragment.append(detailToolbar(profile, [], { withAdd: false }));
 
-    // Gallery: every example, big, swiped sideways; the chips under the name follow the
-    // picture on screen. The first picture keeps the cover hook other code relies on.
     const hero = el('section', { className: 'artist-library-detail-hero' });
-    const strip = el('div', { className: 'artist-library-detail-strip' });
-    const shown = (profile.examples || []).filter(item => item.thumbUrl || item.previewUrl);
-    const coverFirst = [...shown].sort((a, b) => (b.id === profile.coverExampleId) - (a.id === profile.coverExampleId));
-    if (!coverFirst.length) strip.append(imageNode(profile.coverUrl, `${profile.artist} 的收藏例图`, 'artist-library-detail-cover'));
-    coverFirst.forEach((example, index) => {
-      const slide = el('figure', { className: 'artist-library-detail-slide', attrs: { 'data-slide-example': example.id } });
-      slide.append(imageNode(example.previewUrl || example.thumbUrl, `${profile.artist} 例图 ${index + 1}`, index ? 'artist-library-detail-image' : 'artist-library-detail-cover'));
-      slide.addEventListener('click', () => openResult({ artist: profile.artist, exampleId: example.id }));
-      strip.append(slide);
-    });
-    strip.querySelector('.artist-library-detail-cover')?.setAttribute('data-artist-detail-cover', 'true');
-    hero.append(strip);
-    const counter = el('span', { className: 'artist-library-detail-counter', text: coverFirst.length > 1 ? `1 / ${coverFirst.length}` : '' });
-    counter.hidden = coverFirst.length < 2;
-    hero.append(counter);
-
+    const coverExample = (profile.examples || []).find(item => item.id === profile.coverExampleId);
+    const cover = imageNode(profile.coverUrl, `${profile.artist} 的收藏例图`, 'artist-library-detail-cover');
+    cover.dataset.artistDetailCover = 'true';
+    if (coverExample) {
+      cover.classList.add('is-openable');
+      cover.addEventListener('click', () => openResult({ artist: profile.artist, exampleId: coverExample.id }));
+    }
     const intro = el('div', { className: 'artist-library-detail-intro' }, [el('h2', { text: profile.artist })]);
     if (profile.aliases?.length) intro.append(el('p', { className: 'artist-library-detail-aliases', text: profile.aliases.join(' · ') }));
     const coverEvidence = el('div', { className: 'artist-library-cover-evidence', attrs: { 'data-artist-cover-evidence': 'true' } });
     renderCoverEvidence(coverEvidence, profile);
-    intro.append(coverEvidence);
     const addArtist = button('加入画风', 'primary artist-library-detail-add');
     addArtist.disabled = readOnly();
     addArtist.addEventListener('click', () => runAddArtist(profile.artist));
-    intro.append(addArtist);
-    hero.append(intro);
-    if (coverFirst.length > 1) {
-      let current = 0;
-      strip.addEventListener('scroll', () => {
-        const index = Math.round(strip.scrollLeft / Math.max(1, strip.clientWidth));
-        if (index === current || !coverFirst[index]) return;
-        current = index;
-        counter.textContent = `${index + 1} / ${coverFirst.length}`;
-        const chips = coverEvidence.querySelector('.artist-library-chips');
-        if (chips) renderEvidenceChips(chips, profile, coverFirst[index].id);
-      }, { passive: true });
+    intro.append(coverEvidence, addArtist);
+    hero.append(cover, intro);
+
+    const actions = el('div', { className: 'artist-library-detail-actions', attrs: { role: 'group', 'aria-label': '画师操作' } });
+    const action = (label, run, attrs = {}) => {
+      const control = button(label, 'ghost', attrs);
+      control.addEventListener('click', run);
+      actions.append(control);
+      return control;
+    };
+    action('资料', () => openPanel(profilePanel), { 'data-open-artist-panel': 'profile' });
+    action('画风概览', () => openPanel(evidencePanel), { 'data-open-artist-panel': 'evidence' });
+    if (!manageLocked()) {
+      const generate = action('生成例图', () => {
+        if (manageLocked()) return;
+        generate.disabled = true;
+        Promise.resolve(generateArtistSamples(profile)).catch(error => notify(errorMessage(error), 'error'))
+          .finally(() => { if (generate.isConnected) generate.disabled = manageLocked(); });
+      }, { 'data-generate-artist-samples': profile.artist });
+      generate.title = '只用这位画师跑一批例图；基准 Prompt 与其他设置沿用已保存的配置';
+      if (typeof onAnnotateArtist === 'function') {
+        action('DS 标注', () => { if (!manageLocked()) Promise.resolve(onAnnotateArtist(profile.artist)).catch(error => notify(errorMessage(error), 'error')); });
+      }
+      action('批量设置', () => openPanel(rotationPanelInstance), { 'data-open-artist-rotation': 'true' })
+        .title = '打开画师例图生成的完整设置（基准、张数、画师范围）';
+      action('添加例图', () => openPanel(upload), { 'data-open-artist-upload': 'true' });
     }
+    const count = actions.childElementCount;
+    actions.dataset.columns = String(count <= 4 ? count : 3);
 
     const previewHost = el('div', { className: 'artist-library-preview-host', attrs: { 'data-artist-preview-host': 'true' } });
-    const section = (heading, content, key) => {
-      const wrap = el('section', { className: 'artist-library-detail-section', attrs: { 'data-detail-section': key, 'data-artist-panel': key } });
-      wrap.append(el('h3', { text: heading }), content);
-      return wrap;
-    };
-    const evidence = el('section', { className: 'artist-library-evidence-summary', attrs: { 'data-artist-evidence-summary': 'true' } });
-    renderSampleEvidence(evidence, profile);
-    fragment.append(...[hero, previewHost, examplesSection(profile, previewHost), naxPreviewSection(profile, previewHost),
-      section('画风概览', evidence, 'evidence'), section('资料', profileEditor(profile), 'profile'), upload].filter(Boolean));
+    fragment.append(...[hero, actions, examplesSection(profile, previewHost), previewHost, naxPreviewSection(profile, previewHost),
+      profilePanel, evidencePanel, upload].filter(Boolean));
     body.replaceChildren(fragment);
     pruneChipLayouts();
     renderCompareTray();

@@ -395,10 +395,8 @@ try {
   { const text=await viewAnnotation('fixture-anmi-1');assert.match(text,/AI 初标 · 未人工确认/);assert.match(text,/合成标注 A/); }
   { const text=await viewAnnotation('fixture-anmi-2');assert.match(text,/人工已确认/);assert.doesNotMatch(text,/合成标注 A/);assert.match(text,/合成标注 B/); }
   assert.match(await viewAnnotation('fixture-anmi-3'),/暂无可查看的标注结果/);
-  // One scrolling page: 资料 and 画风概览 are sections; without management there is no ⋯ menu.
-  assert.equal(await library.locator('.artist-library-detail-menu').count(),0,'no management menu without management');
-  assert.equal(await library.locator('[data-detail-section="profile"]').count(),1);
-  assert.equal(await library.locator('[data-detail-section="evidence"]').count(),1);
+  // Without management the action grid is only 资料 and 画风概览 (2026-10-11).
+  assert.deepEqual(await library.locator('.artist-library-detail-actions > button').allTextContents(),['资料','画风概览'],'no management actions without management');
   assert.equal(await library.locator('[data-generate-artist-samples]').count(),0);
   const exampleMenu=library.locator('[data-example-id="fixture-anmi-1"] .artist-library-example-menu');
   await exampleMenu.locator('summary').click();
@@ -407,12 +405,12 @@ try {
   assert.match(await exampleMenu.textContent(),/打开来源链接/);
   await page.keyboard.press('Escape');
   await page.setViewportSize({width:360,height:800});
-  // The swipe strip re-lays its full-width slides on resize; measure after that frame.
   await page.waitForTimeout(250);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'per-image annotations fit a narrow phone');
   await page.screenshot({path:path.join(temporary,'native-artist-resources.png'),fullPage:true});
-  // Notes are edited in the 资料 section; a failed save is reported and nothing is stored.
-  const profilePanel=library.locator('[data-detail-section="profile"]'),noteBox=profilePanel.locator('textarea[name="note"]');
+  // Notes are edited in the 资料 sheet; a failed save is reported and nothing is stored.
+  await library.locator('[data-open-artist-panel="profile"]').click();
+  const profilePanel=library.locator('[data-artist-panel="profile"]'),noteBox=profilePanel.locator('textarea[name="note"]');
   db.exec("CREATE TRIGGER refuse_artist_note BEFORE UPDATE ON artist_preferences WHEN NEW.note='synthetic-save-failure' BEGIN SELECT RAISE(ABORT,'Synthetic artist note save failure'); END;");
   await noteBox.fill('synthetic-save-failure');
   await profilePanel.getByRole('button',{name:'保存资料',exact:true}).click();
@@ -422,6 +420,7 @@ try {
   await profilePanel.getByRole('button',{name:'保存资料',exact:true}).click();
   await page.getByText('画师资料已保存。',{exact:true}).first().waitFor();
   assert.equal((await call('/api/artists/profile?artist=anmi')).data.artist.note,'星空方案，线条与色彩待比较。','note saved from the 资料 panel persists');
+  await profilePanel.getByRole('button',{name:'关闭',exact:true}).click();
   // Back navigation: an open dialog closes first (here the annotation viewer), then the detail.
   await library.locator('[data-view-annotation="fixture-anmi-1"]').click();
   await viewer.locator('.artist-result-info').waitFor();

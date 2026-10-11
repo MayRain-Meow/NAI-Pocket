@@ -7,7 +7,7 @@
 - Run `npm ci` inside `app`, then `npm run android`.
 - Generated web assets, Gradle caches, APKs, SDK paths and signing files are ignored by Git.
 
-This source targets Android **0.3.5 preview**, versionCode **9**, application ID
+This source targets Android **0.3.6 preview**, versionCode **10**, application ID
 `app.naipocket.local`. It remains a preview: real-device behavior and paid
 generation have not been verified. Use the same release signing identity when
 updating a 0.1.0 installation; keep the original 0.1.0 APK/source pair intact.
@@ -22,6 +22,28 @@ updating a 0.1.0 installation; keep the original 0.1.0 APK/source pair intact.
 | `NAI_ANDROID_KEY_PASSWORD` | Signing key password |
 
 Provide all four together. Preserve the key outside the repository: future updates to the same installation require the same signing identity. Do not publish keystores, passwords, local SDK configuration or application data.
+
+## Source layout
+
+```text
+public/             shared editor UI, parameters, PNG, Tag and codex protocols
+service/            accounts, generation, queue, gallery, translation and other services
+service/storage/    transaction programs shared by sync and async SQLite
+app/src/            native API, files, images, credentials and HTTP adapters
+app/android/        Android Keystore, HTTPS, notifications, file export and updates
+```
+
+Services run over injected storage, file, image, HTTP, clock and ID ports; the queue and
+request protocol do not depend on Android or Node. Host adapters own platform operations.
+
+## Checks
+
+```sh
+npm test
+cd app
+npm run build
+npm audit
+```
 
 ## Offline integration
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.6 — Preview
+
+- Artist detail back to a compact layout: cover beside the name, style tags and 加入画风, with every action in one grid right below; 资料 and 画风概览 open as sheets; tapping an example opens the full viewer.
+- README rewritten as a product introduction; build, source layout and checks moved to BUILD.md.
+
 ## 0.3.5 — Preview
 
 - Artist detail redesigned: big swipeable pictures first, then name, style tags and 加入画风, the examples grid, style overview and profile on one page.
