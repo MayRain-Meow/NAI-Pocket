@@ -7,6 +7,7 @@ NAI Pocket is an independent client. Third-party names identify compatible servi
 | [NovelAI](https://novelai.net/) | User-supplied account for image generation; no account or credits are bundled |
 | [NAX V5 artist gallery](https://nax.moe/?gallery=danbooru-artist-tags-2-v5) | Artist-name snapshot in `public/artist-index-v5.js`; no gallery images are bundled |
 | Selected artist roster | `app/src/artist-roster.json` retains only the selected collection's public names and aliases for offline search. This name index contains no artwork, annotations or personal preferences; collection identity/version and its producer are included |
+| [Danbooru](https://danbooru.donmai.us/) | The optional artist annotation packs hold names, per-image style annotations and Danbooru image addresses (ratings g/s); example images load from Danbooru's CDN on demand. The project distributes no artist images or third-party originals |
 | [QuickTagCloud](https://novelai.quicktagcloud.com/) | Read-only community codexes fetched at runtime; original links and attribution remain in results |
 | [WD Tagger](https://huggingface.co/spaces/SmilingWolf/wd-tagger) | Optional online image-to-tag service, model `wd-eva02-large-tagger-v3`; the selected image is uploaded when requested |
 | [DanbooruSearch](https://sakizuki-danboorusearch.hf.space/) | Optional public semantic Tag search; results retain the endpoint and source information |

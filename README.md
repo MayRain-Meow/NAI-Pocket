@@ -34,32 +34,26 @@
 <img src="docs/screenshots/artists.png" width="200" alt="画师资料库">
 </p>
 
-<sub>截图来自离线预览，生成结果与例图为占位图。</sub>
-
 ## 开始使用
 
-1. 从 [Releases](https://github.com/MayRain-Meow/NAI-Pocket/releases/tag/v0.3.7-preview) 下载 APK 安装（首次需允许「安装未知应用」）。
-2. 打开设置，添加账号：NovelAI 官方用 `pst-…` Persistent API Token；用中转的话，在「管理第三方中转」里添加。
+1. 从 [Releases](https://github.com/MayRain-Meow/NAI-Pocket/releases/tag/v0.3.7-preview) 下载 APK 安装。
+2. 打开设置添加账号：NovelAI 官方 Token，或在「管理第三方中转」里添加中转。
 3. 写好 Prompt，点生成。
 
-画师例图需要另外安装**标注资料包**：设置 → 画师标注资料 → 读取目录 → 下载。资料包只有标注和图片地址，例图打开时从 Danbooru 按需加载。
-
-之后有新版本时，应用会自己提示更新。
+想看画师例图，在「设置 → 画师标注资料」里一键下载资料包即可。有新版本时，应用会自己提示更新。
 
 ## 常见问题
 
-**要花钱吗？** 应用免费开源。生成消耗的是你自己账号的额度，应用不提供额度。
+**要花钱吗？** 应用免费开源，生成用的是你自己账号的额度。
 
-**数据存在哪？** 全部在手机本地：Token 由 Android Keystore 加密保存，图库和方案存在应用私有目录。卸载前请先导出需要的图片和备份。
+**隐私呢？** Token 加密保存在手机上，图库和方案也都在本机；生成请求直接发往你选择的渠道，应用本身不设服务器。
 
-**会联网做什么？** 生成请求直接发往你选择的渠道：NovelAI 官方，或你添加的中转（Key 只发往那个地址）。反推会上传所选图片到公共 WD Tagger 服务；Tag 搜索、翻译、画师例图与更新检查访问相应的公共服务。
-
-**稳定吗？** 目前是**预览版**。真机上的长时间后台运行、各厂商系统的通知和相册行为还在验证，遇到问题欢迎提 [Issue](https://github.com/MayRain-Meow/NAI-Pocket/issues)。
+**遇到问题？** 欢迎提 [Issue](https://github.com/MayRain-Meow/NAI-Pocket/issues)。
 
 ## 开发者
 
 构建、源码结构与测试见 [BUILD.md](BUILD.md)；手机调试见 [体验与调试说明](app/docs/REVIEW.public.md)；资料包格式见 [资料包说明](app/docs/ARTIST-PACK.public.md)。
 
-## 许可与声明
+## 许可
 
-代码采用 [AGPL-3.0-only](LICENSE)。本项目与 NovelAI 官方无隶属关系。项目不分发任何画师图片或第三方原图；第三方服务与数据的署名见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。
+[AGPL-3.0-only](LICENSE) 开源。本项目与 NovelAI 官方无隶属关系；第三方服务与数据的署名见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。
