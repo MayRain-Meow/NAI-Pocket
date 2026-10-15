@@ -39,6 +39,14 @@ export function createLocalApi({ database, settings, providers, client, assets, 
       const result = await references.artistResources.image(query.get('id'), query.get('tier') || 'thumb', { signal:request.signal, revision:query.get('revision') });
       return new Response(result.buffer, { headers: { 'Content-Type':result.contentType, 'Cache-Control':'no-store', 'X-Content-Type-Options':'nosniff' } });
     }
+    // 画风数据: the style index behind 按感觉找 / 找相似 (same /api/artists/style-index shape as the server).
+    if (pathname === '/api/artists/style-index' && method === 'GET') return references.artistLibrary.styleInfo();
+    if (pathname === '/api/artists/style-pack' && method === 'GET') return references.stylePack.state();
+    if (pathname === '/api/artists/style-pack' && method === 'DELETE') return references.stylePack.remove();
+    if (pathname === '/api/artists/style-pack/manifest' && method === 'POST') return references.stylePack.readManifest(await body());
+    if (pathname === '/api/artists/style-pack/download' && method === 'POST') return references.stylePack.download(await body());
+    if (pathname === '/api/artists/style-pack/status' && method === 'GET') return references.stylePack.status();
+    if (pathname === '/api/artists/style-pack/cancel' && method === 'POST') return references.stylePack.cancel();
     if (pathname === '/api/artists/resources/sets' && method === 'GET') { const { sets, profiles } = await references.artistResources.catalog(); return { sets, artists: profiles.length }; }
     // The artist page is the shared artist-library UI; these follow the server's response shapes.
     if (pathname === '/api/artists' && method === 'GET') return references.artistLibrary.list(Object.fromEntries(query));

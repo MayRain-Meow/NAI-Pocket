@@ -31,10 +31,13 @@ final class ArtistPackDownload {
         if(control.cancelled()||Thread.currentThread().isInterrupted())throw new InterruptedIOException("Cancelled");
     }
     static void download(String value,File target,String expectedHash,Opener opener,Control control,Progress progress) throws Exception {
-        URL url=initial(value);
+        download(value,"zip",ArtistPackArchive.MAX_TOTAL,target,expectedHash,opener,control,progress);
+    }
+    static void download(String value,String extension,long limit,File target,String expectedHash,Opener opener,Control control,Progress progress) throws Exception {
+        URL url=initial(value,extension);
         if(expectedHash!=null&&!expectedHash.isEmpty()&&!expectedHash.matches("[a-f0-9]{64}"))throw new IOException("Invalid archive checksum");
         try(FileOutputStream output=new FileOutputStream(target)) {
-            receive(url,output,ArtistPackArchive.MAX_TOTAL,expectedHash,opener,control,progress);
+            receive(url,output,limit,expectedHash,opener,control,progress);
             output.getFD().sync();
         } catch(Exception error) {if(target.exists()&&!target.delete())target.deleteOnExit();throw error;}
     }

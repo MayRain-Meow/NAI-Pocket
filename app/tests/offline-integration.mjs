@@ -14,6 +14,7 @@ import { seedArtistResources } from '../../tests/artist-resources-fixtures.mjs';
 import { packFixture,catalogFixture } from '../../tests/artist-pack-fixtures.mjs';
 import { previewHtml, previewHtmlForResources, previewScript, previewSeedScript, previewImage } from './offline-preview.mjs';
 import { seedPreparedArtists } from './seed-prepared-artists.mjs';
+import { stylePackFixture } from '../../tests/style-pack-fixtures.mjs';
 
 
 const preview = process.argv.includes('--preview');
@@ -40,6 +41,9 @@ const releaseFixture=version=>({tag_name:`v${version}-preview`,name:`NAI Pocket 
 let githubReleases=[releaseFixture(appVersion)];const githubCalls=[],updateDownloads=[],updateInstalls=[];
 let downloadMode='valid',resumeDownload=null,installBarrier=null,resumeInstall=null,resumeCancelAck=null;
 let packStatus={phase:'idle',receivedBytes:0,totalBytes:0,cancellable:false},packOperationId='';const packDownloads=[];
+// 画风数据: watercolor is axis 0, so "fixture same image" (pure axis 0) ranks first for 水彩.
+const styleFixture=stylePackFixture([['fixture-anmi-1','anmi',[60,90,0,0]],['fixture-anmi-2','anmi',[40,0,100,0]],['fixture-same-1','fixture same image',[127,0,0,0]]],{tags:{anmi:['gloomy']}});
+let styleMode='valid';const styleDownloads=[];
 const token = 'pst-'+ 'fixture'.repeat(10), secondToken = 'pst-'+ 'second'.repeat(10), rbqToken = 'rbq-'+'fixture'.repeat(6);
 const demoTokens = { token, secondToken, rbqToken }; let previewSeeded = false;
 const png = makePngFixture({ width: 64, height: 64, rgba: Buffer.alloc(64 * 64 * 4, 255), entries: [{ type: 'tEXt', key: 'Software', value: 'NovelAI' }, { type: 'tEXt', key: 'Comment', value: JSON.stringify({ prompt: 'synthetic fixture', seed: 42, steps: 1 }) }] });
@@ -78,6 +82,18 @@ async function rpc(name,args) {
     recoveryCalls.push(args.activeDirectories);return {skipped:recoveryCalls.length>1};
   }
   if(name==='ArtistResources.status')return packStatus;
+  if(name==='ArtistResources.readCatalog'&&String(args.url).endsWith('/style-index.json')) {
+    if(preview)throw new Error('真实画风数据下载需在安卓手机上验证。');
+    assert.deepEqual(Object.keys(args).sort(),['operationId','url']);return {catalog:styleFixture.manifest};
+  }
+  if(name==='ArtistResources.downloadStyleIndex') {
+    if(preview)throw new Error('真实画风数据下载需在安卓手机上验证。');
+    assert.deepEqual(Object.keys(args).sort(),['operationId','sha256','url']);styleDownloads.push(args);
+    const target=local(`style-index/${args.sha256}.bin`);await fs.mkdir(path.dirname(target),{recursive:true});
+    // 'corrupt': the native checksum passed but the content does not decode (truncated pack).
+    await fs.writeFile(target,styleMode==='corrupt'?styleFixture.bytes.subarray(0,40):styleFixture.bytes);
+    return {path:`style-index/${args.sha256}.bin`,bytes:styleFixture.bytes.length};
+  }
   if(name==='ArtistResources.readCatalog') {
     if(preview)throw new Error('真实目录下载需在安卓手机上验证；本预览只读取已载入的本地资料。');
     assert.deepEqual(Object.keys(args).sort(),['operationId','url']);return {catalog:catalogFixture().catalog};
@@ -428,8 +444,10 @@ try {
   { const text=await viewAnnotation('fixture-anmi-1');assert.match(text,/AI 初标 · 未人工确认/);assert.match(text,/合成标注 A/); }
   { const text=await viewAnnotation('fixture-anmi-2');assert.match(text,/人工已确认/);assert.doesNotMatch(text,/合成标注 A/);assert.match(text,/合成标注 B/); }
   assert.match(await viewAnnotation('fixture-anmi-3'),/暂无可查看的标注结果/);
-  // Without management the action grid is only 资料 and 画风概览 (2026-10-11).
-  assert.deepEqual(await library.locator('.artist-library-detail-actions > button').allTextContents(),['资料','画风概览'],'no management actions without management');
+  // 1.7.2 / 0.5.0: without management and before 画风数据 is installed the icon bar is only 笔记;
+  // 画风概览 opens from the vibe line under the name.
+  assert.deepEqual(await library.locator('.artist-library-detail-actions > button').allTextContents(),['笔记'],'no management actions without management');
+  assert.equal(await library.locator('[data-artist-vibe-tags] [data-open-artist-panel="evidence"]').count(),1,'画风概览 opens from the vibe line');
   assert.equal(await library.locator('[data-generate-artist-samples]').count(),0);
   const exampleMenu=library.locator('[data-example-id="fixture-anmi-1"] .artist-library-example-menu');
   await exampleMenu.locator('summary').click();
@@ -471,6 +489,7 @@ try {
   assert.equal(await searchBox.inputValue(),'anmi','the list comes back with its search');
   // Style filters narrow results.
   await openFilters();
+  await library.locator('.artist-library-more-filters > summary').click();
   await library.locator('.artist-library-refined-filters > summary').click();
   await library.locator('input[name="attribute-line.weight"][value="bold"]').check();
   await page.waitForFunction(()=>{const names=[...document.querySelectorAll('#artistLibraryMount .artist-library-card')].map(node=>node.dataset.artistCard);return names.length===1&&names[0]==='anmi';});
@@ -478,12 +497,12 @@ try {
   await library.locator('input[name="attribute-line.weight"][value="fine"]').check();
   await searchBox.fill('');
   await page.waitForFunction(()=>{const names=[...document.querySelectorAll('#artistLibraryMount .artist-library-card')].map(node=>node.dataset.artistCard).sort().join();return names==='anmi,fixture no image,fixture same image';});
-  await library.locator('input[name="confirmedOnly"]').check();
+  await library.locator('label:has(input[name="confirmedOnly"])').click();
   await library.getByText('没有符合当前条件的画师。可以清除筛选或搜索其他名称。',{exact:true}).waitFor();
-  await library.locator('input[name="confirmedOnly"]').uncheck();
+  await library.locator('label:has(input[name="confirmedOnly"])').click();
   await artistCard.waitFor();
   await library.locator('input[name="attribute-line.weight"][value="fine"]').uncheck();
-  await library.locator('input[name="favorite"]').check();
+  await library.locator('label:has(input[name="favorite"])').click();
   await page.waitForFunction(()=>[...document.querySelectorAll('#artistLibraryMount .artist-library-card')].map(node=>node.dataset.artistCard).join()==='anmi');
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'artist browsing fits a narrow phone');
   await page.screenshot({path:path.join(temporary,'native-artists.png'),fullPage:false});
@@ -492,7 +511,7 @@ try {
   await page.locator('[data-tab="artists"]').click();
   await library.locator('.artist-library-card').first().waitFor();
   await openFilters();
-  await library.locator('input[name="favorite"]').check();
+  await library.locator('label:has(input[name="favorite"])').click();
   await page.waitForFunction(()=>[...document.querySelectorAll('#artistLibraryMount .artist-library-card')].map(node=>node.dataset.artistCard).join()==='anmi');
   const restoredArtist=(await call('/api/artists/profile?artist=anmi')).data.artist;
   assert.equal(restoredArtist.favorite,true);assert.equal(restoredArtist.note,'星空方案，线条与色彩待比较。');
@@ -572,6 +591,32 @@ try {
   assert.equal((await call('/api/artists/profile?artist=catalog_artist')).data.artist.resourceSet.id,'catalog-test-10');
   assert.equal(packDownloads.length,3);for(const download of packDownloads)assert.ok(!JSON.stringify(download).includes(token)&&!JSON.stringify(download).includes(rbqToken));
   assert.equal(packDownloads.at(-1).sha256,'a'.repeat(64));assert.equal(packDownloads.at(-1).expectedVersion,'catalog-v1');
+  // 画风数据 (0.5.0): one press reads the manifest and installs the verified file; a file that does not
+  // decode is removed and never replaces the installed data.
+  const style=page.locator('.native-style-pack'),styleButton=name=>style.getByRole('button',{name,exact:true});
+  const styleStarts=async prefix=>{await page.waitForFunction(({prefix})=>document.querySelector('.native-style-pack p[role="status"]')?.textContent.startsWith(prefix),{prefix});};
+  await styleStarts('还没有画风数据');
+  assert.equal(await styleButton('删除').isVisible(),false);
+  styleMode='corrupt';await styleButton('下载画风数据').click();
+  await styleStarts('画风数据未更新，原有数据保持不变。');
+  assert.equal(styleDownloads.length,1,'the file was downloaded before it was rejected');
+  assert.equal((await call('/api/artists/style-pack')).data.installed,null,'an undecodable file is not installed');
+  assert.deepEqual(await fs.readdir(local('style-index')),[],'and is deleted');
+  styleMode='valid';await styleButton('下载画风数据').click();
+  await styleStarts('画风数据已安装。 已安装 fixture-1：2 位画师、3 张原作');
+  const installedStyle=(await call('/api/artists/style-pack')).data.installed;
+  assert.equal(installedStyle.sha256,styleFixture.sha256);assert.deepEqual((await fs.readdir(local('style-index'))).sort(),[`${styleFixture.sha256}.bin`,'installed.json']);
+  await styleButton('检查更新').click();
+  await styleStarts('已是最新版本。');
+  assert.equal(styleDownloads.length,2,'an up-to-date check downloads nothing');
+  assert.equal(styleDownloads[0].url,styleFixture.manifest.file.url);assert.equal(styleDownloads[0].sha256,styleFixture.sha256);
+  const styleInfo=(await call('/api/artists/style-index')).data;
+  assert.equal(styleInfo.available,true);assert.deepEqual(styleInfo.chips.map(chip=>chip.id),['watercolor','gloomy']);
+  const byFeel=(await call('/api/artists?vibe=watercolor')).data;
+  assert.equal(byFeel.styleIndex,true);assert.equal(byFeel.styleRanked,true);
+  assert.deepEqual(byFeel.artists.map(item=>item.artist),['fixture same image','anmi'],'only indexed artists, ranked by feel');
+  assert.deepEqual((await call('/api/artists/profile?artist=anmi')).data.artist.vibeTags,['暗调阴郁'],'the detail carries the vibe words');
+  assert.equal((await call('/api/artists?like=anmi')).data.artists[0].artist,'fixture same image','找相似 answers locally');
   await resources.scrollIntoViewIfNeeded();
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'resource settings fit the narrow viewport');
   await page.screenshot({path:path.join(temporary,'native-catalog-narrow.png'),fullPage:false});
@@ -580,6 +625,13 @@ try {
   await page.screenshot({path:path.join(temporary,'native-catalog-wide.png'),fullPage:false});
   await page.locator('#closeSettingsButton').click();
   await page.locator('[data-tab="artists"]').click();
+  // The 画风 panel now offers the downloaded feel words, and choosing one re-ranks the cards.
+  await library.locator('.artist-library-filter-toggle').click();
+  await library.locator('[data-vibe-chip="watercolor"]').click();
+  await page.waitForFunction(()=>document.querySelector('#artistLibraryMount .artist-library-card')?.dataset.artistCard==='fixture same image');
+  await page.screenshot({path:path.join(temporary,'native-style-panel.png'),fullPage:false});
+  await library.locator('[data-vibe-clear]').click();
+  await library.locator('.artist-library-filter-collapse').click();
   await searchBox.fill('fixture_artist');
   await libraryCard('fixture artist').getByRole('button',{name:'取消收藏 fixture artist',exact:true}).waitFor();
   await libraryCard('fixture artist').getByRole('button',{name:'查看 fixture artist 的资料与例图',exact:true}).click();

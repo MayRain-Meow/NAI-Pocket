@@ -91,21 +91,90 @@ export function artistResourcesSection({ request, defaultCatalogUrl = '', notice
   return section;
 }
 
+// 画风数据 (0.5.0): the style index behind 按感觉找 / 找相似. One press checks the Release and, when it
+// is new or missing, downloads and installs it; the installed copy stays until the new one is verified.
+export function stylePackSection({ request, notice = () => {} }) {
+  const block = el('section', '', 'settings-dialog-section native-style-pack');
+  const title = el('div', '', 'settings-section-heading');
+  title.append(el('span', 'Style', 'workspace-eyebrow'), el('h2', '画风数据'));
+  const status = el('p', '正在读取…', 'hint'); status.setAttribute('role', 'status');
+  const get = el('button', '下载画风数据', 'primary'), cancel = el('button', '取消', 'ghost'), remove = el('button', '删除', 'ghost');
+  cancel.hidden = true; remove.hidden = true;
+  const progress = el('progress'); progress.max = 1; progress.hidden = true;
+  const actions = el('div', '', 'native-artist-resources-actions'); actions.append(get, cancel, remove);
+  block.append(title, status, actions, progress, el('p', '用于画师页的按感觉找画师和找相似。只含画风向量与画师名，覆盖标注资料中的全年龄原作。', 'hint'));
+  let installed = null, busy = false, timer = 0;
+  const describe = state => `已安装 ${state.version}：${state.artists.toLocaleString()} 位画师、${state.images.toLocaleString()} 张原作（${mib(state.bytes)}）。`;
+  function sync() {
+    get.disabled = busy; cancel.hidden = !busy; progress.hidden = !busy; remove.hidden = busy || !installed;
+    get.textContent = installed ? '检查更新' : '下载画风数据';
+  }
+  async function refresh(outcome = '') {
+    try { installed = (await request('/api/artists/style-pack')).installed; } catch { installed = null; }
+    const summary = installed ? describe(installed) : '还没有画风数据。';
+    status.textContent = outcome ? `${outcome} ${summary}` : summary;
+    sync();
+  }
+  async function poll() {
+    try {
+      const state = await request('/api/artists/style-pack/status');
+      if (state.busy && state.totalBytes > 0) { progress.value = state.receivedBytes / state.totalBytes; status.textContent = `正在下载画风数据 ${mib(state.receivedBytes)} / ${mib(state.totalBytes)}…`; }
+    } catch { /* the download reports its own outcome */ }
+    if (busy) timer = setTimeout(poll, 500);
+  }
+  get.addEventListener('click', async () => {
+    if (busy) return;
+    busy = true; sync(); progress.removeAttribute('value'); status.textContent = '正在读取画风数据目录…';
+    let outcome = '';
+    try {
+      const { manifest } = await request('/api/artists/style-pack/manifest', { method: 'POST', body: {} });
+      if (installed?.sha256 === manifest.file.sha256) outcome = '已是最新版本。';
+      else {
+        status.textContent = `正在下载画风数据（约 ${mib(manifest.file.bytes)}）…`; poll();
+        const result = await request('/api/artists/style-pack/download', { method: 'POST', body: { manifest } });
+        outcome = result.cancelled ? '已取消，原有画风数据保持不变。' : '画风数据已安装。';
+        if (!result.cancelled) window.dispatchEvent(new Event('nai-artist-resources-changed'));
+      }
+    } catch (error) { outcome = '画风数据未更新，原有数据保持不变。'; notice(error.message); }
+    finally { busy = false; clearTimeout(timer); await refresh(outcome); }
+  });
+  cancel.addEventListener('click', () => request('/api/artists/style-pack/cancel', { method: 'POST' }).catch(() => {}));
+  remove.addEventListener('click', async () => {
+    if (busy) return;
+    try { await request('/api/artists/style-pack', { method: 'DELETE' }); window.dispatchEvent(new Event('nai-artist-resources-changed')); await refresh('已删除画风数据。'); }
+    catch (error) { notice(error.message); }
+  });
+  block.begin = () => { if (!busy && !installed) get.click(); };
+  refresh();
+  return block;
+}
+
 // Artist page banner (app only): tells the user to download the annotation packs when none
 // are installed, and explains repeated image failures (Danbooru's CDN may be unreachable).
-export function artistResourceNotice({ request, section }) {
+export function artistResourceNotice({ request, section, styleSection = null }) {
   const banner = el('div', '', 'native-artist-notice'); banner.hidden = true; banner.setAttribute('role', 'status');
   const text = el('p'), action = el('button', '', 'primary');
   banner.append(text, action);
-  let failures = 0, installed = null;
+  const later = el('button', '以后再说', 'ghost'); banner.append(later);
+  let failures = 0, installed = null, style = true, styleDismissed = false;
+  try { styleDismissed = localStorage.getItem('nai-style-pack-later') === '1'; } catch {}
   action.addEventListener('click', () => {
+    const wantsStyle = installed > 0 && !style;
     document.getElementById('openSettingsButton')?.click();
-    requestAnimationFrame(() => { section.scrollIntoView({ block: 'start' }); if (installed === 0) section.begin?.(); });
+    requestAnimationFrame(() => {
+      if (wantsStyle && styleSection) { styleSection.scrollIntoView({ block: 'start' }); styleSection.begin?.(); return; }
+      section.scrollIntoView({ block: 'start' }); if (installed === 0) section.begin?.();
+    });
   });
+  later.addEventListener('click', () => { styleDismissed = true; try { localStorage.setItem('nai-style-pack-later', '1'); } catch {} render(); });
   function render() {
+    later.hidden = true;
     if (installed === 0) {
       text.textContent = '还没有画师标注资料。下载后可看例图和逐图画风标注（约 79 MB，不含图片，例图从 Danbooru 按需读取）。';
       action.textContent = '去下载'; action.hidden = false; banner.hidden = false;
+    } else if (installed > 0 && !style && !styleDismissed) {
+      text.textContent = '新增画风数据：下载后可按感觉找画师、找相似（约 24 MB）。';
+      action.textContent = '去下载'; action.hidden = false; later.hidden = false; banner.hidden = false;
     } else if (failures >= 3) {
       text.textContent = `已有 ${failures} 张例图读取失败：可能无法连接 Danbooru 图片服务器（cdn.donmai.us）。当前网络无法访问时，标注和筛选仍可使用。`;
       action.hidden = true; banner.hidden = false;
@@ -113,6 +182,7 @@ export function artistResourceNotice({ request, section }) {
   }
   async function refresh() {
     try { installed = (await request('/api/artists/resources/sets')).sets.length; } catch { installed = null; }
+    try { style = Boolean((await request('/api/artists/style-pack')).installed); } catch { style = true; }
     if (installed) failures = 0;
     render();
   }

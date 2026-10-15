@@ -686,7 +686,6 @@ function ensureArtistLibrary() {
       if (artistAutomationAvailable) ensureArtistAutomation().mountTasks(host, summary);
     },
     onAnnotateExample: artistAutomationAvailable ? example => ensureArtistAutomation().trial(example) : undefined,
-    onAnnotateArtist: artistAutomationAvailable ? artist => ensureArtistAutomation().trialArtist(artist) : undefined,
     // The rotation's frozen prompt is captured from the workspace only when the
     // user explicitly asks for it; nothing else reads or writes it.
     //
@@ -4405,7 +4404,7 @@ function setQuickDelete(on) {
   quickDeleteMode = Boolean(on) && tagLayout() !== 'legacy';
   document.body.classList.toggle('quick-delete', quickDeleteMode);
   const button = $('#quickDeleteButton');
-  if (button) { button.setAttribute('aria-pressed', String(quickDeleteMode)); button.textContent = quickDeleteMode ? '完成' : '✕ 快删'; }
+  if (button) { button.setAttribute('aria-pressed', String(quickDeleteMode)); button.textContent = quickDeleteMode ? '完成' : '快删'; }
   if (quickDeleteMode) clearTagSelection();
 }
 

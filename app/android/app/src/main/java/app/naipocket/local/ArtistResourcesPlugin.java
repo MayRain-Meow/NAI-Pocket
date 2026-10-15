@@ -150,6 +150,38 @@ public class ArtistResourcesPlugin extends Plugin {
             } finally {if(archive!=null)archive.delete();connection=null;busy.set(false);}
         });
     }
+    // 画风数据 (0.5.0): one verified file, kept as filesDir/style-index/<sha256>.bin. The WebView decodes
+    // and validates it before switching to it, then removes the previous file itself.
+    static final long MAX_STYLE=64L*1024*1024;
+    @PluginMethod public void downloadStyleIndex(PluginCall call) {
+        String sha=call.getString("sha256","");
+        try {ArtistPackDownload.initial(call.getString("url",""),"bin");if(sha==null||!sha.matches("[a-f0-9]{64}"))throw new IOException("Invalid checksum");}
+        catch(Exception error){call.reject("画风数据链接无效。",error);return;}
+        if(!busy.compareAndSet(false,true)){call.reject("已有资料正在处理。","BUSY");return;}
+        if(!admitWork(call))return;
+        operationId=call.getString("operationId","");cancelled.set(false);progress("download",0,0);
+        worker.execute(()->{
+            File part=null;
+            try {
+                space(MAX_STYLE*2);
+                File folder=new File(getContext().getFilesDir(),"style-index").getCanonicalFile();
+                if(!folder.isDirectory()&&!folder.mkdirs())throw new IOException("Cannot create style directory");
+                part=new File(folder,sha+".part");File target=new File(folder,sha+".bin");
+                ArtistPackDownload.download(call.getString("url"),"bin",MAX_STYLE,part,sha,url->(HttpURLConnection)url.openConnection(),
+                    new ArtistPackDownload.Control(){
+                        public boolean cancelled(){return cancelled.get();}
+                        public void connection(HttpURLConnection current){connection=current;}
+                    },(received,total)->progress("download",received,total));
+                if(target.exists()&&!target.delete())throw new IOException("Cannot replace style data");
+                if(!part.renameTo(target))throw new IOException("Cannot store style data");
+                JSObject response=new JSObject();response.put("path","style-index/"+sha+".bin");response.put("bytes",target.length());call.resolve(response);
+            } catch(Exception error) {
+                if(part!=null&&part.exists())part.delete();
+                if(cancelled.get()){JSObject response=new JSObject();response.put("cancelled",true);call.resolve(response);}
+                else call.reject("画风数据下载失败："+error.getMessage(),error);
+            } finally {connection=null;busy.set(false);}
+        });
+    }
     @PluginMethod public void readCatalog(PluginCall call) {
         try {ArtistPackDownload.initial(call.getString("url",""),"json");}
         catch(Exception error){call.reject("请填写 GitHub Release 的 JSON 目录链接。",error);return;}

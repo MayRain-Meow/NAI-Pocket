@@ -51,7 +51,15 @@ public class ArtistPackDownloadTest {
             rejects(()->ArtistPackDownload.catalog(catalogUrl,url->new Response(url,200,null,ArtistPackDownload.MAX_CATALOG+1),new Control(),(a,b)->{}));
             rejects(()->ArtistPackDownload.catalog(catalogUrl,url->new Response(url,200,null,-1){public InputStream getInputStream(){return new ByteArrayInputStream(new byte[(int)ArtistPackDownload.MAX_CATALOG+1]);}},new Control(),(a,b)->{}));
             Control catalogControl=new Control();rejects(()->ArtistPackDownload.catalog(catalogUrl,url->new Response(url,200,null,4),catalogControl,(a,b)->{if(a>0)catalogControl.cancelled=true;}));
+            // 画风数据 (0.5.0): a .bin asset with its own size limit and a mandatory checksum in the plugin.
+            String styleUrl=URL.replace("artists.zip","style-index-1.bin");
+            rejects(()->ArtistPackDownload.download(URL,"bin",16,file,HASH,url->new Response(url,200,null,4),new Control(),(a,b)->{}));
+            rejects(()->ArtistPackDownload.download(styleUrl,"bin",3,file,"",url->new Response(url,200,null,4),new Control(),(a,b)->{}));
+            if(file.exists())throw new AssertionError("Oversized style data retained");
+            rejects(()->ArtistPackDownload.download(styleUrl,"bin",16,file,"0".repeat(64),url->new Response(url,200,null,4),new Control(),(a,b)->{}));
+            ArtistPackDownload.download(styleUrl,"bin",16,file,HASH,url->new Response(url,200,null,4),new Control(),(a,b)->{});
+            if(!Arrays.equals(Files.readAllBytes(file.toPath()),BYTES))throw new AssertionError("Style data mismatch");
         } finally {Files.deleteIfExists(file.toPath());}
-        System.out.println("Artist download passed: public HTTPS policy, redirect isolation, stream/progress, checksum, truncation, size admission and cancellation cleanup.");
+        System.out.println("Artist download passed: public HTTPS policy, redirect isolation, stream/progress, checksum, truncation, size admission, cancellation cleanup and the style-data .bin path.");
     }
 }

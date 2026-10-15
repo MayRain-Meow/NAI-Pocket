@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0 — Preview
+
+- 画风数据 (new, optional download, about 24 MB): the artist page can now rank artists by feel and find similar artists. Settings → 画师标注资料 → 画风数据 downloads it from its own GitHub Release, verifies it and switches over only after it decodes; the artist page offers it once the annotation packs are installed. It holds style vectors and artist names for the g/s originals of the annotation packs, no images, and works offline.
+- 画风 panel: feel words (ranked by image style) and annotation words (corner mark, exact per-image filter) share one panel in groups 氛围 / 场景 / 画法 / 色彩 / 质感 / 造型 / 年代 / 题材 / 画面, 51 feel words, each with its own lit look; 精确 also requires a matching annotation. Typing a word such as 「水彩 梦幻」 in search lights it. The older style grids stay under 更多标注筛选.
+- Cards show which chosen words an artist stands out on, and unannotated artists get two automatic feel words (✦). Tapping a word no longer pulls the page back to the panel.
+- Artist page header: rounded search with a ✦ 画风 button, one scrolling row for model, sort, favourites and chosen words, and number-first stats.
+- Artist detail: one icon bar (生成例图 when available, 找相似, 笔记, 添加例图 when available), the artist's standout feel words under the name with 「画风 ›」 for the style overview, and the note's first line.
+- Editor: 快删 keeps a fixed width (trash icon; solid red ✓ 完成 when on); the top-bar 导入 button is gone, 导入 NAI / JSON stays in the ⋯ menu.
+
 ## 0.4.0 — Preview
 
 - 部分恢复 redesigned: a 替换 / 追加 switch (追加 adds only the Tags, characters and UC entries you do not have yet and never removes anything), a full-restore card, and tiles grouped by section and tinted with the editor's section colours, each showing its count.

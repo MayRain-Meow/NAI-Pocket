@@ -1,3 +1,4 @@
+import { EXACT_CHIPS, VIBE_GROUP_ORDER, chipForWord, attributesForChips } from './artist-vibe-chips.js?v=1.6.81';
 import { STYLE_FACETS, queryHasStyleTerms } from './artist-catalog.js?v=1.6.81';
 import { createArtistResultViewer } from './artist-result.js?v=1.6.81';
 import { observeFittedChips } from './artist-chip-layout.js?v=1.6.81';
@@ -143,7 +144,9 @@ export function createLibraryState() {
   return {
     view: 'list',
     selectedArtist: '',
-    filters: { query: '', facets: emptyFacets(), attributes: {}, model: '', favorite: false, annotated: false, includeAutomatic: true, confirmedOnly: false, sort: 'default' },
+    // vibe: chip ids from the style index, "-id" = avoid. like: an artist whose style to match.
+    filters: { query: '', facets: emptyFacets(), attributes: {}, model: '', favorite: false, annotated: false, includeAutomatic: true, confirmedOnly: false, sort: 'default', vibe: [], like: '', exact: false },
+    vibePanelOpen: false,
     // The sort control is switched to 画风相关性 automatically while the user has not
     // chosen a sort themselves, and stops doing so the moment they do — an automatic
     // choice must never override an explicit one.
@@ -185,13 +188,15 @@ export function queryReportFrom(payload) {
 
 // Whether anything narrows the list (sort only orders it); 清除筛选 shows only then.
 export function libraryFiltersActive(filters = {}) {
-  return Boolean(filters.query || filters.model || filters.favorite || filters.annotated || filters.confirmedOnly
+  return Boolean(filters.query || filters.model || filters.favorite || filters.annotated || filters.confirmedOnly || filters.vibe?.length || filters.like
     || countSelectedFacets(filters.facets) || Object.values(filters.attributes || {}).some(values => Array.isArray(values) && values.length));
 }
 
 const filterGroupLabel = (label, count) => (count ? `${label} · ${count}` : label);
 // What the 筛选 panel holds (the search line and the model / sort / 收藏 row show their own state).
-const filterPanelLabel = filters => filterGroupLabel('筛选', countSelectedFacets(filters.facets)
+// The 画风 toggle counts every choice inside its panel: vibe chips, "像…", annotation values (label chips
+// and the old grids share them, so each is counted once) and the two annotation scopes.
+const filterPanelLabel = filters => filterGroupLabel('✦ 画风', (filters.vibe?.length || 0) + (filters.like ? 1 : 0)
   + Object.values(filters.attributes || {}).reduce((sum, values) => sum + (Array.isArray(values) ? values.length : 0), 0)
   + (filters.annotated ? 1 : 0) + (filters.confirmedOnly ? 1 : 0));
 
@@ -232,7 +237,10 @@ export function buildArtistListUrl(filters = {}, page = 1, limit = PAGE_SIZE) {
   const params = new URLSearchParams();
   const query = cleanText(filters.query, 300);
   const facets = Object.fromEntries(Object.entries(filters.facets || {}).filter(([, values]) => Array.isArray(values) && values.length));
-  const attributes = validateStyleAttributes(filters.attributes || {});
+  const exactExtra = attributesForChips(Array.isArray(filters.vibe) ? filters.vibe : [], [], filters.exact === true);
+  const merged = { ...(filters.attributes || {}) };
+  for (const [key, values] of Object.entries(exactExtra)) merged[key] = [...new Set([...(merged[key] || []), ...values])];
+  const attributes = validateStyleAttributes(merged);
   if (query) params.set('query', query);
   if (Object.keys(facets).length) params.set('facets', JSON.stringify(facets));
   if (Object.keys(attributes).length) params.set('attributes', JSON.stringify(attributes));
@@ -241,6 +249,9 @@ export function buildArtistListUrl(filters = {}, page = 1, limit = PAGE_SIZE) {
   if (filters.annotated) params.set('annotated', '1');
   params.set('includeAutomatic', filters.includeAutomatic === false ? '0' : '1');
   if (filters.confirmedOnly) params.set('confirmedOnly', '1');
+  const vibe = (Array.isArray(filters.vibe) ? filters.vibe : []).filter(token => /^-?[a-z0-9]{1,24}$/.test(token)).slice(0, 12);
+  if (vibe.length) params.set('vibe', vibe.join(','));
+  if (filters.like) params.set('like', cleanText(filters.like, 160));
   const sort = normalizeArtistSort(filters.sort);
   if (sort !== 'default') params.set('sort', sort);
   const safeLimit = Math.max(1, Math.min(100, Number(limit) || PAGE_SIZE));
@@ -545,7 +556,7 @@ function friendlyModel(value) {
   return MODEL_OPTIONS.find(([model]) => model === value)?.[1] || cleanText(value, 30) || '未知';
 }
 
-export function createArtistLibrary({ api, toast, addArtist, previewArtist, isReadOnly, canManage, mount, onNavigate, mountAutomation, onAnnotateExample, onAnnotateArtist, captureRotationState, rotationRoute: resolveRotationRoute } = {}) {
+export function createArtistLibrary({ api, toast, addArtist, previewArtist, isReadOnly, canManage, mount, onNavigate, mountAutomation, onAnnotateExample, captureRotationState, rotationRoute: resolveRotationRoute } = {}) {
   if (typeof api !== 'function') throw new TypeError('createArtistLibrary requires api(url, options).');
   const parentToast = typeof toast === 'function' ? toast : () => {};
   const addToPrompt = typeof addArtist === 'function' ? addArtist : () => {};
@@ -744,6 +755,9 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
       //
       // Orphaning is instead prevented by grouping: the tail is an inline-flex with the
       // default `flex-wrap: nowrap`, so the last fact and the control wrap as one unit.
+      const ratio = (done, all) => `${Math.round(Math.max(0, Math.min(1, all ? done / all : 0)) * 100)}%`;
+      facts[0]?.style.setProperty('--done', ratio(total - remaining, total));
+      facts.find(node => node.textContent.startsWith('待补标签'))?.style.setProperty('--done', ratio(count(summary.totalExamples) - count(summary.examplesWithoutTags), count(summary.totalExamples)));
       const last = facts.pop();
       const tail = last ? el('span', { className: 'artist-library-coverage-tail' }, [last, help]) : help;
       coverageHost.replaceChildren(...facts, tail);
@@ -1392,23 +1406,181 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     }
   }
 
+  // 画风 panel: one place for every style word.
+  //   · vibe chips (from the style index) rank artists by image style — want / avoid / off;
+  //   · label chips (artist-vibe-chips.js) filter exactly by stored annotations — on / off;
+  //   · 精确 makes the wanted vibe chips that have an annotation counterpart filter as well.
+  // Whether an index exists rides on the list response (`styleIndex`); the chip list is read only when
+  // the panel opens, a vibe is active, or a word is typed, so first entry costs no extra request.
+  // The old 画风特征 / 细化特征 / 构图 grids stay intact under 更多标注筛选.
+  
+  let vibeInfo = null, vibeLoading = null;
+  // A tapped chip must stay under the finger. The owner saw the page snap back to the chip bar when
+  // tapping with half a screen of results below; whatever moves the layout (panel redraw, a new list,
+  // late images), the element that was tapped is put back at the same screen position after each redraw.
+  let pinned = null, pinObserver = null;
+  function pinUnderFinger(node, selector) {
+    if (!node?.isConnected) return;
+    pinned = { selector, top: node.getBoundingClientRect().top, until: Date.now() + 2500 };
+    // Any layout change while pinned (redraws, late images) is corrected in the same frame.
+    if (!pinObserver && globalThis.ResizeObserver) { pinObserver = new ResizeObserver(() => settlePinned()); pinObserver.observe(dialog); pinObserver.observe(body); }
+  }
+  function settlePinned() {
+    if (!pinned) { pinObserver?.disconnect(); pinObserver = null; return; }
+    if (Date.now() > pinned.until) { pinned = null; pinObserver?.disconnect(); pinObserver = null; return; }
+    const node = body.querySelector(pinned.selector);
+    if (!node) return;
+    const delta = node.getBoundingClientRect().top - pinned.top;
+    if (Math.abs(delta) < 1) return;
+    if (embedded) globalThis.window?.scrollBy?.({ top: delta, left: 0, behavior: 'auto' }); else body.scrollTop += delta;
+  }
+  function loadVibeInfo() {
+    if (vibeInfo) return Promise.resolve();
+    if (vibeLoading) return vibeLoading;
+    vibeLoading = Promise.resolve().then(() => api('/api/artists/style-index'))
+      .then(data => { vibeInfo = data?.available ? data : { available: false, chips: [] }; })
+      .catch(() => { vibeInfo = { available: false, chips: [] }; })
+      .finally(() => { vibeLoading = null; renderVibePanel(); renderQuickRow(); });
+    return vibeLoading;
+  }
+  const exactChipOn = chip => Boolean(state.filters.attributes?.[chip.attribute[0]]?.includes(chip.attribute[1]));
+  const vibeLabel = id => vibeInfo?.chips?.find(chip => chip.id === id)?.label || EXACT_CHIPS.find(chip => chip.id === id)?.label || id;
+  function setVibe(tokens, like = state.filters.like) {
+    state.filters.vibe = tokens; state.filters.like = like; state.page = 1;
+    scheduleFilterSearch();
+  }
+  function setAttributeValue(key, value, on) {
+    const list = state.filters.attributes?.[key] || [];
+    const next = on ? [...new Set([...list, value])] : list.filter(item => item !== value);
+    const attributes = { ...(state.filters.attributes || {}) };
+    if (next.length) attributes[key] = next; else delete attributes[key];
+    state.filters.attributes = validateStyleAttributes(attributes);
+    state.filters.facets = { ...emptyFacets(), ...legacyFromAttributes(state.filters.attributes) };
+  }
+  function toggleExactChip(chip) {
+    setAttributeValue(chip.attribute[0], chip.attribute[1], !exactChipOn(chip));
+    state.page = 1; scheduleFilterSearch();
+  }
+  function chipButton(id, label, mode, hue, tagged) {
+    const node = button(mode === 'avoid' ? label : label, `artist-vibe-chip vibe-fx${tagged ? ' is-tagged' : ''}`, { 'data-vibe-chip': id, 'data-mode': mode, 'aria-pressed': String(mode !== 'off') });
+    node.style.setProperty('--hue', hue);
+    return node;
+  }
+  const GROUP_HUES = { 氛围: '#86aee0', 场景: '#9b9fe8', 画法: '#d6b38a', 色彩: '#e2a6bb', 质感: '#7fc4b8', 造型: '#b0a4d6', 年代: '#e09a6a', 题材: '#c6c27a', 画面: '#8fbf9f' };
+  function renderVibePanel(panel = body.querySelector('[data-artist-vibe]')) {
+    if (!panel) return;
+    const open = Boolean(panel.closest('.filters-open'));
+    if (!vibeInfo && state.styleIndex && (open || state.filters.vibe?.length || state.filters.like)) loadVibeInfo();
+    const tokens = state.filters.vibe || [];
+    const wanted = tokens.filter(token => !token.startsWith('-')), avoided = tokens.filter(token => token.startsWith('-')).map(token => token.slice(1));
+    const exactSwitch = panel.querySelector('[name="vibeExact"]');
+    if (exactSwitch) exactSwitch.checked = state.filters.exact === true;
+    const groups = new Map(VIBE_GROUP_ORDER.map(name => [name, []]));
+    for (const chip of vibeInfo?.available ? vibeInfo.chips : []) {
+      const mode = wanted.includes(chip.id) ? 'want' : avoided.includes(chip.id) ? 'avoid' : 'off';
+      const node = chipButton(chip.id, chip.label, mode, GROUP_HUES[chip.group] || '#d6b38a', false);
+      // One tap = want, second = avoid, third = off.
+      node.addEventListener('click', () => {
+        pinUnderFinger(node, `[data-vibe-chip="${chip.id}"]`);
+        const rest = tokens.filter(token => token !== chip.id && token !== `-${chip.id}`);
+        setVibe(mode === 'off' ? [...rest, chip.id] : mode === 'want' ? [...rest, `-${chip.id}`] : rest);
+      });
+      (groups.get(chip.group) || groups.set(chip.group, []).get(chip.group)).push(node);
+    }
+    for (const chip of EXACT_CHIPS) {
+      const node = chipButton(chip.id, chip.label, exactChipOn(chip) ? 'want' : 'off', GROUP_HUES[chip.group] || '#8fbf9f', true);
+      node.title = '按标注逐张精确过滤';
+      node.addEventListener('click', () => { pinUnderFinger(node, `[data-vibe-chip="${chip.id}"]`); toggleExactChip(chip); });
+      (groups.get(chip.group) || groups.set(chip.group, []).get(chip.group)).push(node);
+    }
+    const rows = [...groups].filter(([, chips]) => chips.length).map(([group, chips]) => {
+      const row = el('div', { className: 'artist-vibe-group' }, [el('span', { className: 'artist-vibe-group-label', text: group }), el('div', { className: 'artist-vibe-chips' }, chips)]);
+      row.style.setProperty('--hue', GROUP_HUES[group] || '#d6b38a');
+      return row;
+    });
+    const loading = state.styleIndex && !vibeInfo ? [el('p', { className: 'artist-vibe-loading', text: '正在读取感觉词…' })] : [];
+    const hint = wanted.length >= 4 ? '词越多越像混合氛围，个别项可能变弱' : vibeInfo?.available ? '点一下想要，再点一下不要 · 带角标的按标注精确过滤' : '带角标的词按标注逐张精确过滤';
+    panel.querySelector('.artist-vibe-body').replaceChildren(...loading, ...rows,
+      el('p', { className: `artist-vibe-hint${wanted.length >= 4 ? ' is-warning' : ''}`, attrs: { 'data-vibe-hint': 'true' }, text: hint }));
+    settlePinned();
+  }
+  function vibePanel() {
+    const exactInput = el('input', { name: 'vibeExact', attrs: { type: 'checkbox', 'aria-label': '精确：同时要求有标注证据' } });
+    exactInput.checked = state.filters.exact === true;
+    exactInput.addEventListener('change', () => { state.filters.exact = exactInput.checked; state.page = 1; scheduleFilterSearch(); });
+    const reset = button('清空', 'ghost artist-vibe-clear', { 'data-vibe-clear': 'true' });
+    reset.addEventListener('click', () => {
+      state.filters.vibe = []; state.filters.like = '';
+      for (const chip of EXACT_CHIPS) if (exactChipOn(chip)) setAttributeValue(chip.attribute[0], chip.attribute[1], false);
+      state.page = 1; scheduleFilterSearch();
+    });
+    const head = el('div', { className: 'artist-vibe-head' }, [
+      el('label', { className: 'artist-vibe-exact', attrs: { title: '打开后，想要的感觉词还必须有对应标注' } }, [exactInput, el('span', { className: 'artist-vibe-track' }), el('span', { text: '精确' })]),
+      reset
+    ]);
+    const panel = el('div', { className: 'artist-vibe-panel', attrs: { 'data-artist-vibe': 'true' } }, [head, el('div', { className: 'artist-vibe-body' })]);
+    renderVibePanel(panel);
+    return panel;
+  }
+  // The quick row: model, sort, 收藏, then one removable pill per active choice, on one scrolling line.
+  function renderQuickRow(form = body.querySelector('.artist-library-filters')) {
+    const host = form?.querySelector('[data-artist-active-pills]'); if (!host) return;
+    const tokens = state.filters.vibe || [];
+    const pill = (label, mode, remove, key) => {
+      const node = button(label, `artist-active-pill${mode === 'avoid' ? ' is-avoid' : ''}`, { 'data-active-pill': key, 'aria-label': `取消 ${label}` });
+      node.addEventListener('click', () => { pinUnderFinger(node.closest('.artist-library-quickrow'), '.artist-library-quickrow'); remove(); }); return node;
+    };
+    const pills = [];
+    if (state.filters.like) pills.push(pill(`像 ${state.filters.like}`, 'want', () => setVibe(tokens, ''), 'like'));
+    for (const token of tokens) {
+      const id = token.replace(/^-/, '');
+      pills.push(pill(vibeLabel(id), token.startsWith('-') ? 'avoid' : 'want', () => setVibe(tokens.filter(item => item !== token)), token));
+    }
+    for (const chip of EXACT_CHIPS) if (exactChipOn(chip)) pills.push(pill(chip.label, 'want', () => toggleExactChip(chip), chip.id));
+    host.replaceChildren(...pills);
+    form.toggleAttribute('data-style-ranked', Boolean(tokens.length || state.filters.like));
+  }
+  // A typed word that names a chip lights the chip instead of searching text: 「水彩 梦幻」.
+  async function absorbChipWords(input) {
+    const words = input.value.split(/\s+/).filter(Boolean);
+    if (!words.length) return false;
+    if (state.styleIndex && !vibeInfo) await loadVibeInfo();
+    const chips = vibeInfo?.available ? vibeInfo.chips : [];
+    const matched = words.map(word => [word, chipForWord(word, chips)]).filter(([, hit]) => hit);
+    if (!matched.length) return false;
+    const tokens = [...(state.filters.vibe || [])];
+    for (const [, hit] of matched) {
+      if (hit.kind === 'vibe') { if (!tokens.includes(hit.id)) tokens.push(hit.id); }
+      else { const chip = EXACT_CHIPS.find(item => item.id === hit.id); setAttributeValue(chip.attribute[0], chip.attribute[1], true); }
+    }
+    state.filters.vibe = tokens;
+    input.value = words.filter(word => !matched.some(([hit]) => hit === word)).join(' ');
+    return true;
+  }
+  function findSimilarStyle(artist) {
+    // Starting from an artist page means "like this artist", so earlier chips do not leak into it.
+    state.filters.like = cleanText(artist, 160); state.filters.vibe = []; state.page = 1;
+    loadList({ scroll: 0 });
+  }
+
   function buildFilters() {
     const form = el('form', { className: 'artist-library-filters', attrs: { 'aria-label': '筛选画师' } });
     const queryLabel = el('label', { className: 'artist-library-search' }, [el('span', { className: 'artist-library-control-label', text: '画师或画风' })]);
     const query = el('input', {
       name: 'query', value: state.filters.query,
-      attrs: { type: 'search', placeholder: '搜索画师或画风', autocomplete: 'off' }
+      attrs: { type: 'search', placeholder: '搜索画师名，或「水彩 梦幻」', autocomplete: 'off' }
     });
     // The image-search mode sits ON the search box, the way "search by image" is understood
     // everywhere, so the filter grid keeps its four columns and nothing is re-flowed.
     // New layout: the filter groups live in a panel under the search line, opened by 筛选.
-    const filterToggle = button('筛选', 'artist-library-filter-toggle', { 'data-new-layout-only': '', 'aria-expanded': 'false' });
+    const filterToggle = button('✦ 画风', 'artist-library-filter-toggle', { 'data-new-layout-only': '', 'aria-expanded': 'false' });
     const queryRow = el('div', { className: 'artist-library-search-row' }, [query, ...(SIMILAR_SEARCH_ENABLED ? [similarActionButton] : []), filterToggle]);
     // Results follow the typing, so 查找 is optional; an IME composition is committed first.
     let typingTimer = 0;
     const typed = () => {
       clearTimeout(typingTimer);
-      typingTimer = setTimeout(() => {
+      typingTimer = setTimeout(async () => {
+        if (await absorbChipWords(query)) { syncFiltersFromForm(form); state.page = 1; scheduleFilterSearch(); return; }
         if (query.value.trim() === state.filters.query) return;
         syncFiltersFromForm(form);
         state.page = 1;
@@ -1494,12 +1666,21 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
       disclosure.addEventListener('change', changed);
       return disclosure;
     };
-    const collapse = button('收起筛选', 'artist-library-filter-collapse', { 'data-new-layout-only': '' });
-    form.append(controls, scopes, facetDisclosure, detailedFilters(), detailedFilters(true), collapse);
+    const collapse = button('收起', 'artist-library-filter-collapse', { 'data-new-layout-only': '' });
+    // Quick row: model, sort and 收藏 move into one scrolling line with the active-choice pills; while a
+    // style ranking is active the sort select gives way to a 画风相近 label (the server orders by style).
+    const styleSort = el('span', { className: 'artist-library-style-sort', text: '画风相近' });
+    const quickRow = el('div', { className: 'artist-library-quickrow' }, [modelLabel, sortLabel, styleSort, favorite.label, el('div', { className: 'artist-active-pills', attrs: { 'data-artist-active-pills': 'true' } })]);
+    const more = el('details', { className: 'artist-library-more-filters' }, [el('summary', { text: '更多标注筛选' }), scopes, facetDisclosure, detailedFilters(), detailedFilters(true)]);
+    more.open = Boolean(state.moreFiltersOpen);
+    more.addEventListener('toggle', () => { state.moreFiltersOpen = more.open; });
+    form.append(controls, quickRow, vibePanel(), more, collapse);
+    renderQuickRow(form);
     form.toggleAttribute('data-filtered', libraryFiltersActive(state.filters));
     const setPanelOpen = open => {
       form.classList.toggle('filters-open', open);
       filterToggle.setAttribute('aria-expanded', String(open));
+      if (open) renderVibePanel(form.querySelector('[data-artist-vibe]'));
       // The first group opens with the panel; the long ones stay folded until asked.
       if (open && !form.querySelector('details[open]')) facetDisclosure.open = true;
     };
@@ -1555,6 +1736,8 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
       form.querySelector(selector).querySelector('summary').textContent = filterGroupLabel(label, count);
     }
     form.toggleAttribute('data-filtered', libraryFiltersActive(state.filters));
+    renderVibePanel(form.querySelector('[data-artist-vibe]'));
+    renderQuickRow(form);
     const toggle = form.querySelector('.artist-library-filter-toggle');
     if (toggle) toggle.textContent = filterPanelLabel(state.filters);
   }
@@ -1758,7 +1941,18 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
       }));
     }
     const chips = el('div', { className: 'artist-library-chips' });
-    renderEvidenceChips(chips, profile, '', 3, state.filters.confirmedOnly);
+    const wantedChips = (state.filters.vibe || []).filter(token => !token.startsWith('-'));
+    if (wantedChips.length && Array.isArray(profile?.styleHits)) {
+      // Which chosen words this artist stands out on (top 10% for that word alone).
+      chips.className = 'artist-vibe-hits';
+      for (const id of wantedChips) chips.append(el('span', { className: `artist-vibe-hit${profile.styleHits.includes(id) ? ' is-hit' : ''}`, text: vibeLabel(id), attrs: { 'data-vibe-hit': id } }));
+    } else {
+      renderEvidenceChips(chips, profile, '', 3, state.filters.confirmedOnly);
+      const pending = chips.querySelector('[data-evidence-pending]');
+      if (pending && Array.isArray(profile?.vibeTags) && profile.vibeTags.length) {
+        pending.replaceWith(el('span', { className: 'artist-library-chip is-vibe-tag', text: profile.vibeTags.join(' · '), attrs: { 'data-vibe-tags': 'true', title: '由图像风格自动得出，未经标注' } }));
+      }
+    }
     copy.append(chips);
     const actions = el('div', { className: 'artist-library-card-actions' });
     if (COMPARE_ENABLED) {
@@ -1840,6 +2034,7 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
       // word is now accounted for under the heading that explains how it was used.
       (() => {
         const queryNotes = [];
+        if (state.filters.vibe?.length || state.filters.like) queryNotes.push(state.filters.like ? `按风格相近排序：像 ${state.filters.like}` : '按感觉排序');
         if (state.report.styleTerms.length) queryNotes.push(`画风特征：${state.report.styleTerms.map(item => item.label).join(' · ')}`);
         if (normalizeArtistSort(state.filters.sort) === 'relevance' && state.report.styleTerms.length) queryNotes.push('按相关性排序，卡片显示依据');
         if (state.report.nameTerms.length) queryNotes.push(`按画师名搜索：${state.report.nameTerms.join(' · ')}`);
@@ -1868,6 +2063,12 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     results.replaceChildren(fragment);
     pruneChipLayouts();
     renderedListSignature = JSON.stringify([state.list, state.total, state.report.unmatchedTerms]);
+    if (pinned) {
+      settlePinned();
+      const frame = globalThis.requestAnimationFrame || (callback => callback());
+      frame(() => settlePinned());
+      setTimeout(() => { settlePinned(); pinned = null; pinObserver?.disconnect(); pinObserver = null; }, 400);
+    }
     renderCompareTray();
   }
 
@@ -1896,6 +2097,9 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
       // error. The keys are named once, in `queryReportFrom`, and the render reads `state.report.*`
       // with no fallbacks of its own.
       const report = queryReportFrom(data);
+      state.styleIndex = data?.styleIndex === true;
+      // The app can gain its style data mid-session (画风数据 downloaded in 设置): forget the "unavailable" answer.
+      if (state.styleIndex && vibeInfo && !vibeInfo.available) vibeInfo = null;
       if (background && partial) {
         const update = results.querySelector('[data-artist-updates]');
         if (update) update.hidden = JSON.stringify([list, total, report.unmatchedTerms]) === renderedListSignature;
@@ -3468,38 +3672,43 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     const addArtist = button('加入画风', 'primary artist-library-detail-add');
     addArtist.disabled = readOnly();
     addArtist.addEventListener('click', () => runAddArtist(profile.artist));
-    intro.append(coverEvidence, addArtist);
+    const vibeLine = el('div', { className: 'artist-library-detail-vibe', attrs: { 'data-artist-vibe-tags': 'true' } },
+      (profile.vibeTags || []).map(label => el('span', { className: 'artist-library-detail-vibe-tag', text: label })));
+    const overview = button('画风 ›', 'artist-library-detail-overview', { 'data-open-artist-panel': 'evidence', 'aria-label': '打开画风概览' });
+    overview.addEventListener('click', () => openPanel(evidencePanel));
+    vibeLine.append(overview);
+    intro.append(coverEvidence, vibeLine, addArtist);
     hero.append(cover, intro);
 
-    const actions = el('div', { className: 'artist-library-detail-actions', attrs: { role: 'group', 'aria-label': '画师操作' } });
-    const action = (label, run, attrs = {}) => {
-      const control = button(label, 'ghost', attrs);
+    
+    const actions = el('div', { className: 'artist-library-detail-actions artist-library-detail-iconbar', attrs: { role: 'group', 'aria-label': '画师操作' } });
+    const action = (label, run, attrs = {}, icon = '') => {
+      const control = button('', `artist-library-detail-icon-action${icon ? ` icon-${icon}` : ''}`, attrs);
+      control.append(el('span', { className: 'artist-library-detail-icon', attrs: { 'aria-hidden': 'true' } }), el('span', { text: label }));
       control.addEventListener('click', run);
       actions.append(control);
       return control;
     };
-    action('资料', () => openPanel(profilePanel), { 'data-open-artist-panel': 'profile' });
-    action('画风概览', () => openPanel(evidencePanel), { 'data-open-artist-panel': 'evidence' });
     if (!manageLocked()) {
       const generate = action('生成例图', () => {
         if (manageLocked()) return;
         generate.disabled = true;
         Promise.resolve(generateArtistSamples(profile)).catch(error => notify(errorMessage(error), 'error'))
           .finally(() => { if (generate.isConnected) generate.disabled = manageLocked(); });
-      }, { 'data-generate-artist-samples': profile.artist });
+      }, { 'data-generate-artist-samples': profile.artist }, 'generate');
       generate.title = '只用这位画师跑一批例图；基准 Prompt 与其他设置沿用已保存的配置';
-      if (typeof onAnnotateArtist === 'function') {
-        action('DS 标注', () => { if (!manageLocked()) Promise.resolve(onAnnotateArtist(profile.artist)).catch(error => notify(errorMessage(error), 'error')); });
-      }
-      action('批量设置', () => openPanel(rotationPanelInstance), { 'data-open-artist-rotation': 'true' })
-        .title = '打开画师例图生成的完整设置（基准、张数、画师范围）';
-      action('添加例图', () => openPanel(upload), { 'data-open-artist-upload': 'true' });
     }
-    const count = actions.childElementCount;
-    actions.dataset.columns = String(count <= 4 ? count : 3);
+    if (state.styleIndex || Array.isArray(profile.vibeTags)) action('找相似', () => findSimilarStyle(profile.artist), { 'data-artist-similar-style': profile.artist }, 'similar');
+    action('笔记', () => openPanel(profilePanel), { 'data-open-artist-panel': 'profile' }, 'memo');
+    if (!manageLocked()) action('添加例图', () => openPanel(upload), { 'data-open-artist-upload': 'true' }, 'add');
+    actions.dataset.columns = String(actions.childElementCount);
+    // The note's first line, when there is one; tapping it opens the same 资料 sheet.
+    const noteText = cleanText(profile.note, 300).split('\n').find(Boolean) || '';
+    const memo = noteText ? button('', 'artist-library-detail-memo', { 'data-artist-memo': 'true', 'aria-label': '打开笔记' }) : null;
+    if (memo) { memo.append(el('b', { text: '笔记' }), el('span', { text: noteText })); memo.addEventListener('click', () => openPanel(profilePanel)); }
 
     const previewHost = el('div', { className: 'artist-library-preview-host', attrs: { 'data-artist-preview-host': 'true' } });
-    fragment.append(...[hero, actions, examplesSection(profile, previewHost), previewHost, naxPreviewSection(profile, previewHost),
+    fragment.append(...[hero, actions, memo, examplesSection(profile, previewHost), previewHost, naxPreviewSection(profile, previewHost),
       profilePanel, evidencePanel, upload].filter(Boolean));
     body.replaceChildren(fragment);
     pruneChipLayouts();

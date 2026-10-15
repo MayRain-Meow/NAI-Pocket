@@ -1,6 +1,7 @@
 import { isNaxV5Artist, normalizeArtistIdentity } from '../public/artist-index-v5.js';
 import { validateStyleAttributes, attributesFromLegacy, summarizeStyleEvidence, STYLE_ATTRIBUTES } from '../public/artist-style-schema.js';
 import { artistListOptions, listArtistsView, coverExample } from '../public/artist-list-view.js';
+import { rankStyle, vibeTagsOf } from '../public/style-rank.js';
 import { normalizeArtistPreference } from './artist-browser.js';
 import { publicDanbooruStats } from './artist-danbooru-stats.js';
 
@@ -26,7 +27,9 @@ function observation(row, withProvenance = false) {
 }
 const boolParam = value => value === '1' || value === true;
 
-export function createArtistLibraryView({ store, preferences, roster = [], names = [], imageUrl, danbooru = null, clock = { now: () => Date.now() } }) {
+// `styleIndex` (optional, service/style-index-local.js): the downloaded 画风数据. Without it 按感觉找 /
+// 找相似 answer 503 and cards carry no vibe words, as on a server without an index.
+export function createArtistLibraryView({ store, preferences, roster = [], names = [], imageUrl, danbooru = null, styleIndex = null, clock = { now: () => Date.now() } }) {
   const builtIn = new Map();
   for (const name of names) builtIn.set(normalizeArtistIdentity(name), { name, aliases: [] });
   for (const row of roster) builtIn.set(normalizeArtistIdentity(row.artist), { name: row.artist, aliases: row.aliases || [] });
@@ -104,7 +107,8 @@ export function createArtistLibraryView({ store, preferences, roster = [], names
       thumbUrl: imageUrl(row.id, 'thumb', storage), previewUrl: imageUrl(row.id, 'preview', storage) }));
     const observations = notes.map(row => observation(row, true));
     const cover = coverExample(examples, '');
-    return { artist: key, name: pack?.display_name || known?.name || key, indexed: isNaxV5Artist(key),
+    const style = styleIndex ? await styleIndex.ready() : null;
+    return { artist: key, ...(style ? { vibeTags: vibeTagsOf(style)(key) } : {}), name: pack?.display_name || known?.name || key, indexed: isNaxV5Artist(key),
       aliases: pack ? json(pack.aliases_json, []) : known?.aliases || [], favorite: Boolean(preference?.favorite), note: preference?.note || '',
       danbooru: danbooru ? await danbooru.get(key) : null, danbooruStatus: EMPTY_STATUS, examples, observations, naxPreviews: [], naxExample: null,
       evidenceSummary: { ...summarizeStyleEvidence(examples, observations, examples.length ? 'original' : ''), model: examples.length ? 'original' : '' },
@@ -122,10 +126,18 @@ export function createArtistLibraryView({ store, preferences, roster = [], names
         annotated: boolParam(query.annotated), confirmedOnly: boolParam(query.confirmedOnly), includeAutomatic: query.includeAutomatic !== '0',
         offset: query.offset, limit: query.limit, sort: query.sort || 'default' };
       const { model, sort } = artistListOptions(options, fail);
+      const style = styleIndex ? await styleIndex.ready() : null;
+      let styleRank = null;
+      if (query.vibe || query.like) {
+        if (!style) throw fail('还没有画风数据：在 设置 → 画师标注资料 下载后可按感觉找画师、找相似。', 503);
+        styleRank = rankStyle(style, { vibe: String(query.vibe || ''), like: String(query.like || '') });
+      }
       const { entries, examples } = await catalog({ notes: Boolean(String(options.query || '').trim()) });
-      return listArtistsView(entries, examples, options, { model, sort, fail, thumbUrl: cover => imageUrl(cover.id, 'thumb', cover.storage) });
+      return { ...listArtistsView(entries, examples, options, { model, sort, fail, styleRank, vibeTags: style ? vibeTagsOf(style) : null,
+        thumbUrl: cover => imageUrl(cover.id, 'thumb', cover.storage) }), styleIndex: Boolean(style) };
     },
     profile,
+    styleInfo: async () => styleIndex ? styleIndex.info() : { available: false, chips: [] },
     async save(input = {}) {
       // Favourite and note are the user's own data; aliases and evidence come from packs.
       const value = { artist: input.artist, ...(Object.hasOwn(input, 'favorite') ? { favorite: input.favorite } : {}), ...(Object.hasOwn(input, 'note') ? { note: input.note } : {}) };

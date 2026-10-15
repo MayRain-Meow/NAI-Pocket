@@ -48,8 +48,11 @@ export const artistListNeedsEvidence = (options = {}, model = '') => Boolean(opt
 // `catalog`: entries shaped like the server's catalog entries. `examples`: Map of artist to
 // example rows ({ id, model, source_type, rotation_sample, ... }). `thumbUrl(cover)` builds the
 // host's thumbnail route for the chosen cover.
+// `styleRank` (optional): Map(artist -> { score, exampleId }) from the style index ("按感觉找" or
+// "像这位画师"). When given, only ranked artists are admitted, they are ordered by that score, and the
+// best-matching example becomes the cover so the card shows why it was picked.
 export function listArtistsView(catalog, examples, options = {}, { model = '', sort = 'default', fail = defaultFail,
-  thumbUrl = cover => `/api/artists/examples/${cover.id}/thumb` } = {}) {
+  thumbUrl = cover => `/api/artists/examples/${cover.id}/thumb`, styleRank = null, vibeTags = null } = {}) {
   let filtered;
   // `relevance` is the only sort that changes WHICH artists are admitted, because it
   // turns the exact all-in-one-example filter into a ranked partial match. Every
@@ -57,8 +60,10 @@ export function listArtistsView(catalog, examples, options = {}, { model = '', s
   const relevance = sort === 'relevance';
   try { filtered = filterArtistCatalog(catalog, { ...options, model, rank: relevance }); } catch (error) { throw fail(error.message); }
   const styleMatches = filtered.styleMatches || new Map();
+  if (styleRank) filtered.artists = filtered.artists.filter(artist => styleRank.has(artist.artist));
   const scoreOf = artist => styleMatches.get(artist.artist)?.score || 0;
-  filtered.artists.sort(sort === 'posts' ? (a, b) => compareOptionalDesc(a.danbooru?.postCount, b.danbooru?.postCount, () => compareNames(a, b))
+  if (styleRank) filtered.artists.sort((a, b) => styleRank.get(b.artist).score - styleRank.get(a.artist).score || compareNames(a, b));
+  else filtered.artists.sort(sort === 'posts' ? (a, b) => compareOptionalDesc(a.danbooru?.postCount, b.danbooru?.postCount, () => compareNames(a, b))
     : sort === 'danbooru_created' ? (a, b) => compareOptionalDesc(a.danbooru?.createdAt, b.danbooru?.createdAt, () => compareNames(a, b))
       : sort === 'examples' ? (a, b) => b.exampleCount - a.exampleCount || Number(b.favorite) - Number(a.favorite) || compareNames(a, b)
         : sort === 'relevance' ? (a, b) => scoreOf(b) - scoreOf(a) || Number(b.favorite) - Number(a.favorite) || b.exampleCount - a.exampleCount || compareNames(a, b)
@@ -81,13 +86,16 @@ export function listArtistsView(catalog, examples, options = {}, { model = '', s
     // A chosen cover wins inside each tier, so an explicit pick is respected
     // without breaking the model filter's meaning.
     const chosen = String(profile.coverExampleId || '');
-    const cover = coverExample(evidenceMatches, chosen) || coverExample(modelMatches, chosen) || coverExample(images, chosen);
+    const styleCover = styleRank ? images.find(image => image.id === styleRank.get(profile.artist)?.exampleId) : null;
+    const cover = styleCover || coverExample(evidenceMatches, chosen) || coverExample(modelMatches, chosen) || coverExample(images, chosen);
     return { ...profile,
       styleMatch: styleMatches.get(profile.artist) || null,
+      ...(styleRank?.get(profile.artist)?.hits ? { styleHits: styleRank.get(profile.artist).hits } : {}),
+      ...(vibeTags ? { vibeTags: vibeTags(profile.artist) } : {}),
       coverUrl: cover ? thumbUrl(cover) : '', coverModel: cover?.model || '', coverSourceType: cover?.source_type || '',
       coverIsChosen: Boolean(chosen && cover?.id === chosen), observations: matching.filter(item => item.exampleId === cover?.id) };
   });
   // The classification travels as ONE nested object (see the server history for why it is nested).
   return { artists: visible, total: filtered.artists.length, offset, limit, sort, report: filtered.report,
-    ranked: Boolean(filtered.ranked) };
+    ranked: Boolean(filtered.ranked), styleRanked: Boolean(styleRank) };
 }

@@ -17,7 +17,7 @@ import { openQueue } from './queue.js';
 import { openReferences } from './references.js';
 import { createLocalApi } from './api.js';
 import { settings } from './settings.js';
-import { artistResourcesSection, artistResourceNotice } from './artist-resources-section.js';
+import { artistResourcesSection, artistResourceNotice, stylePackSection } from './artist-resources-section.js';
 import { createImageLoader } from './image-loader.js';
 import { DEFAULT_ARTIST_CATALOG_URL } from './artist-resource-source.js';
 import { createUpdater } from './updater.js';
@@ -128,10 +128,11 @@ try {
     const data = await response.json(); if (!response.ok) throw new Error(data.error || '本机操作失败。'); return data;
   };
   const resourcesSection = artistResourcesSection({ request, defaultCatalogUrl: DEFAULT_ARTIST_CATALOG_URL, notice });
+  const styleSection = stylePackSection({ request, notice });
   const updateSection = appUpdateSection({ updater: createUpdater({ fetch: http.fetch, state: queue.state, currentVersion: appVersion }),
     native: registerPlugin('AppUpdate'), currentVersion: appVersion });
-  settingsBody?.append(await phoneAlbumSection(queue), resourcesSection, updateSection, aboutSection(appVersion, licenseButton));
-  document.getElementById('artistLibraryMount')?.before(artistResourceNotice({ request, section: resourcesSection }));
+  settingsBody?.append(await phoneAlbumSection(queue), resourcesSection, styleSection, updateSection, aboutSection(appVersion, licenseButton));
+  document.getElementById('artistLibraryMount')?.before(artistResourceNotice({ request, section: resourcesSection, styleSection }));
   await media.registerAll();
   await import('../../public/app.js');
   // Keep the launch screen until the editor is actually shown (app.js reveals #appView).
