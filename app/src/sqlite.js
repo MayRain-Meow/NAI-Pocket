@@ -1,5 +1,6 @@
 import { CapacitorSQLite, SQLiteConnection } from '@capacitor-community/sqlite';
 import { APP_SCHEMA } from '../../service/storage/schema.js';
+import { IMAGE_SEARCH_SCHEMA } from '../../service/storage/image-search.js';
 import { ARTIST_DANBOORU_STATS_SCHEMA } from '../../service/storage/artist-danbooru-stats.js';
 import { runSteps } from '../../service/port-flow.js';
 
@@ -9,6 +10,8 @@ export async function openDatabase() {
   await connection.open();
   await connection.execute(APP_SCHEMA);
   await connection.execute(ARTIST_DANBOORU_STATS_SCHEMA);
+  // The gallery store falls back to scanning images if this ever fails on a device.
+  try { await connection.execute(IMAGE_SEARCH_SCHEMA); } catch {}
   let tail = Promise.resolve();
   const serial = work => {
     const result = tail.then(work); tail = result.catch(() => {}); return result;

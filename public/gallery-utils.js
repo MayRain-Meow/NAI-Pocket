@@ -48,7 +48,7 @@ export function escapeGalleryLike(value) {
 
 // Gallery kinds. `gallery` is deliberate work; `rotation` is an artist-rotation
 // sample kept in its own view so the main gallery is not diluted by batches.
-export const GALLERY_KINDS = Object.freeze(['gallery', 'rotation']);
+export const GALLERY_KINDS = Object.freeze(['gallery', 'rotation', 'iteration']);
 export const normalizeGalleryKind = value => (GALLERY_KINDS.includes(String(value || '')) ? String(value) : 'gallery');
 
 export function buildGalleryFilter({ favorite = false, query = '', since = 0, until = 0, snapshot = null, cursor = null, kind = 'gallery' } = {}, { includeCursor = true } = {}) {

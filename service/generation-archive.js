@@ -1,3 +1,4 @@
+import { generationGalleryKind } from '../public/generation-payload.js';
 import { redactPersistedApiPayload } from '../public/persistence-utils.js';
 
 
@@ -32,7 +33,7 @@ export function createGenerationArchive({ store, files, images, ids, clock = { n
         metadata.width || state.params.width, metadata.height || state.params.height,
         originalStat.size, thumbStat.size, previewStat.size, state.previewPrompt || state.prompt, state.negativePrompt,
         JSON.stringify({ ...state, apiPayload: redactPersistedApiPayload(result.payload, state) }), result.seed, now,
-        state.experiment?.type === 'artist-rotation' ? 'rotation' : 'gallery'
+        generationGalleryKind(state)
       ] });
     } finally { if (!saved) await clean(); }
     if (saved) {

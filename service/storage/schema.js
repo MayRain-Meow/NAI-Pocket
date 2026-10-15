@@ -68,7 +68,6 @@ CREATE TABLE IF NOT EXISTS input_assets (
 CREATE INDEX IF NOT EXISTS idx_input_assets_created ON input_assets(created_at DESC);
 
 CREATE TABLE IF NOT EXISTS images (
-      kind TEXT NOT NULL DEFAULT 'gallery',
       id TEXT PRIMARY KEY,
       job_id TEXT NOT NULL UNIQUE,
       batch_id TEXT NOT NULL,
@@ -88,6 +87,7 @@ CREATE TABLE IF NOT EXISTS images (
       favorite INTEGER NOT NULL DEFAULT 0,
       note TEXT NOT NULL DEFAULT '',
       created_at INTEGER NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'gallery',
       FOREIGN KEY(job_id) REFERENCES jobs(id) ON DELETE CASCADE
     );
 

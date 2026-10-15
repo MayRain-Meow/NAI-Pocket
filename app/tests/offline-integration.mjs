@@ -370,6 +370,7 @@ try {
   const about=page.locator('.native-about-section');
   assert.match(await about.textContent(),/MayRain-Meow/);
   assert.equal(await about.locator('a.native-about-link').getAttribute('href'),'https://github.com/MayRain-Meow/NAI-Pocket');
+  assert.equal(await about.locator('a.native-star-button').getAttribute('href'),'https://github.com/MayRain-Meow/NAI-Pocket');
   await about.getByRole('button',{name:'开源许可',exact:true}).click();
   await page.waitForSelector('.native-license-dialog[open]');
   assert.match(await page.locator('.native-license-dialog pre').textContent(),/GNU AFFERO GENERAL PUBLIC LICENSE/);

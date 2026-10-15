@@ -503,6 +503,7 @@
           <div class="gallery-scope-row" role="group" aria-label="图库视图">
             <button id="galleryScopeGallery" class="ghost" type="button" aria-pressed="true">常规作品</button>
             
+            <button id="galleryScopeIteration" class="ghost" type="button" aria-pressed="false">迭代实验</button>
           </div>
           <div class="gallery-mode-row" role="group" aria-label="图库模式">
             <button id="galleryCleanupToggle" class="ghost" type="button" aria-pressed="false" data-owner-only="">清理模式</button>
@@ -997,22 +998,39 @@
 
   <dialog id="imageRestoreDialog" class="action-choice-dialog image-restore-dialog">
     <div class="dialog-header">
-      <div class="dialog-title-stack"><strong>部分恢复</strong><small>只替换选择的区域，其余当前编辑内容保持不变。</small></div>
+      <div class="dialog-title-stack"><strong>部分恢复</strong><small>按分区取用这张图的内容</small></div>
       <button id="closeImageRestoreDialog" class="icon-button" type="button" aria-label="关闭">×</button>
     </div>
     <div class="image-restore-body">
-      <div id="imageRestoreCharacterActions" class="image-restore-character-actions"></div>
-      <div class="image-restore-grid">
-        <button class="primary" type="button" data-image-restore-mode="all">完整恢复</button>
-        <button class="ghost" type="button" data-image-restore-mode="characters">全部角色</button>
-        <button class="ghost" type="button" data-image-restore-mode="camera-style">镜头 + 画风</button>
-        <button class="ghost" type="button" data-image-restore-mode="scene">仅场景</button>
-        <button class="ghost" type="button" data-image-restore-mode="camera">仅镜头</button>
-        <button class="ghost" type="button" data-image-restore-mode="style">仅画风</button>
-        <button class="ghost" type="button" data-image-restore-mode="misc">仅其他</button>
-        <button class="ghost" type="button" data-image-restore-mode="uc">Global UC</button>
-        <button class="ghost" type="button" data-image-restore-mode="params">仅生成参数</button>
+      <div class="restore-merge-switch" role="group" aria-label="恢复方式">
+        <button type="button" data-restore-merge="replace" aria-pressed="true">替换</button>
+        <button type="button" data-restore-merge="append" aria-pressed="false">追加</button>
       </div>
+      <button class="restore-all" type="button" data-image-restore-mode="all"><span class="restore-all-text"><strong id="imageRestoreAllLabel">完整恢复</strong><small data-restore-detail="all"></small></span><span class="restore-all-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path class="icon-replace" d="M5 12a7 7 0 1 0 2.1-5M5 4.5V8h3.5"></path><path class="icon-append" d="M12 6.5v11M6.5 12h11"></path></svg></span></button>
+      <section class="restore-group">
+        <h3>Tag 分区</h3>
+        <div class="image-restore-grid">
+          <button class="restore-tile" type="button" data-image-restore-mode="scene"><strong>场景</strong><small data-restore-detail="scene"></small></button>
+          <button class="restore-tile" type="button" data-image-restore-mode="camera"><strong>镜头</strong><small data-restore-detail="camera"></small></button>
+          <button class="restore-tile" type="button" data-image-restore-mode="style"><strong>画风</strong><small data-restore-detail="style"></small></button>
+          <button class="restore-tile" type="button" data-image-restore-mode="misc"><strong>其他</strong><small data-restore-detail="misc"></small></button>
+          <button class="restore-tile" type="button" data-image-restore-mode="camera-style"><strong>镜头 + 画风</strong><small data-restore-detail="camera-style"></small></button>
+        </div>
+      </section>
+      <section class="restore-group">
+        <h3>角色</h3>
+        <div class="image-restore-grid">
+          <button class="restore-tile" type="button" data-image-restore-mode="characters"><strong>全部角色</strong><small data-restore-detail="characters"></small></button>
+        </div>
+        <div id="imageRestoreCharacterActions" class="image-restore-grid image-restore-character-actions"></div>
+      </section>
+      <section class="restore-group">
+        <h3>提示词之外</h3>
+        <div class="image-restore-grid">
+          <button class="restore-tile" type="button" data-image-restore-mode="uc"><strong>Global UC</strong><small data-restore-detail="uc"></small></button>
+          <button class="restore-tile" type="button" data-image-restore-mode="params"><strong>生成参数</strong><small data-restore-detail="params"></small></button>
+        </div>
+      </section>
       <p id="imageRestoreLegacyHint" class="hint hidden">这张旧图没有结构化 Tag 分区，只能完整恢复或恢复生成参数。</p>
     </div>
   </dialog>
@@ -1028,19 +1046,37 @@
         <div id="schemeDialogMeta" class="scheme-detail-meta"></div>
       </div>
       <div id="schemeDialogSections" class="scheme-detail-sections"></div>
-      <div class="scheme-restore-panel">
-        <strong>恢复到当前编辑器</strong>
-        <p class="hint">部分恢复只替换选中的区域，其余当前内容保持不变。</p>
-        <div class="scheme-restore-grid">
-          <button class="primary" type="button" data-scheme-restore-mode="all">完整恢复</button>
-          <button class="ghost" type="button" data-scheme-restore-mode="characters">仅角色</button>
-          <button class="ghost" type="button" data-scheme-restore-mode="camera-style">镜头 + 画风</button>
-          <button class="ghost" type="button" data-scheme-restore-mode="scene">仅场景</button>
-          <button class="ghost" type="button" data-scheme-restore-mode="camera">仅镜头</button>
-          <button class="ghost" type="button" data-scheme-restore-mode="style">仅画风</button>
-          <button class="ghost" type="button" data-scheme-restore-mode="misc">仅其他</button>
-          <button class="ghost" type="button" data-scheme-restore-mode="params">仅生成参数</button>
+      <div id="schemeRestorePanel" class="scheme-restore-panel restore-picker" data-merge="replace">
+        <strong class="restore-picker-title">恢复到当前编辑器</strong>
+        <div class="restore-merge-switch" role="group" aria-label="恢复方式">
+          <button type="button" data-scheme-merge="replace" aria-pressed="true">替换</button>
+          <button type="button" data-scheme-merge="append" aria-pressed="false">追加</button>
         </div>
+        <button class="restore-all" type="button" data-scheme-restore-mode="all"><span class="restore-all-text"><strong id="schemeRestoreAllLabel">完整恢复</strong><small data-restore-detail="all"></small></span><span class="restore-all-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path class="icon-replace" d="M5 12a7 7 0 1 0 2.1-5M5 4.5V8h3.5"></path><path class="icon-append" d="M12 6.5v11M6.5 12h11"></path></svg></span></button>
+        <section class="restore-group">
+          <h3>Tag 分区</h3>
+          <div class="image-restore-grid">
+            <button class="restore-tile" type="button" data-scheme-restore-mode="scene"><strong>场景</strong><small data-restore-detail="scene"></small></button>
+            <button class="restore-tile" type="button" data-scheme-restore-mode="camera"><strong>镜头</strong><small data-restore-detail="camera"></small></button>
+            <button class="restore-tile" type="button" data-scheme-restore-mode="style"><strong>画风</strong><small data-restore-detail="style"></small></button>
+            <button class="restore-tile" type="button" data-scheme-restore-mode="misc"><strong>其他</strong><small data-restore-detail="misc"></small></button>
+            <button class="restore-tile" type="button" data-scheme-restore-mode="camera-style"><strong>镜头 + 画风</strong><small data-restore-detail="camera-style"></small></button>
+          </div>
+        </section>
+        <section class="restore-group">
+          <h3>角色</h3>
+          <div class="image-restore-grid">
+            <button class="restore-tile" type="button" data-scheme-restore-mode="characters"><strong>全部角色</strong><small data-restore-detail="characters"></small></button>
+          </div>
+          <div id="schemeRestoreCharacterActions" class="image-restore-grid image-restore-character-actions"></div>
+        </section>
+        <section class="restore-group">
+          <h3>提示词之外</h3>
+          <div class="image-restore-grid">
+            <button class="restore-tile" type="button" data-scheme-restore-mode="uc"><strong>Global UC</strong><small data-restore-detail="uc"></small></button>
+            <button class="restore-tile" type="button" data-scheme-restore-mode="params"><strong>生成参数</strong><small data-restore-detail="params"></small></button>
+          </div>
+        </section>
       </div>
     </div>
   </dialog>
@@ -1068,28 +1104,28 @@
       <section class="image-create-group">
         <h3>继续创作</h3>
         <div class="image-create-grid">
-          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="img2img"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="12" height="12" rx="2.5"></rect><path d="M8 19.5h9.5a3 3 0 0 0 3-3V7"></path><path d="M7 13l2.5-2.5L12 13"></path></svg><strong>图生图</strong><span>沿用整张图继续变化</span></button>
-          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="inpaint"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 4.5l5 5-8.5 8.5H6v-5z"></path><path d="M12.5 6.5l5 5"></path><path d="M4 20.5h16"></path></svg><strong>局部重绘</strong><span>只修涂选的区域</span></button>
+          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="img2img"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="12" height="12" rx="2.5"></rect><path d="M8 19.5h9.5a3 3 0 0 0 3-3V7"></path><path d="M7 13l2.5-2.5L12 13"></path></svg><span class="tile-text"><strong>图生图</strong><span>沿用整张图继续变化</span></span></button>
+          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="inpaint"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 4.5l5 5-8.5 8.5H6v-5z"></path><path d="M12.5 6.5l5 5"></path><path d="M4 20.5h16"></path></svg><span class="tile-text"><strong>局部重绘</strong><span>只修涂选的区域</span></span></button>
         </div>
       </section>
       <section class="image-create-group">
         <h3>作为参考</h3>
         <div class="image-create-grid">
-          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="precise"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"></circle><circle cx="12" cy="12" r="3.5"></circle><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"></path></svg><strong>精确参考</strong><span>角色或画风 · Precise Reference</span></button>
-          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="vibe"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.2 0 1.8-.8 1.8-1.7 0-1.4-1.3-1.6-1.3-2.9 0-1 .8-1.7 1.9-1.7h2a4.1 4.1 0 0 0 4.1-4.1C20.5 6.7 16.7 3.5 12 3.5z"></path><circle cx="7.8" cy="11" r="1.1"></circle><circle cx="10.5" cy="7.3" r="1.1"></circle><circle cx="15" cy="7.6" r="1.1"></circle></svg><strong>Vibe 迁移</strong><span>借用配色与氛围</span></button>
+          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="precise" title="Precise Reference"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"></circle><circle cx="12" cy="12" r="3.5"></circle><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"></path></svg><span class="tile-text"><strong>精确参考</strong><span>角色或画风</span></span></button>
+          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="vibe"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.2 0 1.8-.8 1.8-1.7 0-1.4-1.3-1.6-1.3-2.9 0-1 .8-1.7 1.9-1.7h2a4.1 4.1 0 0 0 4.1-4.1C20.5 6.7 16.7 3.5 12 3.5z"></path><circle cx="7.8" cy="11" r="1.1"></circle><circle cx="10.5" cy="7.3" r="1.1"></circle><circle cx="15" cy="7.6" r="1.1"></circle></svg><span class="tile-text"><strong>Vibe 迁移</strong><span>借用配色与氛围</span></span></button>
         </div>
       </section>
       <section class="image-create-group">
         <h3>官方工具</h3>
         <div class="image-create-grid">
-          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="enhance"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l1.9 5 5.1 1.9-5.1 1.9-1.9 5-1.9-5L5 10.4l5.1-1.9z"></path><path d="M18.5 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"></path></svg><strong>增强</strong><span>二次扩散并放大 · Enhance</span></button>
-          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="upscale"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-6.5 6.5M4 20l6.5-6.5"></path></svg><strong>放大</strong><span>不重绘，只放大 · Upscale</span></button>
-          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="lineart"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19l3.5-1 10-10-2.5-2.5-10 10z"></path><path d="M14.5 6.5l2.5 2.5"></path><path d="M4 21c3-1 5-1 8 0s5 1 8 0"></path></svg><strong>线稿</strong><span>提取线稿 · Line Art</span></button>
-          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="sketch"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17c2-4 4-9 7-9 2.5 0 1 5 3.5 5 2 0 3-3 5.5-3"></path><path d="M4 21h16"></path></svg><strong>草图</strong><span>转成草图 · Sketch</span></button>
-          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="bg-removal"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.5"></circle><path d="M5.5 20a6.5 6.5 0 0 1 13 0"></path><path d="M3.5 3.5l17 17" stroke-dasharray="2 2.5"></path></svg><strong>去背景</strong><span>移除背景 · Remove BG</span></button>
-          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="declutter"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4.5l10.5 10.5-4.5 4.5H9.5L4.5 14.5z"></path><path d="M8.5 9l6.5 6.5"></path><path d="M9.5 19.5H20"></path></svg><strong>清理杂物</strong><span>去掉文字与杂物 · Declutter</span></button>
-          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="colorize"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5c3.5 4.2 6 7.3 6 10.3a6 6 0 0 1-12 0c0-3 2.5-6.1 6-10.3z"></path><path d="M9.3 14.5a2.8 2.8 0 0 0 2.7 2.6"></path></svg><strong>上色</strong><span>给线稿上色 · Colorize</span></button>
-          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="emotion"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M8.5 14.2c1.8 2.2 5.2 2.2 7 0"></path><path d="M9 9.5h.01M15 9.5h.01" stroke-width="2.6"></path></svg><strong>改表情</strong><span>修改人物表情 · Emotion</span></button>
+          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="enhance" title="Enhance"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l1.9 5 5.1 1.9-5.1 1.9-1.9 5-1.9-5L5 10.4l5.1-1.9z"></path><path d="M18.5 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"></path></svg><span class="tile-text"><strong>增强</strong><span>二次扩散并放大</span></span></button>
+          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="upscale" title="Upscale"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-6.5 6.5M4 20l6.5-6.5"></path></svg><span class="tile-text"><strong>放大</strong><span>只放大，不重绘</span></span></button>
+          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="lineart" title="Line Art"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19l3.5-1 10-10-2.5-2.5-10 10z"></path><path d="M14.5 6.5l2.5 2.5"></path><path d="M4 21c3-1 5-1 8 0s5 1 8 0"></path></svg><span class="tile-text"><strong>线稿</strong><span>提取线稿</span></span></button>
+          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="sketch" title="Sketch"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17c2-4 4-9 7-9 2.5 0 1 5 3.5 5 2 0 3-3 5.5-3"></path><path d="M4 21h16"></path></svg><span class="tile-text"><strong>草图</strong><span>转成草图</span></span></button>
+          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="bg-removal" title="Remove Background"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.5"></circle><path d="M5.5 20a6.5 6.5 0 0 1 13 0"></path><path d="M3.5 3.5l17 17" stroke-dasharray="2 2.5"></path></svg><span class="tile-text"><strong>去背景</strong><span>移除背景</span></span></button>
+          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="declutter" title="Declutter"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4.5l10.5 10.5-4.5 4.5H9.5L4.5 14.5z"></path><path d="M8.5 9l6.5 6.5"></path><path d="M9.5 19.5H20"></path></svg><span class="tile-text"><strong>清理杂物</strong><span>去掉文字与杂物</span></span></button>
+          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="colorize" title="Colorize"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5c3.5 4.2 6 7.3 6 10.3a6 6 0 0 1-12 0c0-3 2.5-6.1 6-10.3z"></path><path d="M9.3 14.5a2.8 2.8 0 0 0 2.7 2.6"></path></svg><span class="tile-text"><strong>上色</strong><span>给线稿上色</span></span></button>
+          <button class="action-choice-card image-create-tile" type="button" data-create-from-image="emotion" title="Emotion"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M8.5 14.2c1.8 2.2 5.2 2.2 7 0"></path><path d="M9 9.5h.01M15 9.5h.01" stroke-width="2.6"></path></svg><span class="tile-text"><strong>改表情</strong><span>修改人物表情</span></span></button>
         </div>
       </section>
     </div>

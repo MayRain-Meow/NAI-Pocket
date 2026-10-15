@@ -126,16 +126,34 @@ function artistHaystack(artist) {
   return value;
 }
 
+// Per-keystroke search walked every artist's observations through observationAttributes again.
+// The result depends only on the observation array (replaced, never mutated, when an entry is
+// rebuilt) and the two flags, so it is memoised on that array. Same for the exact-name keys below.
+const usableMemo = new WeakMap();
 export function usableObservations(artist, options) {
   const includeAutomatic = options.includeAutomatic !== false && !options.confirmedOnly;
-  return (artist.observations || []).filter(item => (item.reviewed === true || (includeAutomatic && item.automatic === true && ['danbooru-tags', 'assistant-visual'].includes(item.source)))
+  const list = artist.observations || [];
+  let memo = usableMemo.get(list);
+  if (!memo) { memo = new Map(); usableMemo.set(list, memo); }
+  const key = includeAutomatic ? 'auto' : 'reviewed';
+  if (memo.has(key)) return memo.get(key);
+  const usable = list.filter(item => (item.reviewed === true || (includeAutomatic && item.automatic === true && ['danbooru-tags', 'assistant-visual'].includes(item.source)))
     && item.exampleId && Object.values(observationAttributes(item)).some(values => values.length));
+  memo.set(key, usable);
+  return usable;
+}
+
+const nameKeyMemo = new WeakMap();
+function artistNameKeys(artist) {
+  let keys = nameKeyMemo.get(artist);
+  if (!keys) { keys = [artist.artist, ...(artist.aliases || [])].map(normalizeArtistIdentity); nameKeyMemo.set(artist, keys); }
+  return keys;
 }
 
 export function filterArtistCatalog(artists, options = {}) {
   // A complete artist/alias match wins over vocabulary parsing (e.g. "watercolor").
   const normalizedQuery = normalizeArtistIdentity(options.query || '');
-  const exactName = normalizedQuery && artists.some(item => [item.artist, ...(item.aliases || [])].some(name => normalizeArtistIdentity(name) === normalizedQuery));
+  const exactName = normalizedQuery && artists.some(item => artistNameKeys(item).includes(normalizedQuery));
   const typed = exactName ? { attributes: {}, rest: options.query || '' } : parseAttributeQuery(options.query);
   const parsed = exactName ? { facets: {}, terms: [normalizedQuery] } : parseStyleQuery(typed.rest);
   parsed.facets = { ...parsed.facets, ...legacyFromAttributes(typed.attributes) };

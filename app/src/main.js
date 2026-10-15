@@ -37,11 +37,33 @@ function aboutSection(version, licenseButton) {
   const author = document.createElement('p'); author.className = 'native-about-author'; author.textContent = `作者 ${APP_AUTHOR}`;
   const link = document.createElement('a'); link.className = 'native-about-link'; link.href = APP_REPOSITORY; link.target = '_blank'; link.rel = 'noopener';
   link.textContent = APP_REPOSITORY.replace(/^https:\/\//, '');
+  const star = document.createElement('a'); star.className = 'native-star-button'; star.href = APP_REPOSITORY; star.target = '_blank'; star.rel = 'noopener';
+  star.innerHTML = '<span aria-hidden="true">★</span>在 GitHub 点个 Star';
+  const starHint = document.createElement('p'); starHint.className = 'native-star-hint';
+  starHint.textContent = 'NAI Pocket 开源免费。觉得好用的话点个 Star，能让更多人找到它。';
   const actions = document.createElement('div'); actions.className = 'native-about-actions';
   licenseButton.textContent = '开源许可';
-  actions.append(licenseButton);
-  section.append(heading, name, author, link, actions);
+  actions.append(star, licenseButton);
+  section.append(heading, name, author, link, starHint, actions);
   return section;
+}
+
+// One gentle invitation, once, after the app has been opened a few times. Never repeated,
+// never part of the release notes. Local counters only.
+const STAR_LAUNCHES = 'nai-pocket-launches', STAR_ASKED = 'nai-pocket-star-invited';
+function inviteStarLater(confirmAction) {
+  try {
+    if (localStorage.getItem(STAR_ASKED)) return;
+    const launches = Number(localStorage.getItem(STAR_LAUNCHES) || 0) + 1;
+    localStorage.setItem(STAR_LAUNCHES, String(launches));
+    if (launches < 5) return;
+    setTimeout(async () => {
+      if (document.querySelector('dialog[open]')) return; // never on top of something the user is doing
+      localStorage.setItem(STAR_ASKED, String(Date.now()));
+      const yes = await confirmAction('NAI Pocket 是开源免费的。觉得好用的话，去 GitHub 点个 Star，能让更多人找到它。', { title: '喜欢 NAI Pocket 吗？', confirmLabel: '去点 Star', cancelLabel: '以后再说' });
+      if (yes) window.open(APP_REPOSITORY, '_blank', 'noopener');
+    }, 12000);
+  } catch {}
 }
 
 async function phoneAlbumSection(queue) {
@@ -119,6 +141,7 @@ try {
   else new MutationObserver((_, observer) => { if (revealed()) { observer.disconnect(); document.body.classList.remove('native-booting'); } }).observe(appView, { attributes: true, attributeFilter: ['class'] });
   await queue.start();
   updateSection.autoCheck(); // not awaited: startup never waits for GitHub
+  import('../../public/confirm-sheet.js').then(({ confirmAction }) => inviteStarLater(confirmAction)).catch(() => {});
   await App.addListener('appStateChange', state => { if (state.isActive) queue.kick(); });
   await App.addListener('backButton', async () => {
     const dialogs = [...document.querySelectorAll('dialog[open]')];

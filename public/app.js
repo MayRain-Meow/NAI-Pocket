@@ -70,7 +70,7 @@ const els = {
   loginView: $('#loginView'), appView: $('#appView'), loginForm: $('#loginForm'), loginPassword: $('#loginPassword'), loginError: $('#loginError'),
   tagGroups: $('#tagGroups'), tagSelectionDock: $('#tagSelectionDock'), promptPreview: $('#promptPreview'), v5PromptBudget: $('#v5PromptBudget'), negativePrompt: $('#negativePrompt'), schemeLibraryName: $('#schemeLibraryName'), schemeGrid: $('#schemeGrid'),
   queueList: $('#queueList'), queueSummary: $('#queueSummary'), cleanAdvancedOverridesButton: $('#cleanAdvancedOverridesButton'),
-  galleryGrid: $('#galleryGrid'), loadMoreButton: $('#loadMoreButton'), favoriteOnly: $('#favoriteOnly'), gallerySearch: $('#gallerySearch'), galleryScopeGallery: $('#galleryScopeGallery'), galleryScopeRotation: $('#galleryScopeRotation'), galleryAgeFilter: $('#galleryAgeFilter'), galleryMonthFilter: $('#galleryMonthFilter'), galleryCustomRange: $('#galleryCustomRange'), galleryDateFrom: $('#galleryDateFrom'), galleryDateTo: $('#galleryDateTo'), galleryNewImagesButton: $('#galleryNewImagesButton'), galleryResultSummary: $('#galleryResultSummary'), storageMeter: $('#storageMeter'), storageAuditButton: $('#storageAuditButton'), queueBadge: $('#queueBadge'),
+  galleryGrid: $('#galleryGrid'), loadMoreButton: $('#loadMoreButton'), favoriteOnly: $('#favoriteOnly'), gallerySearch: $('#gallerySearch'), galleryScopeGallery: $('#galleryScopeGallery'), galleryScopeRotation: $('#galleryScopeRotation'), galleryScopeIteration: $('#galleryScopeIteration'), galleryAgeFilter: $('#galleryAgeFilter'), galleryMonthFilter: $('#galleryMonthFilter'), galleryCustomRange: $('#galleryCustomRange'), galleryDateFrom: $('#galleryDateFrom'), galleryDateTo: $('#galleryDateTo'), galleryNewImagesButton: $('#galleryNewImagesButton'), galleryResultSummary: $('#galleryResultSummary'), storageMeter: $('#storageMeter'), storageAuditButton: $('#storageAuditButton'), queueBadge: $('#queueBadge'),
   charactersList: $('#charactersList'), addCharacterButton: $('#addCharacterButton'), characterUseCoords: $('#characterUseCoords'),
   galleryCleanupToggle: $('#galleryCleanupToggle'), gallerySelectToggle: $('#gallerySelectToggle'), gallerySelectAll: $('#gallerySelectAll'), gallerySelectNonFavorites: $('#gallerySelectNonFavorites'), galleryClearSelection: $('#galleryClearSelection'), galleryDeleteSelected: $('#galleryDeleteSelected'), gallerySelectionText: $('#gallerySelectionText'), galleryExitSelection: $('#galleryExitSelection'),
   cleanupActionBar: $('#cleanupActionBar'), cleanupSessionStatus: $('#cleanupSessionStatus'), cleanupUndoButton: $('#cleanupUndoButton'), cleanupDeleteButton: $('#cleanupDeleteButton'), cleanupKeepButton: $('#cleanupKeepButton'), cleanupLoadOriginalButton: $('#cleanupLoadOriginalButton'),
@@ -210,6 +210,7 @@ let galleryCursor = '';
 let gallerySnapshotCursor = '';
 let galleryHasMore = false;
 let galleryFilterTimer = 0;
+let artistRefreshAfterCompletion = 0;
 let galleryNewImageCount = 0;
 let galleryCompletionCursor = '';
 let pendingGallerySnapshotCursor = '';
@@ -6907,6 +6908,7 @@ function renderSchemeDetail(scheme) {
 function openSchemeDetail(scheme) {
   renderSchemeDetail(scheme);
   els.schemeDialog?.showModal();
+  renderSchemeRestoreOptions();
 }
 
 function renderSchemes() {
@@ -7075,46 +7077,63 @@ async function saveCurrentImageAsScheme() {
   toast('已把这张图提升为独立方案。', 'success');
 }
 
-function restoreSchemePartial(scheme, mode = 'all') {
+function schemeRestorePreview(mode, characterIndex = null) {
+  const raw = currentSchemeDetail?.data;
+  if (!raw) return null;
+  return applyImageRestore(normalizeStoredState(serializeState()), normalizeStoredState(raw), raw, mode, characterIndex, restoreMerge);
+}
+
+function renderSchemeRestoreOptions() {
+  const panel = $('#schemeRestorePanel');
+  const raw = currentSchemeDetail?.data;
+  if (!panel) return;
+  const append = restoreMerge === 'append';
+  panel.dataset.merge = restoreMerge;
+  panel.querySelectorAll('[data-scheme-merge]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.schemeMerge === restoreMerge)));
+  const allLabel = $('#schemeRestoreAllLabel');
+  if (allLabel) allLabel.textContent = append ? '全部追加' : '完整恢复';
+  const characters = Array.isArray(raw?.characters) ? raw.characters.slice(0, characterLimitForModel(raw?.model || appState.model)) : [];
+  const host = $('#schemeRestoreCharacterActions');
+  if (host) {
+    host.innerHTML = characters.map((character, index) => {
+      const first = (character.promptTags || []).find(tag => tag.enabled !== false && tag.text)?.text || '';
+      const name = String(character.name || '').trim() || first;
+      const detail = restoreDetailText('character', raw ? schemeRestorePreview('character', index) : null, raw);
+      const empty = append && detail === '没有新内容';
+      return `<button class="restore-tile${append && !empty ? ' has-new' : ''}" type="button" data-scheme-restore-character="${index}"${empty ? ' disabled' : ''}><strong>角色 ${index + 1}${name ? ` · ${escapeHtml(name.slice(0, 24))}` : ''}</strong><small>${escapeHtml(detail)}</small></button>`;
+    }).join('');
+  }
+  panel.querySelectorAll('[data-scheme-restore-mode]').forEach(button => {
+    const mode = button.dataset.schemeRestoreMode;
+    let enabled = Boolean(raw);
+    if (mode === 'characters') enabled = enabled && characters.length > 0;
+    if (mode === 'uc') enabled = enabled && Object.prototype.hasOwnProperty.call(raw || {}, 'negativePrompt');
+    if (mode === 'params' && append) enabled = false;
+    const detail = enabled || (mode === 'params' && append) ? restoreDetailText(mode, enabled ? schemeRestorePreview(mode) : null, raw) : '';
+    if (append && detail === '没有新内容') enabled = false;
+    button.disabled = !enabled;
+    button.classList.toggle('has-new', append && enabled && mode !== 'all');
+    const small = button.querySelector('[data-restore-detail]');
+    if (small) small.textContent = mode === 'all' ? detail.replace('这张图', '这个方案') : detail;
+  });
+}
+
+function restoreSchemePartial(scheme, mode = 'all', characterIndex = null) {
   if (!scheme?.data) return;
-  if (mode === 'all') return restoreScheme(scheme);
-  const current = normalizeStoredState(serializeState());
-  const source = normalizeStoredState(scheme.data);
-  const merged = structuredClone(current);
-  let structuredContentChanged = false;
-
-  if (mode === 'characters') {
-    merged.characters = structuredClone(source.characters);
-    structuredContentChanged = true;
-  } else if (mode === 'scene' || mode === 'camera' || mode === 'style' || mode === 'misc') {
-    merged.groups[mode] = structuredClone(source.groups[mode]);
-    if (merged.promptOrderMode === 'original') merged.groups[mode].forEach(tag => { tag.originalOrder = null; });
-    structuredContentChanged = true;
-  } else if (mode === 'camera-style') {
-    merged.groups.camera = structuredClone(source.groups.camera);
-    merged.groups.style = structuredClone(source.groups.style);
-    if (merged.promptOrderMode === 'original') {
-      merged.groups.camera.forEach(tag => { tag.originalOrder = null; });
-      merged.groups.style.forEach(tag => { tag.originalOrder = null; });
-    }
-    structuredContentChanged = true;
-  } else if (mode === 'params') {
-    merged.model = source.model;
-    merged.params = structuredClone(source.params);
-    merged.seedMode = source.seedMode;
-    merged.seed = source.seed;
-    merged.v4Options = structuredClone(source.v4Options);
-  }
-
-  if (structuredContentChanged) {
-    merged.directMode = false;
-    merged.previewPrompt = '';
-    merged.prompt = '';
-  }
+  if (mode === 'all' && restoreMerge === 'replace') return restoreScheme(scheme);
+  if (restoreMerge === 'append' && mode === 'params') return toast('生成参数只能替换。', 'error');
+  const merged = normalizeStoredState(serializeState());
+  const result = applyImageRestore(merged, normalizeStoredState(scheme.data), scheme.data, mode === 'character' ? null : mode, Number.isInteger(characterIndex) ? characterIndex : null, restoreMerge);
+  if (restoreMerge === 'append' && !result.tags && !result.characters && !result.uc) return toast('没有可追加的新内容。');
+  if (result.structured) { merged.directMode = false; merged.previewPrompt = ''; merged.prompt = ''; }
   hydrateState(merged);
   els.schemeDialog?.close();
   switchTabTo('editor');
-  const labels = { characters: '角色', scene: '场景', camera: '镜头', style: '画风', misc: '其他', 'camera-style': '镜头 + 画风', params: '生成参数' };
+  const labels = { characters: '角色', scene: '场景', camera: '镜头', style: '画风', misc: '其他', 'camera-style': '镜头 + 画风', params: '生成参数', uc: 'Global UC', character: `角色 ${(characterIndex ?? 0) + 1}` };
+  if (restoreMerge === 'append') {
+    const parts = [result.tags ? `${result.tags} 个 Tag` : '', result.characters ? `${result.characters} 个角色` : '', result.uc ? `${result.uc} 项 UC` : ''].filter(Boolean);
+    return toast(`已从“${scheme.name}”追加 ${parts.join('、')}`, 'success');
+  }
   toast(`已从“${scheme.name}”恢复：${labels[mode] || mode}`, 'success');
 }
 
@@ -8005,6 +8024,13 @@ async function refreshJobsNow() {
       if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
         new Notification('NAI Pocket', { body: `${newlyQueued.length} 张图片已生成完成。`, icon: '/icons/icon-flow-192.png' });
       }
+    }
+    // A finished sample job files an artist example a moment after it completes. An open artist
+    // page (list counts, coverage line, the detail being watched) refreshes itself shortly after,
+    // instead of staying stale until the next navigation. refresh() is a no-op when it is closed.
+    if (completedImages.length) {
+      clearTimeout(artistRefreshAfterCompletion);
+      artistRefreshAfterCompletion = window.setTimeout(() => artistLibrary?.refresh?.(), 1500);
     }
     if (data.completionHasMore) window.setTimeout(() => refreshJobs(), 0);
     const cooldownSeconds = Math.max(0, Math.ceil((Number(data.cooldownUntil || 0) - Date.now()) / 1000));
@@ -9643,14 +9669,13 @@ function syncGalleryTimeControls() {
 }
 
 function syncGalleryScopeControls() {
-  const rotation = galleryScope === 'rotation';
-  if (els.galleryScopeGallery) els.galleryScopeGallery.setAttribute('aria-pressed', rotation ? 'false' : 'true');
-  if (els.galleryScopeRotation) els.galleryScopeRotation.setAttribute('aria-pressed', rotation ? 'true' : 'false');
-  els.galleryScopeRotation?.classList.toggle('is-active', rotation);
-  els.galleryScopeGallery?.classList.toggle('is-active', !rotation);
-  // The heading says which list is on screen, so the two are never confused.
+  for (const [scope, button] of [['gallery', els.galleryScopeGallery], ['rotation', els.galleryScopeRotation], ['iteration', els.galleryScopeIteration]]) {
+    const active = galleryScope === scope;
+    button?.setAttribute('aria-pressed', String(active));
+    button?.classList.toggle('is-active', active);
+  }
   const heading = document.querySelector('.gallery-title-row h2');
-  if (heading) heading.textContent = rotation ? '例图样本' : '云端图库';
+  if (heading) heading.textContent = { gallery: '云端图库', rotation: '例图样本', iteration: '迭代实验' }[galleryScope];
 }
 
 function galleryMasonryTargetCount() {
@@ -9728,6 +9753,7 @@ function prependGalleryMasonryCards(images) {
 // The empty message says which list is empty and how to fill it, so an empty
 // rotation view is not mistaken for a broken gallery.
 function galleryEmptyMessage() {
+  if (galleryScope === 'iteration') return '还没有迭代实验图。DSH 调词、画师组合与参数测试生成的图会单独保存在这里。';
   return galleryScope === 'rotation'
     ? '还没有例图样本。在画师库里打开「画师例图生成」、保存基准后开始一批，生成的图会出现在这里，不会进入常规作品。'
     : '暂无图片';
@@ -10039,24 +10065,150 @@ function imageSourceHasStructuredGroups(raw) {
   return Boolean(raw?.groups && typeof raw.groups === 'object' && !Array.isArray(raw.groups));
 }
 
+// 部分恢复 merge mode: 替换 overwrites the chosen part; 追加 adds what is missing (法典's rule).
+let restoreMerge = storageGet('nai-pocket-restore-merge') === 'append' ? 'append' : 'replace';
+const RESTORE_TAG_GROUPS = { scene: ['scene'], camera: ['camera'], style: ['style'], misc: ['misc'], 'camera-style': ['camera', 'style'] };
+const restoreTermList = text => String(text || '').split(',').map(item => item.trim()).filter(Boolean);
+
+// Applies one restore choice to `merged` (a copy of the editor) and reports what changed.
+function applyImageRestore(merged, source, rawSource, mode, characterIndex, merge) {
+  const result = { tags: 0, characters: 0, uc: 0, structured: false, params: false };
+  const present = new Set();
+  for (const list of Object.values(merged.groups || {})) for (const tag of list || []) present.add(codexTagKey(tag));
+  const appendTags = (target, tags, keys) => {
+    let added = 0;
+    for (const tag of tags || []) {
+      const key = codexTagKey(tag);
+      if (!key || keys.has(key)) continue;
+      keys.add(key);
+      target.push({ ...structuredClone(tag), id: uid(), originalOrder: null });
+      added += 1;
+    }
+    return added;
+  };
+  const groupsFor = mode === 'all' ? Object.keys(source.groups || {}) : RESTORE_TAG_GROUPS[mode];
+  if (groupsFor && (mode !== 'all' || merge === 'append')) {
+    for (const group of groupsFor) {
+      if (!merged.groups[group]) merged.groups[group] = [];
+      if (merge === 'append') result.tags += appendTags(merged.groups[group], source.groups[group], present);
+      else {
+        merged.groups[group] = structuredClone(source.groups[group] || []);
+        if (merged.promptOrderMode === 'original') merged.groups[group].forEach(tag => { tag.originalOrder = null; });
+        result.tags += merged.groups[group].length;
+      }
+    }
+    result.structured = true;
+  }
+  const characterIndexes = Number.isInteger(characterIndex) ? [characterIndex]
+    : (mode === 'characters' || (mode === 'all' && merge === 'append')) ? source.characters.map((_, index) => index) : [];
+  if (characterIndexes.length) {
+    const limit = characterLimitForModel(rawSource?.model || merged.model);
+    if (merge === 'replace' && mode === 'characters') {
+      merged.characters = structuredClone(source.characters);
+      result.characters = merged.characters.length;
+    } else {
+      for (const index of characterIndexes) {
+        const incoming = source.characters[index];
+        if (!incoming) continue;
+        const existing = merged.characters[index];
+        if (merge === 'replace') {
+          while (merged.characters.length <= index) merged.characters.push(createCharacter({ name: '' }));
+          merged.characters[index] = createCharacter({ ...structuredClone(incoming), id: merged.characters[index]?.id || uid() });
+          result.characters += 1;
+        } else if (existing) {
+          const keys = new Set((existing.promptTags || []).map(codexTagKey));
+          const ucKeys = new Set((existing.ucTags || []).map(codexTagKey));
+          existing.promptTags = existing.promptTags || []; existing.ucTags = existing.ucTags || [];
+          result.tags += appendTags(existing.promptTags, incoming.promptTags, keys) + appendTags(existing.ucTags, incoming.ucTags, ucKeys);
+        } else if (merged.characters.length < limit) {
+          merged.characters.push(createCharacter({ ...structuredClone(incoming), id: uid() }));
+          result.characters += 1;
+        }
+      }
+    }
+    result.structured = true;
+  }
+  if (mode === 'uc' || (mode === 'all' && merge === 'append')) {
+    if (merge === 'append') {
+      const current = restoreTermList(merged.negativePrompt);
+      const keys = new Set(current.map(term => term.toLowerCase()));
+      const added = restoreTermList(source.negativePrompt).filter(term => !keys.has(term.toLowerCase()) && keys.add(term.toLowerCase()));
+      if (added.length) merged.negativePrompt = [...current, ...added].join(', ');
+      result.uc = added.length;
+    } else {
+      merged.negativePrompt = source.negativePrompt;
+      result.uc = restoreTermList(source.negativePrompt).length;
+    }
+  }
+  if (mode === 'params' && merge === 'replace') {
+    merged.model = String(rawSource?.model || '').trim() || merged.model;
+    merged.params = structuredClone(source.params);
+    merged.seedMode = source.seedMode;
+    merged.seed = source.seed;
+    merged.v4Options = structuredClone(source.v4Options);
+    result.params = true;
+  }
+  return result;
+}
+
+function restorePreviewCount(mode, characterIndex = null) {
+  const rawSource = currentImage?.params;
+  if (!rawSource) return null;
+  const merged = normalizeStoredState(serializeState());
+  return applyImageRestore(merged, normalizeStoredState(rawSource), rawSource, mode, characterIndex, restoreMerge);
+}
+
+function restoreDetailText(mode, result, raw) {
+  if (restoreMerge === 'append' && mode === 'params') return '只能替换';
+  if (!result) return '';
+  if (restoreMerge === 'append') {
+    const parts = [];
+    if (result.tags) parts.push(`+${result.tags} 个 Tag`);
+    if (result.characters) parts.push(`+${result.characters} 个角色`);
+    if (result.uc) parts.push(`+${result.uc} 项 UC`);
+    if (mode === 'all') return parts.length ? `只补缺少的，不删除 · ${parts.join(' · ')}` : '没有新内容';
+    return parts.join(' · ') || '没有新内容';
+  }
+  if (mode === 'all') return '覆盖为这张图：提示词、角色、UC 与参数';
+  if (mode === 'params') { const p = raw?.params || {}; return [modelDisplayName?.(raw?.model) || raw?.model, p.width && p.height ? `${p.width}×${p.height}` : '', p.steps ? `${p.steps} 步` : ''].filter(Boolean).join(' · '); }
+  if (mode === 'uc') return `${result.uc} 项`;
+  if (mode === 'characters' || mode === 'character') return `${result.characters} 个角色`;
+  return `${result.tags} 个 Tag`;
+}
+
 function renderImageRestoreOptions() {
   const raw = currentImage?.params;
   const hasParams = Boolean(raw);
   const hasGroups = imageSourceHasStructuredGroups(raw);
+  const append = restoreMerge === 'append';
   const characters = Array.isArray(raw?.characters) ? raw.characters.slice(0, characterLimitForModel(raw?.model || appState.model)) : [];
+  els.imageRestoreDialog?.querySelectorAll('[data-restore-merge]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.restoreMerge === restoreMerge)));
+  if (els.imageRestoreDialog) els.imageRestoreDialog.dataset.merge = restoreMerge;
+  const allLabel = $('#imageRestoreAllLabel');
+  if (allLabel) allLabel.textContent = append ? '全部追加' : '完整恢复';
   if (els.imageRestoreCharacterActions) {
     els.imageRestoreCharacterActions.innerHTML = characters.map((character, index) => {
-      const label = `仅角色 ${index + 1}`;
-      return `<button class="ghost" type="button" data-image-restore-character="${index}">${escapeHtml(label)}</button>`;
+      const first = (character.promptTags || []).find(tag => tag.enabled !== false && tag.text)?.text || '';
+      const name = String(character.name || '').trim() || first;
+      const detail = restoreDetailText('character', hasParams ? restorePreviewCount('character', index) : null, raw);
+      const empty = append && detail === '没有新内容';
+      return `<button class="restore-tile${append && !empty ? ' has-new' : ''}" type="button" data-image-restore-character="${index}"${empty ? ' disabled' : ''}><strong>角色 ${index + 1}${name ? ` · ${escapeHtml(name.slice(0, 24))}` : ''}</strong><small>${escapeHtml(detail)}</small></button>`;
     }).join('');
   }
-  document.querySelectorAll('[data-image-restore-mode]').forEach(button => {
+  els.imageRestoreDialog?.querySelectorAll('[data-image-restore-mode]').forEach(button => {
     const mode = button.dataset.imageRestoreMode;
     let enabled = hasParams;
     if (['scene', 'camera', 'style', 'misc', 'camera-style'].includes(mode)) enabled = hasParams && hasGroups;
     if (mode === 'characters') enabled = hasParams && characters.length > 0;
     if (mode === 'uc') enabled = hasParams && Object.prototype.hasOwnProperty.call(raw || {}, 'negativePrompt');
+    if (mode === 'params' && append) enabled = false;
+    const result = enabled ? restorePreviewCount(mode) : null;
+    const detail = enabled || (mode === 'params' && append) ? restoreDetailText(mode, result, raw) : '';
+    if (append && detail === '没有新内容') enabled = false;
     button.disabled = !enabled;
+    button.classList.toggle('has-new', append && enabled && mode !== 'all');
+    const small = button.querySelector('[data-restore-detail]');
+    if (small) small.textContent = detail;
   });
   const legacyHint = $('#imageRestoreLegacyHint');
   legacyHint?.classList.toggle('hidden', !hasParams || hasGroups);
@@ -10070,9 +10222,23 @@ function openImageRestoreOptions() {
 
 function restoreCurrentImagePartial(mode = 'all', characterIndex = null) {
   if (!currentImage?.params) return;
-  if (mode === 'all') {
+  if (mode === 'all' && restoreMerge === 'replace') {
     els.imageRestoreDialog?.close();
     return restoreImageState();
+  }
+  if (restoreMerge === 'append') {
+    if (mode === 'params') return toast('生成参数只能替换。', 'error');
+    const rawSource = currentImage.params;
+    const merged = normalizeStoredState(serializeState());
+    const result = applyImageRestore(merged, normalizeStoredState(rawSource), rawSource, mode === 'character' ? null : mode, Number.isInteger(characterIndex) ? characterIndex : null, 'append');
+    if (!result.tags && !result.characters && !result.uc) return toast('没有可追加的新内容。');
+    if (result.structured) { merged.directMode = false; merged.previewPrompt = ''; merged.prompt = ''; }
+    hydrateState(merged);
+    els.imageRestoreDialog?.close();
+    els.imageDialog?.close();
+    switchTabTo('editor');
+    const parts = [result.tags ? `${result.tags} 个 Tag` : '', result.characters ? `${result.characters} 个角色` : '', result.uc ? `${result.uc} 项 UC` : ''].filter(Boolean);
+    return toast(`已追加 ${parts.join('、')}`, 'success');
   }
 
   const rawSource = currentImage.params;
@@ -10931,7 +11097,7 @@ function initBindings() {
   // Switching the gallery view reloads from the start: the two lists share the
   // search and time filters but never the images.
   const setGalleryScope = scope => {
-    const next = scope === 'rotation' ? 'rotation' : 'gallery';
+    const next = ['rotation', 'iteration'].includes(scope) ? scope : 'gallery';
     if (next === galleryScope) return;
     galleryScope = next;
     syncGalleryScopeControls();
@@ -10939,6 +11105,7 @@ function initBindings() {
   };
   els.galleryScopeGallery?.addEventListener('click', () => setGalleryScope('gallery'));
   els.galleryScopeRotation?.addEventListener('click', () => setGalleryScope('rotation'));
+  els.galleryScopeIteration?.addEventListener('click', () => setGalleryScope('iteration'));
   els.galleryMonthFilter?.addEventListener('change', () => resetGallery(false).catch(error => toast(error.message, 'error')));
   [els.galleryDateFrom, els.galleryDateTo].filter(Boolean).forEach(control => control.addEventListener('change', () => {
     if (els.galleryAgeFilter?.value !== 'custom') return;
@@ -11176,6 +11343,11 @@ function initBindings() {
   $('#dialogReuseMenu')?.addEventListener('click', openImageRestoreOptions);
   $('#closeImageRestoreDialog')?.addEventListener('click', () => els.imageRestoreDialog?.close());
   els.imageRestoreDialog?.addEventListener('click', event => { if (event.target === els.imageRestoreDialog) els.imageRestoreDialog.close(); });
+  els.imageRestoreDialog?.querySelectorAll('[data-restore-merge]').forEach(button => button.addEventListener('click', () => {
+    restoreMerge = button.dataset.restoreMerge === 'append' ? 'append' : 'replace';
+    storageSet('nai-pocket-restore-merge', restoreMerge);
+    renderImageRestoreOptions();
+  }));
   els.imageRestoreDialog?.querySelectorAll('[data-image-restore-mode]').forEach(button => button.addEventListener('click', () => {
     try { restoreCurrentImagePartial(button.dataset.imageRestoreMode); }
     catch (error) { toast(error.message, 'error'); }
@@ -11240,6 +11412,18 @@ function initBindings() {
     try { restoreSchemePartial(currentSchemeDetail, button.dataset.schemeRestoreMode); }
     catch (error) { toast(error.message, 'error'); }
   }));
+  els.schemeDialog?.querySelectorAll('[data-scheme-merge]').forEach(button => button.addEventListener('click', () => {
+    restoreMerge = button.dataset.schemeMerge === 'append' ? 'append' : 'replace';
+    storageSet('nai-pocket-restore-merge', restoreMerge);
+    renderSchemeRestoreOptions();
+  }));
+  $('#schemeRestoreCharacterActions')?.addEventListener('click', event => {
+    const button = event.target.closest?.('[data-scheme-restore-character]');
+    if (!button || !currentSchemeDetail) return;
+    const index = Number(button.dataset.schemeRestoreCharacter);
+    try { restoreSchemePartial(currentSchemeDetail, 'character', Number.isInteger(index) ? index : null); }
+    catch (error) { toast(error.message, 'error'); }
+  });
 
   $('#importButton')?.addEventListener('click', () => $('#importFile')?.click());
   $('#exportButton').addEventListener('click', async () => {

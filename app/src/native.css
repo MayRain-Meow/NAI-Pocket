@@ -49,3 +49,9 @@ body.native-mode .artist-library-page { padding-top: 4px; }
 .native-about-section .native-about-actions { display: flex; gap: 8px; margin-top: 12px; }
 #settingsDialog .native-about-section > p, #settingsDialog .native-about-section > a { margin-top: 2px; margin-bottom: 0; }
 #settingsDialog .native-about-section > .native-about-name { margin-top: 6px; }
+
+/* Settings → 关于: the Star invitation button, in the app's warm material. */
+.native-about-section .native-star-hint { margin: 10px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.native-about-section .native-about-actions { flex-wrap: wrap; align-items: center; }
+.native-about-section .native-star-button { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 22%, transparent), color-mix(in srgb, var(--accent) 10%, transparent)); color: var(--accent); font-weight: 700; font-size: 14px; text-decoration: none; }
+.native-about-section .native-star-button > span { font-size: 15px; }

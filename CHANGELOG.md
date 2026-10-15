@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0 — Preview
+
+- 部分恢复 redesigned: a 替换 / 追加 switch (追加 adds only the Tags, characters and UC entries you do not have yet and never removes anything), a full-restore card, and tiles grouped by section and tinted with the editor's section colours, each showing its count.
+- Scheme details use the same restore design, including Global UC and single characters.
+- 用此图创作 tiles keep their text inside on every phone; descriptions wrap to two lines.
+- Gallery text search reads a small search table, so searching a large gallery is much faster.
+- Artist search keystrokes are lighter.
+- The app stays in portrait.
+
 ## 0.3.9 — Preview
 
 - 用此图创作 redesigned as grouped icon tiles (继续创作 / 作为参考 / 官方工具) with Chinese names and one-line notes.

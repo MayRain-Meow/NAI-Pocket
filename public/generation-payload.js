@@ -299,6 +299,7 @@ function sanitizeReferenceControl(raw) {
 }
 
 function sanitizeExperiment(raw) {
+  if (raw?.type === 'style-iteration') return { type: 'style-iteration', run: String(raw.run || '').slice(0, 120), candidate: String(raw.candidate || '').slice(0, 120) };
   if (raw?.type !== 'artist-storm') return null;
   const total = integer(raw?.total, 2, 2, 50);
   const weights = Array.isArray(raw?.weights) ? raw.weights.slice(0, 30).map(item => ({
@@ -733,4 +734,9 @@ export function safeEnhanceTargetDimensions(width, height) {
     nextHeight = Math.max(64, Math.floor(nextHeight * ratio / 64) * 64);
   }
   return { width: nextWidth, height: nextHeight };
+}
+
+
+export function generationGalleryKind(state) {
+  return state?.experiment?.type === 'style-iteration' ? 'iteration' : state?.experiment?.type === 'artist-rotation' ? 'rotation' : 'gallery';
 }
