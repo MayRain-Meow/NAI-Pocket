@@ -34,7 +34,8 @@ export function decodeStyleIndex({ meta, rows, vectors: raw }) {
     normalize(profile); profiles.set(profile, a * dims); entry.profile = a;
   });
   const chips = new Map(meta.chips.map(chip => [chip.id, { ...chip, vector: decodeFloats(chip.vector) }]));
-  return { meta, rows, dims, vectors, scales, artists, names, profiles, chips, hub: meta.hub || {}, tags: meta.tags || {}, chipRanks: new Map(), cache: new Map() };
+  return { meta, rows, dims, vectors, scales, artists, names, profiles, chips, hub: meta.hub || {}, tags: meta.tags || {},
+    mean: meta.mean ? decodeFloats(meta.mean) : null, chipRanks: new Map(), cache: new Map() };
 }
 
 // The app's single-file pack: magic, uint32 LE header length, UTF-8 JSON { format, formatVersion,
@@ -48,6 +49,15 @@ export function readStylePack(buffer) {
   const header = JSON.parse(new TextDecoder().decode(bytes.subarray(12, 12 + length)));
   if (header?.format !== 'nai-pocket-style-index' || header.formatVersion !== 1 || !Array.isArray(header.rows) || !Array.isArray(header.meta?.chips)) throw fail('画风数据文件格式无效。', 400);
   return { meta: header.meta, rows: header.rows, vectors: bytes.subarray(12 + length) };
+}
+
+// A picture's raw CLIP image embedding, moved into the index's space: normalised, centred on the
+// library mean (as every indexed image was), normalised again. Null when the index has no mean.
+export function centerQuery(ix, raw) {
+  if (!ix.mean || !raw || raw.length !== ix.dims) return null;
+  const v = normalize(Float32Array.from(raw));
+  for (let d = 0; d < ix.dims; d++) v[d] -= ix.mean[d];
+  return normalize(v);
 }
 
 const dotRow = (ix, i, q) => { let s = 0; const o = i * ix.dims; for (let d = 0; d < ix.dims; d++) s += ix.vectors[o + d] * q[d]; return s * ix.scales[i]; };
@@ -75,6 +85,37 @@ function chipRank(ix, id) {
   return result;
 }
 
+// 画风概览 (1.8.2): how far each feel word stands out for one artist, as a z-score against every
+// artist (profile · chip, per-chip mean and spread computed once per index), plus the closest artists.
+// Strong words get bars; clearly-absent ones are named too ("不太像"). Nothing here is a verdict
+// on quality: it says which words describe this artist's images more than most.
+function chipStats(ix) {
+  if (ix.chipStats) return ix.chipStats;
+  const stats = new Map();
+  for (const [id, chip] of ix.chips) {
+    let sum = 0, squares = 0;
+    const scores = new Float32Array(ix.names.length);
+    for (let a = 0; a < ix.names.length; a++) { const s = dotProfile(ix, a, chip.vector); scores[a] = s; sum += s; squares += s * s; }
+    const mean = sum / ix.names.length;
+    stats.set(id, { mean, std: Math.sqrt(Math.max(1e-12, squares / ix.names.length - mean * mean)), scores });
+  }
+  ix.chipStats = stats;
+  return stats;
+}
+export function styleProfileOf(ix, artist, { strong = 6, weak = 3, similar = 6 } = {}) {
+  const entry = ix.artists.get(artist);
+  if (!entry) return null;
+  const stats = chipStats(ix);
+  const words = [...ix.chips.values()].map(({ id, label, group }) => {
+    const { mean, std, scores } = stats.get(id);
+    return { id, label, group, z: Math.round(((scores[entry.profile] - mean) / std) * 100) / 100 };
+  }).sort((a, b) => b.z - a.z);
+  const near = [...rankStyle(ix, { like: artist })].sort((a, b) => b[1].score - a[1].score).slice(0, similar)
+    .map(([name, item]) => ({ artist: name, exampleId: item.exampleId }));
+  return { images: entry.rows.length, strengths: words.filter(word => word.z >= 0.8).slice(0, strong),
+    weaknesses: words.filter(word => word.z <= -1.2).slice(-weak).reverse(), similar: near };
+}
+
 // Parse "dreamy,watercolor,-painterly" into wanted and avoided chips; unknown ids are an error.
 export function parseVibe(text, ix) {
   const want = [], avoid = [];
@@ -86,10 +127,13 @@ export function parseVibe(text, ix) {
   return { want, avoid };
 }
 
-// Rank artists. `vibe`: chip ids (prefix "-" to avoid). `like`: an artist name. Either or both.
+// Rank artists. `vibe`: chip ids (prefix "-" to avoid). `like`: an artist name. `image`: a picture,
+// { key, vector } with the vector from centerQuery; it is "like" with an outside target. Combinable
+// with vibe; like and image are alternatives (image wins).
 // Returns Map(artist -> { score, exampleId, hits? }) over every indexed artist.
-export function rankStyle(ix, { vibe = '', like = '' } = {}) {
-  const key = `${vibe}|${like}`;
+export function rankStyle(ix, { vibe = '', like = '', image = null } = {}) {
+  if (image) like = '';
+  const key = `${vibe}|${like}|${image?.key || ''}`;
   if (ix.cache.has(key)) return ix.cache.get(key);
   const { want, avoid } = parseVibe(vibe, ix);
   const scores = new Map();
@@ -111,23 +155,23 @@ export function rankStyle(ix, { vibe = '', like = '' } = {}) {
     const ranks = want.map(id => [id, chipRank(ix, id)]);
     for (const [name, entry] of scores) entry.hits = ranks.filter(([, rank]) => rank.scores.get(name) >= rank.cut).map(([id]) => id);
   }
-  if (like) {
-    const target = ix.artists.get(like);
-    if (!target) throw fail('这位画师还没有画风索引。', 404);
-    const q = ix.profiles.subarray(target.profile * ix.dims, (target.profile + 1) * ix.dims);
+  if (like || image) {
+    const target = like ? ix.artists.get(like) : null;
+    if (like && !target) throw fail('这位画师还没有画风索引。', 404);
+    const q = image ? image.vector : ix.profiles.subarray(target.profile * ix.dims, (target.profile + 1) * ix.dims);
     const vibeActive = scores.size > 0;
     for (const [name, entry] of ix.artists) {
       if (name === like) continue;
       // Hub-corrected (CSLS, precomputed offline): an artist close to everyone is pushed down.
       const similarity = 2 * dotProfile(ix, entry.profile, q) - (ix.hub[name] || 0);
       const prior = scores.get(name);
-      // The cover is the candidate's image closest to the target artist, so the card shows the likeness.
+      // The cover is the candidate's image closest to the target (artist or picture), so the card shows the likeness.
       let best = entry.rows[0], bestScore = -Infinity;
       for (const i of entry.rows) { const s = dotRow(ix, i, q); if (s > bestScore) { bestScore = s; best = i; } }
       // With chips as well, both count; the similarity scale is larger, so it is quartered.
       scores.set(name, { score: vibeActive ? prior.score + similarity * 0.25 : similarity, exampleId: vibeActive ? prior.exampleId : ix.rows[best][0] });
     }
-    scores.delete(like);
+    if (like) scores.delete(like);
   }
   if (ix.cache.size > 30) ix.cache.delete(ix.cache.keys().next().value);
   ix.cache.set(key, scores);

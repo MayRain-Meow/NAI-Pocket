@@ -2,7 +2,7 @@
 // sort order, paging and cover choice. The Node server and the Android app both serve the
 // same artist-library UI, so both build their catalog and then call this module; neither keeps
 // its own copy of the ordering or cover rules.
-import { filterArtistCatalog, usableObservations } from './artist-catalog.js?v=1.6.81';
+import { filterArtistCatalog, usableObservations } from './artist-catalog.js?v=1.8.2';
 
 export const ARTIST_LIST_MODELS = new Set(['v5', 'v4.5', 'v4', 'v3', 'original', 'unknown']);
 export const ARTIST_LIST_SORTS = new Set(['default', 'posts', 'danbooru_created', 'examples', 'relevance']);

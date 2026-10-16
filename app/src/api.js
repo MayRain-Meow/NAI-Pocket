@@ -47,6 +47,14 @@ export function createLocalApi({ database, settings, providers, client, assets, 
     if (pathname === '/api/artists/style-pack/download' && method === 'POST') return references.stylePack.download(await body());
     if (pathname === '/api/artists/style-pack/status' && method === 'GET') return references.stylePack.status();
     if (pathname === '/api/artists/style-pack/cancel' && method === 'POST') return references.stylePack.cancel();
+    // 以图找画师: the picture is embedded on the phone; list requests then rank by image=<id>.
+    if (pathname === '/api/artists/style-image' && method === 'POST') return { image: await references.styleImages.embed(await bytes()) };
+    if (pathname === '/api/artists/style-model' && method === 'GET') return references.styleImages.state();
+    if (pathname === '/api/artists/style-model' && method === 'DELETE') return references.styleImages.remove();
+    if (pathname === '/api/artists/style-model/manifest' && method === 'POST') return references.styleImages.readManifest(await body());
+    if (pathname === '/api/artists/style-model/download' && method === 'POST') return references.styleImages.download(await body());
+    if (pathname === '/api/artists/style-model/status' && method === 'GET') return references.styleImages.status();
+    if (pathname === '/api/artists/style-model/cancel' && method === 'POST') return references.styleImages.cancel();
     if (pathname === '/api/artists/resources/sets' && method === 'GET') { const { sets, profiles } = await references.artistResources.catalog(); return { sets, artists: profiles.length }; }
     // The artist page is the shared artist-library UI; these follow the server's response shapes.
     if (pathname === '/api/artists' && method === 'GET') return references.artistLibrary.list(Object.fromEntries(query));

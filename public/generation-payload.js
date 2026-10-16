@@ -3,12 +3,12 @@
 // Environment-specific values (API model names and tool endpoints) are set once by the
 // host through configureGenerationPayload(); the defaults are NovelAI's public ones.
 
-import { formatTag } from './prompt-utils.js?v=1.6.81';
-import { normalizeProviderId } from './provider-route.js?v=1.6.81';
-import { extractQuotedText, prepareV5Prompt } from './v5-utils.js?v=1.6.81';
-import { DIRECTOR_TOOL_TYPES, filterAdvancedOverrides } from './parameter-semantics.js?v=1.6.81';
-import { DEFAULT_GENERATION_MODEL, DEFAULT_GENERATION_PARAMS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.6.81';
-import { characterLimitForModel, isV5GenerationModel, supportsPreciseReference, supportsVibeTransfer, supportsCharacterPrompt, V5_CHARACTER_LIMIT } from './model-utils.js?v=1.6.81';
+import { formatTag } from './prompt-utils.js?v=1.8.2';
+import { normalizeProviderId } from './provider-route.js?v=1.8.2';
+import { extractQuotedText, prepareV5Prompt } from './v5-utils.js?v=1.8.2';
+import { DIRECTOR_TOOL_TYPES, filterAdvancedOverrides } from './parameter-semantics.js?v=1.8.2';
+import { DEFAULT_GENERATION_MODEL, DEFAULT_GENERATION_PARAMS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.8.2';
+import { characterLimitForModel, isV5GenerationModel, supportsPreciseReference, supportsVibeTransfer, supportsCharacterPrompt, V5_CHARACTER_LIMIT } from './model-utils.js?v=1.8.2';
 
 const settings = {
   v5FullModel: 'nai-diffusion-5-full',

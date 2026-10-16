@@ -19,6 +19,8 @@ body.native-mode { overscroll-behavior-y: contain; }
 .native-artist-resources progress { width: 100%; margin-top: 8px; }
 .native-style-pack [hidden] { display: none !important; }
 .native-style-pack progress { width: 100%; margin-top: 8px; }
+.native-style-model [hidden] { display: none !important; }
+.native-style-model progress { width: 100%; margin-top: 8px; }
 /* Launch screen while the local database opens; the login view never shows in the app. */
 body.native-booting #appView { visibility: hidden; }
 body.native-booting::after { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg, #141412); color: var(--accent, #d6b38a); font-size: 22px; font-weight: 800; letter-spacing: .04em; content: "NAI Pocket"; }

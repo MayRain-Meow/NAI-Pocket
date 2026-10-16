@@ -149,6 +149,56 @@ export function stylePackSection({ request, notice = () => {} }) {
   return block;
 }
 
+// 以图找画师 (0.6.0): the CLIP vision model, an optional ~293 MB download verified by checksum. Once it
+// is on the phone the artist page's picture button appears; pictures are searched on the phone.
+export function styleModelSection({ request, notice = () => {} }) {
+  const block = el('section', '', 'settings-dialog-section native-style-model');
+  const title = el('div', '', 'settings-section-heading');
+  title.append(el('span', 'Picture', 'workspace-eyebrow'), el('h2', '以图找画师'));
+  const status = el('p', '正在读取…', 'hint'); status.setAttribute('role', 'status');
+  const get = el('button', '下载模型', 'primary'), cancel = el('button', '取消', 'ghost'), remove = el('button', '删除', 'ghost');
+  cancel.hidden = true; remove.hidden = true;
+  const progress = el('progress'); progress.max = 1; progress.hidden = true;
+  const actions = el('div', '', 'native-artist-resources-actions'); actions.append(get, cancel, remove);
+  block.append(title, status, actions, progress,
+    el('p', '在画师页搜索栏点图片按钮，选一张图，按画风接近程度排列画师。需要先装好画风数据。模型约 293 MB，只下载一次；图片只在本机处理，不上传。', 'hint'));
+  let present = false, busy = false, timer = 0;
+  function sync() { get.disabled = busy; cancel.hidden = !busy; progress.hidden = !busy; remove.hidden = busy || !present; get.hidden = present && !busy; }
+  async function refresh(outcome = '') {
+    try { const state = await request('/api/artists/style-model'); present = Boolean(state.present); status.textContent = `${outcome ? `${outcome} ` : ''}${present ? `模型已就绪（${mib(state.bytes)}）。` : '还没有下载模型。'}`; }
+    catch (error) { status.textContent = `读取失败：${error.message}`; }
+    sync();
+  }
+  async function poll() {
+    try {
+      const state = await request('/api/artists/style-model/status');
+      if (state.busy && state.totalBytes > 0) { progress.value = state.receivedBytes / state.totalBytes; status.textContent = `正在下载模型 ${mib(state.receivedBytes)} / ${mib(state.totalBytes)}…`; }
+    } catch { /* the download reports its own outcome */ }
+    if (busy) timer = setTimeout(poll, 700);
+  }
+  get.addEventListener('click', async () => {
+    if (busy) return;
+    busy = true; sync(); progress.removeAttribute('value'); status.textContent = '正在读取模型目录…';
+    let outcome = '';
+    try {
+      const { manifest } = await request('/api/artists/style-model/manifest', { method: 'POST', body: {} });
+      status.textContent = `正在下载模型（约 ${mib(manifest.file.bytes)}）…`; poll();
+      const result = await request('/api/artists/style-model/download', { method: 'POST', body: { manifest } });
+      outcome = result.cancelled ? '已取消。' : '模型已安装，画师页搜索栏出现图片按钮。';
+      if (!result.cancelled) window.dispatchEvent(new Event('nai-artist-resources-changed'));
+    } catch (error) { outcome = '模型未安装。'; notice(error.message); }
+    finally { busy = false; clearTimeout(timer); await refresh(outcome); }
+  });
+  cancel.addEventListener('click', () => request('/api/artists/style-model/cancel', { method: 'POST' }).catch(() => {}));
+  remove.addEventListener('click', async () => {
+    if (busy) return;
+    try { await request('/api/artists/style-model', { method: 'DELETE' }); window.dispatchEvent(new Event('nai-artist-resources-changed')); await refresh('已删除模型。'); }
+    catch (error) { notice(error.message); }
+  });
+  refresh();
+  return block;
+}
+
 // Artist page banner (app only): tells the user to download the annotation packs when none
 // are installed, and explains repeated image failures (Danbooru's CDN may be unreachable).
 export function artistResourceNotice({ request, section, styleSection = null }) {

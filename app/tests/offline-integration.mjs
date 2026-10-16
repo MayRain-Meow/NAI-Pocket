@@ -44,6 +44,10 @@ let packStatus={phase:'idle',receivedBytes:0,totalBytes:0,cancellable:false},pac
 // 画风数据: watercolor is axis 0, so "fixture same image" (pure axis 0) ranks first for 水彩.
 const styleFixture=stylePackFixture([['fixture-anmi-1','anmi',[60,90,0,0]],['fixture-anmi-2','anmi',[40,0,100,0]],['fixture-same-1','fixture same image',[127,0,0,0]]],{tags:{anmi:['gloomy']}});
 let styleMode='valid';const styleDownloads=[];
+// 以图找画师: a synthetic model bridge. The "embedding" points along axis 0, so 'fixture same image' wins.
+const modelBase='https://github.com/MayRain-Meow/NAI-Pocket/releases/download/style-model-clip-vit-l14';
+const modelManifest={format:'nai-pocket-style-model',formatVersion:1,model:'clip-vit-large-patch14-vision-int8',file:{url:`${modelBase}/vision.onnx`,bytes:307001500,sha256:'c'.repeat(64)}};
+let modelPresent=false;const modelDownloads=[],embedCalls=[];
 const token = 'pst-'+ 'fixture'.repeat(10), secondToken = 'pst-'+ 'second'.repeat(10), rbqToken = 'rbq-'+'fixture'.repeat(6);
 const demoTokens = { token, secondToken, rbqToken }; let previewSeeded = false;
 const png = makePngFixture({ width: 64, height: 64, rgba: Buffer.alloc(64 * 64 * 4, 255), entries: [{ type: 'tEXt', key: 'Software', value: 'NovelAI' }, { type: 'tEXt', key: 'Comment', value: JSON.stringify({ prompt: 'synthetic fixture', seed: 42, steps: 1 }) }] });
@@ -82,6 +86,24 @@ async function rpc(name,args) {
     recoveryCalls.push(args.activeDirectories);return {skipped:recoveryCalls.length>1};
   }
   if(name==='ArtistResources.status')return packStatus;
+  if(name==='ArtistResources.readCatalog'&&String(args.url).endsWith('/style-model.json')) {
+    if(preview)throw new Error('真实模型下载需在安卓手机上验证。');
+    assert.equal(args.url,`${modelBase}/style-model.json`);return {catalog:modelManifest};
+  }
+  if(name.startsWith('StyleEmbed.')) {
+    if(name==='StyleEmbed.modelStatus')return {present:modelPresent,bytes:modelPresent?307001500:0};
+    if(name==='StyleEmbed.status')return {busy:false,receivedBytes:0,totalBytes:0};
+    if(name==='StyleEmbed.cancel')return {};
+    if(name==='StyleEmbed.deleteModel'){modelPresent=false;return {};}
+    if(name==='StyleEmbed.downloadModel'){
+      if(preview)throw new Error('真实模型下载需在安卓手机上验证。');
+      assert.deepEqual(Object.keys(args).sort(),['operationId','sha256','url']);modelDownloads.push(args);modelPresent=true;return {bytes:307001500};
+    }
+    if(name==='StyleEmbed.embed'){
+      assert.ok(typeof args.data==='string'&&args.data.length>100,'the picture reaches the native side as base64');
+      embedCalls.push(args.data.length);return {vector:[1,0,0,0]};
+    }
+  }
   if(name==='ArtistResources.readCatalog'&&String(args.url).endsWith('/style-index.json')) {
     if(preview)throw new Error('真实画风数据下载需在安卓手机上验证。');
     assert.deepEqual(Object.keys(args).sort(),['operationId','url']);return {catalog:styleFixture.manifest};
@@ -617,6 +639,17 @@ try {
   assert.deepEqual(byFeel.artists.map(item=>item.artist),['fixture same image','anmi'],'only indexed artists, ranked by feel');
   assert.deepEqual((await call('/api/artists/profile?artist=anmi')).data.artist.vibeTags,['暗调阴郁'],'the detail carries the vibe words');
   assert.equal((await call('/api/artists?like=anmi')).data.artists[0].artist,'fixture same image','找相似 answers locally');
+  // 以图找画师 (0.6.0): the model is its own optional download; the list offers picture search only
+  // once it is on the phone.
+  assert.equal((await call('/api/artists')).data.imageSearch,false,'no model yet: no picture search');
+  const modelSection=page.locator('.native-style-model'),modelButton=name=>modelSection.getByRole('button',{name,exact:true});
+  const modelStarts=async prefix=>{await page.waitForFunction(({prefix})=>document.querySelector('.native-style-model p[role="status"]')?.textContent.startsWith(prefix),{prefix});};
+  await modelStarts('还没有下载模型');
+  await modelButton('下载模型').click();
+  await modelStarts('模型已安装');
+  assert.deepEqual(modelDownloads.map(item=>[item.url,item.sha256]),[[modelManifest.file.url,modelManifest.file.sha256]],'the checksum from the manifest goes to the native download');
+  assert.equal(await modelButton('删除').isVisible(),true);
+  assert.equal((await call('/api/artists')).data.imageSearch,true,'with the model, picture search is offered');
   await resources.scrollIntoViewIfNeeded();
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'resource settings fit the narrow viewport');
   await page.screenshot({path:path.join(temporary,'native-catalog-narrow.png'),fullPage:false});
@@ -631,6 +664,19 @@ try {
   await page.waitForFunction(()=>document.querySelector('#artistLibraryMount .artist-library-card')?.dataset.artistCard==='fixture same image');
   await page.screenshot({path:path.join(temporary,'native-style-panel.png'),fullPage:false});
   await library.locator('[data-vibe-clear]').click();
+  // The picture button in the search pill: choose a picture, rank by it, then remove it.
+  await library.locator('.artist-library-filter-collapse').click();
+  await library.locator('[data-image-search]:not([hidden])').waitFor();
+  const chooser=page.waitForEvent('filechooser');
+  await library.locator('[data-image-search]').click();
+  await (await chooser).setFiles({name:'picture.png',mimeType:'image/png',buffer:png});
+  await library.locator('[data-active-pill="image"]').waitFor();
+  await page.waitForFunction(()=>document.querySelector('#artistLibraryMount .artist-library-card')?.dataset.artistCard==='fixture same image');
+  assert.equal(embedCalls.length,1,'the picture was embedded once on the phone');
+  await page.screenshot({path:path.join(temporary,'native-picture-search.png'),fullPage:false});
+  await library.locator('[data-active-pill="image"]').click();
+  await page.waitForFunction(()=>!document.querySelector('[data-active-pill="image"]'));
+  await library.locator('.artist-library-filter-toggle').click();
   await library.locator('.artist-library-filter-collapse').click();
   await searchBox.fill('fixture_artist');
   await libraryCard('fixture artist').getByRole('button',{name:'取消收藏 fixture artist',exact:true}).waitFor();

@@ -1,6 +1,6 @@
 {
   "name": "nai-pocket-android",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -29,6 +29,8 @@
     "postcss": "8.5.29"
   },
   "overrides": {
-    "xcode": { "uuid": "11.1.1" }
+    "xcode": {
+      "uuid": "11.1.1"
+    }
   }
 }

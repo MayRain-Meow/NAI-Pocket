@@ -16,7 +16,7 @@ export function stylePackFixture(images, { version = 'fixture-1', tags = {}, bas
   const vectors = Buffer.alloc(images.length * (DIMS + 4));
   images.forEach(([, , values], i) => { values.forEach((v, d) => vectors.writeInt8(v, i * (DIMS + 4) + d)); vectors.writeFloatLE(1 / 127, i * (DIMS + 4) + DIMS); });
   const chips = STYLE_FIXTURE_CHIPS.map(({ id, label, group, axis }) => ({ id, label, group, vector: floats([0, 1, 2, 3].map(d => d === axis ? 1 : 0)) }));
-  const meta = { version: 1, model: 'fixture', dims: DIMS, count: rows.length, artists: new Set(rows.map(row => row[1])).size, builtAt: 1, hub: {}, tags, chips };
+  const meta = { version: 1, model: 'fixture', dims: DIMS, count: rows.length, artists: new Set(rows.map(row => row[1])).size, builtAt: 1, hub: {}, tags, chips, mean: floats([0, 0, 0, 0]) };
   const header = Buffer.from(JSON.stringify({ format: 'nai-pocket-style-index', formatVersion: 1, version, meta, rows }));
   const length = Buffer.alloc(4); length.writeUInt32LE(header.length);
   const bytes = Buffer.concat([Buffer.from(STYLE_PACK_MAGIC), length, header, vectors]);

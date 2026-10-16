@@ -1,4 +1,4 @@
-import { identifyArtistTag } from './artist-index-v5.js?v=1.6.81';
+import { identifyArtistTag } from './artist-index-v5.js?v=1.8.2';
 
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 const dimension = value => clamp(Math.round((Number(value) || 64) / 64) * 64, 64, 2048);

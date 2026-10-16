@@ -7,26 +7,26 @@ import {
   unwrapLegacyBrackets,
   parseStructuredPrompt as parseStructuredPromptUtil,
   cloneTagForStorage
-} from './prompt-utils.js?v=1.6.81';
-import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.6.81';
-import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.6.81';
-import { repairImportedPrompt } from './import-repair.js?v=1.6.81';
-import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.6.81';
-import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity } from './artist-index-v5.js?v=1.6.81';
-import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.6.81';
-import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.6.81';
-import { buildArtistStormPlan } from './storm-utils.js?v=1.6.81';
-import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.6.81';
-import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.6.81';
-import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.6.81';
-import { observeToastClearance } from './toast-layout.js?v=1.6.81';
-import { installSelectSheets } from './select-sheet.js?v=1.6.81';
-import { attachWeightHighlight } from './weight-highlight.js?v=1.6.81';
-import { confirmAction, promptText } from './confirm-sheet.js?v=1.6.81';
-import { createTaggerPanel } from './tagger-panel.js?v=1.6.81';
-import { createCodexPanel } from './codex-panel.js?v=1.6.81';
-import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.6.81';
-import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.6.81';
+} from './prompt-utils.js?v=1.8.2';
+import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.8.2';
+import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.8.2';
+import { repairImportedPrompt } from './import-repair.js?v=1.8.2';
+import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.8.2';
+import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity } from './artist-index-v5.js?v=1.8.2';
+import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.8.2';
+import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.8.2';
+import { buildArtistStormPlan } from './storm-utils.js?v=1.8.2';
+import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.8.2';
+import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.8.2';
+import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.8.2';
+import { observeToastClearance } from './toast-layout.js?v=1.8.2';
+import { installSelectSheets } from './select-sheet.js?v=1.8.2';
+import { attachWeightHighlight } from './weight-highlight.js?v=1.8.2';
+import { confirmAction, promptText } from './confirm-sheet.js?v=1.8.2';
+import { createTaggerPanel } from './tagger-panel.js?v=1.8.2';
+import { createCodexPanel } from './codex-panel.js?v=1.8.2';
+import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.8.2';
+import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.8.2';
 
 const GROUP_LABELS_BY_KEY = {
   scene: '场景',
@@ -777,9 +777,10 @@ function semanticTargetHas(tagName) {
   return semanticTargetInfo().tags.some(tag => String(tag.text || '').trim().toLowerCase() === naiTag);
 }
 
-function addSemanticTag(item) {
+// `quiet`: the caller reports the outcome itself (a batch add shows one summary, not one message per item).
+function addSemanticTag(item, { quiet = false } = {}) {
   if (!semanticTarget || !item?.tag) return false;
-  if (String(item.category || '').toLowerCase() === 'artist') return addSemanticArtist({ artist: item.tag });
+  if (String(item.category || '').toLowerCase() === 'artist') return addSemanticArtist({ artist: item.tag }, { quiet });
   const text = normalizeDanbooruTagForNai(item.tag);
   const parsed = {
     ...parseTagToken(text),
@@ -803,33 +804,41 @@ function addSemanticTag(item) {
   }
   if (added) {
     compilePromptToPreview();
-    toast(`已添加：${text}`, 'success');
+    if (!quiet) toast(`已添加：${text}`, 'success');
   }
   return Boolean(added);
 }
 
-function addSemanticArtist(item) {
+// The one place that reports adding an artist, whichever button asked (artist library, 语义, 图片反推):
+// added, or already there. Callers stay silent, so one tap is one message (owner 2026-10-15).
+function addSemanticArtist(item, { quiet = false } = {}) {
   const artist = String(item?.artist || '').trim();
   if (!artist) return false;
   const text = `artist:${normalizeDanbooruTagForNai(artist)}`;
   if (directPromptEdited) {
     const raw = els.promptPreview.value;
-    if (tokenizePrompt(raw).some(token => normalizeArtistIdentity(parseTagToken(token).text) === normalizeArtistIdentity(artist))) return false;
+    if (tokenizePrompt(raw).some(token => normalizeArtistIdentity(parseTagToken(token).text) === normalizeArtistIdentity(artist))) {
+      if (!quiet) toast(`${text} 已在 Prompt 中，没有重复添加。`);
+      return false;
+    }
     const existing = raw.trimEnd();
     const prompt = `${existing}${existing ? /,$/.test(existing) ? ' ' : ', ' : ''}${text}`;
     els.promptPreview.value = prompt;
     appState.prompt = prompt;
     autoGrowTextarea(els.promptPreview);
     syncV5PromptBudget(prompt);
-    toast(`已加入 Prompt：${text}`, 'success');
+    if (!quiet) toast(`已加入 Prompt：${text}`, 'success');
     return true;
   }
   const added = addTag('style', { ...parseTagToken(text), text, exactText: text }, 1, true, '画师', { render: false, translate: false });
-  if (!added) return false;
+  if (!added) {
+    if (!quiet) toast(`${text} 已在画风中，没有重复添加。`);
+    return false;
+  }
   openTagGroups.add('style');
   renderTagGroups();
   compilePromptToPreview();
-  toast(`已加入画风：${text}`, 'success');
+  if (!quiet) toast(`已加入画风：${text}`, 'success');
   return true;
 }
 
@@ -1281,8 +1290,8 @@ function addSelectedSemanticTags() {
   let added = 0;
   for (const item of semanticSelectedTags.values()) {
     if (item.category === 'Artist') {
-      if (addSemanticArtist({ artist: item.tag })) added += 1;
-    } else if (addSemanticTag(item)) added += 1;
+      if (addSemanticArtist({ artist: item.tag }, { quiet: true })) added += 1;
+    } else if (addSemanticTag(item, { quiet: true })) added += 1;
   }
   toast(added ? `已加入 ${added} 个 Tag。` : '选择的 Tag 已经存在。', added ? 'success' : '');
   if (semanticLastSearchData) renderSemanticTagResults(semanticLastSearchData, 'search', els.semanticResults);
@@ -1407,13 +1416,26 @@ function placeToastHost() {
   host.style.setProperty('--toast-top', `${Math.max(10, Math.round(bottom) + 8)}px`);
 }
 
+// The same message again restarts its timer instead of stacking a copy, and at most three messages
+// stay on screen (oldest go first), so quick repeated actions never wall off the page. The update
+// prompts (site banner, app update toast) live in the same host but are not messages and are never evicted.
+const TOAST_LIMIT = 3;
 function toast(message, type = '') {
   placeToastHost();
-  const node = document.createElement('div');
-  node.className = `toast ${type}`;
-  node.textContent = message;
-  $('#toastHost').append(node);
-  setTimeout(() => node.remove(), 4200);
+  const host = $('#toastHost');
+  const messages = () => [...host.querySelectorAll('.toast:not(.update-banner):not(.native-update-toast)')];
+  let node = messages().find(item => item.textContent === message && item.dataset.type === type);
+  if (node) clearTimeout(node.toastTimer);
+  else {
+    node = document.createElement('div');
+    node.className = `toast ${type}`;
+    node.dataset.type = type;
+    node.textContent = message;
+  }
+  host.append(node);
+  const stack = messages();
+  for (const old of stack.slice(0, Math.max(0, stack.length - TOAST_LIMIT))) { clearTimeout(old.toastTimer); old.remove(); }
+  node.toastTimer = setTimeout(() => node.remove(), 4200);
 }
 
 // A release takes over open pages (its worker skips waiting and claims them),
@@ -1427,7 +1449,7 @@ function watchForUpdates() {
     if (!controlled) { controlled = true; return; } // first install, not an update
     showUpdateBanner();
   });
-  navigator.serviceWorker.register('/sw.js?v=1.6.81').then(registration => {
+  navigator.serviceWorker.register('/sw.js?v=1.8.2').then(registration => {
     let checkedAt = Date.now();
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible' || Date.now() - checkedAt < 10 * 60 * 1000) return;

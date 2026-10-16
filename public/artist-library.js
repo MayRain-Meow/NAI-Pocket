@@ -1,12 +1,12 @@
-import { EXACT_CHIPS, VIBE_GROUP_ORDER, chipForWord, attributesForChips } from './artist-vibe-chips.js?v=1.6.81';
-import { STYLE_FACETS, queryHasStyleTerms } from './artist-catalog.js?v=1.6.81';
-import { createArtistResultViewer } from './artist-result.js?v=1.6.81';
-import { observeFittedChips } from './artist-chip-layout.js?v=1.6.81';
-import { buildNaxV5ArtistSearchUrl } from './artist-index-v5.js?v=1.6.81';
-import { modelDisplayName } from './model-utils.js?v=1.6.81';
-import { normalizeProviderId } from './provider-route.js?v=1.6.81';
-import { confirmAction } from './confirm-sheet.js?v=1.6.81';
-import { STYLE_ATTRIBUTES, STYLE_SCHEMA_VERSION, validateStyleAttributes, attributesFromLegacy, legacyFromAttributes, summarizeStyleEvidence } from './artist-style-schema.js?v=1.6.81';
+import { EXACT_CHIPS, VIBE_GROUP_ORDER, chipForWord, attributesForChips } from './artist-vibe-chips.js?v=1.8.2';
+import { STYLE_FACETS, queryHasStyleTerms } from './artist-catalog.js?v=1.8.2';
+import { createArtistResultViewer } from './artist-result.js?v=1.8.2';
+import { observeFittedChips } from './artist-chip-layout.js?v=1.8.2';
+import { buildNaxV5ArtistSearchUrl } from './artist-index-v5.js?v=1.8.2';
+import { modelDisplayName } from './model-utils.js?v=1.8.2';
+import { normalizeProviderId } from './provider-route.js?v=1.8.2';
+import { confirmAction } from './confirm-sheet.js?v=1.8.2';
+import { STYLE_ATTRIBUTES, STYLE_SCHEMA_VERSION, validateStyleAttributes, attributesFromLegacy, legacyFromAttributes, summarizeStyleEvidence } from './artist-style-schema.js?v=1.8.2';
 
 const PAGE_SIZE = 40;
 const MAX_COMPARE = 3;
@@ -145,7 +145,7 @@ export function createLibraryState() {
     view: 'list',
     selectedArtist: '',
     // vibe: chip ids from the style index, "-id" = avoid. like: an artist whose style to match.
-    filters: { query: '', facets: emptyFacets(), attributes: {}, model: '', favorite: false, annotated: false, includeAutomatic: true, confirmedOnly: false, sort: 'default', vibe: [], like: '', exact: false },
+    filters: { query: '', facets: emptyFacets(), attributes: {}, model: '', favorite: false, annotated: false, includeAutomatic: true, confirmedOnly: false, sort: 'default', vibe: [], like: '', image: null, exact: false },
     vibePanelOpen: false,
     // The sort control is switched to 画风相关性 automatically while the user has not
     // chosen a sort themselves, and stops doing so the moment they do — an automatic
@@ -188,7 +188,7 @@ export function queryReportFrom(payload) {
 
 // Whether anything narrows the list (sort only orders it); 清除筛选 shows only then.
 export function libraryFiltersActive(filters = {}) {
-  return Boolean(filters.query || filters.model || filters.favorite || filters.annotated || filters.confirmedOnly || filters.vibe?.length || filters.like
+  return Boolean(filters.query || filters.model || filters.favorite || filters.annotated || filters.confirmedOnly || filters.vibe?.length || filters.like || filters.image?.id
     || countSelectedFacets(filters.facets) || Object.values(filters.attributes || {}).some(values => Array.isArray(values) && values.length));
 }
 
@@ -252,6 +252,7 @@ export function buildArtistListUrl(filters = {}, page = 1, limit = PAGE_SIZE) {
   const vibe = (Array.isArray(filters.vibe) ? filters.vibe : []).filter(token => /^-?[a-z0-9]{1,24}$/.test(token)).slice(0, 12);
   if (vibe.length) params.set('vibe', vibe.join(','));
   if (filters.like) params.set('like', cleanText(filters.like, 160));
+  if (filters.image?.id && /^[A-Za-z0-9_-]{1,40}$/.test(filters.image.id)) params.set('image', filters.image.id);
   const sort = normalizeArtistSort(filters.sort);
   if (sort !== 'default') params.set('sort', sort);
   const safeLimit = Math.max(1, Math.min(100, Number(limit) || PAGE_SIZE));
@@ -764,26 +765,24 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     } catch (error) { if (token === summaryRevision && error.name !== 'AbortError') { coverageSignature = ''; coverageHost.textContent = '统计暂不可用'; } }
   }
 
+  // One message, one place (owner 2026-10-15: the same text showed as a toast under the header and
+  // again in the library's own line). An open sheet sits in the top layer, above the page's toasts,
+  // so it shows the message itself; a library opened as its own dialog uses its status line; the page
+  // otherwise uses the host's toast. The library's line is only a fallback for hosts without toasts.
   function notify(message, type = '') {
     const text = cleanText(message, 500);
     if (!text) return;
-    parentToast(text, type);
-    if (!localStatus) return;
+    const panelStatus = dialog ? [...dialog.querySelectorAll('.artist-library-panel')].find(panel => panel.open)?.querySelector('.artist-library-panel-status') : null;
+    const target = panelStatus || ((!embedded && dialog?.open) || typeof toast !== 'function' ? localStatus : null);
+    if (!target) { parentToast(text, type); return; }
     clearTimeout(localStatusTimer);
-    localStatus.textContent = text;
-    localStatus.className = `artist-library-local-status${type === 'error' ? ' is-error' : ' is-success'}`;
-    localStatus.setAttribute('role', type === 'error' ? 'alert' : 'status');
-    localStatus.hidden = false;
-    const panelStatus = [...dialog.querySelectorAll('.artist-library-panel')].find(panel => panel.open)?.querySelector('.artist-library-panel-status');
-    if (panelStatus) {
-      panelStatus.textContent = text; panelStatus.hidden = false;
-      panelStatus.className = `artist-library-panel-status${type === 'error' ? ' is-error' : ''}`;
-      panelStatus.setAttribute('role', type === 'error' ? 'alert' : 'status');
-    }
-    localStatusTimer = setTimeout(() => {
-      if (localStatus) localStatus.hidden = true;
-      if (panelStatus) panelStatus.hidden = true;
-    }, type === 'error' ? 6500 : 4000);
+    if (localStatus && target !== localStatus) localStatus.hidden = true;
+    target.textContent = text;
+    target.className = target === panelStatus ? `artist-library-panel-status${type === 'error' ? ' is-error' : ''}`
+      : `artist-library-local-status${type === 'error' ? ' is-error' : ' is-success'}`;
+    target.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    target.hidden = false;
+    localStatusTimer = setTimeout(() => { target.hidden = true; }, type === 'error' ? 6500 : 4000);
   }
 
   function startRequest(key) {
@@ -1239,9 +1238,9 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
       return;
     }
     try {
-      Promise.resolve(addToPrompt(artist)).then(added => {
-        notify(added === false ? `artist:${artist} 已在画风中，没有重复添加。` : `已将 artist:${artist} 加入画风。`);
-      }).catch(error => notify(errorMessage(error), 'error'));
+      // The host's add reports every outcome itself (added to 画风 or Prompt, or already there); a
+      // message here as well showed two for one tap, in two places.
+      Promise.resolve(addToPrompt(artist)).catch(error => notify(errorMessage(error), 'error'));
     } catch (error) {
       notify(errorMessage(error), 'error');
     }
@@ -1276,6 +1275,8 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     if (coverEvidence) renderCoverEvidence(coverEvidence, profile);
     const sampleEvidence = body.querySelector('[data-artist-evidence-summary]');
     if (sampleEvidence) renderSampleEvidence(sampleEvidence, profile);
+    const styleOverview = body.querySelector('[data-artist-style-overview]');
+    if (styleOverview) renderStyleOverview(styleOverview, profile);
     const oldCover = body.querySelector('[data-artist-detail-cover]');
     if (oldCover) {
       const newCover = imageNode(profile.coverUrl, `${profile.artist} 的收藏例图`, 'artist-library-detail-cover');
@@ -1510,7 +1511,7 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     exactInput.addEventListener('change', () => { state.filters.exact = exactInput.checked; state.page = 1; scheduleFilterSearch(); });
     const reset = button('清空', 'ghost artist-vibe-clear', { 'data-vibe-clear': 'true' });
     reset.addEventListener('click', () => {
-      state.filters.vibe = []; state.filters.like = '';
+      state.filters.vibe = []; state.filters.like = ''; state.filters.image = null;
       for (const chip of EXACT_CHIPS) if (exactChipOn(chip)) setAttributeValue(chip.attribute[0], chip.attribute[1], false);
       state.page = 1; scheduleFilterSearch();
     });
@@ -1531,6 +1532,12 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
       node.addEventListener('click', () => { pinUnderFinger(node.closest('.artist-library-quickrow'), '.artist-library-quickrow'); remove(); }); return node;
     };
     const pills = [];
+    if (state.filters.image?.id) {
+      const picture = pill('像这张图', 'want', () => { state.filters.image = null; state.page = 1; scheduleFilterSearch(); }, 'image');
+      picture.classList.add('artist-active-pill-image');
+      if (state.filters.image.thumb) picture.prepend(el('img', { attrs: { src: state.filters.image.thumb, alt: '', width: '20', height: '20' } }));
+      pills.push(picture);
+    }
     if (state.filters.like) pills.push(pill(`像 ${state.filters.like}`, 'want', () => setVibe(tokens, ''), 'like'));
     for (const token of tokens) {
       const id = token.replace(/^-/, '');
@@ -1538,7 +1545,7 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     }
     for (const chip of EXACT_CHIPS) if (exactChipOn(chip)) pills.push(pill(chip.label, 'want', () => toggleExactChip(chip), chip.id));
     host.replaceChildren(...pills);
-    form.toggleAttribute('data-style-ranked', Boolean(tokens.length || state.filters.like));
+    form.toggleAttribute('data-style-ranked', Boolean(tokens.length || state.filters.like || state.filters.image?.id));
   }
   // A typed word that names a chip lights the chip instead of searching text: 「水彩 梦幻」.
   async function absorbChipWords(input) {
@@ -1559,8 +1566,39 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
   }
   function findSimilarStyle(artist) {
     // Starting from an artist page means "like this artist", so earlier chips do not leak into it.
-    state.filters.like = cleanText(artist, 160); state.filters.vibe = []; state.page = 1;
+    state.filters.like = cleanText(artist, 160); state.filters.vibe = []; state.filters.image = null; state.page = 1;
     loadList({ scroll: 0 });
+  }
+  // 以图找画师 (1.8.0): the picture is shrunk here (the model only sees 224 px, and phone photos are
+  // large), embedded once by the server and then ranks the list like 找相似 does, combinable with
+  // feel words. The server keeps it 30 minutes; after that the list asks for it again.
+  async function shrinkPicture(file) {
+    try {
+      const bitmap = await createImageBitmap(file);
+      const draw = (edge, type, quality) => {
+        const scale = Math.min(1, edge / Math.min(bitmap.width, bitmap.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(bitmap.width * scale)); canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+        canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        return type === 'url' ? canvas.toDataURL('image/jpeg', quality) : new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+      };
+      const blob = await draw(320, 'blob', 0.92), thumb = draw(48, 'url', 0.7);
+      bitmap.close?.();
+      if (blob) return { body: blob, thumb };
+    } catch { /* a format the browser cannot draw: the server may still read it */ }
+    return { body: file, thumb: '' };
+  }
+  async function searchByImage(file, trigger) {
+    if (!file) return;
+    if (!/^image\//.test(file.type || 'image/')) { notify('请选择一张图片。', 'error'); return; }
+    trigger?.setAttribute('aria-busy', 'true'); if (trigger) trigger.disabled = true;
+    try {
+      const { body, thumb } = await shrinkPicture(file);
+      const data = await api('/api/artists/style-image', { method: 'POST', body, headers: { 'Content-Type': body.type || 'application/octet-stream' } });
+      state.filters.image = { id: String(data?.image || ''), thumb }; state.filters.like = ''; state.page = 1;
+      scheduleFilterSearch();
+    } catch (error) { notify(errorMessage(error), 'error'); }
+    finally { trigger?.removeAttribute('aria-busy'); if (trigger) trigger.disabled = false; }
   }
 
   function buildFilters() {
@@ -1574,7 +1612,14 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     // everywhere, so the filter grid keeps its four columns and nothing is re-flowed.
     // New layout: the filter groups live in a panel under the search line, opened by 筛选.
     const filterToggle = button('✦ 画风', 'artist-library-filter-toggle', { 'data-new-layout-only': '', 'aria-expanded': 'false' });
-    const queryRow = el('div', { className: 'artist-library-search-row' }, [query, ...(SIMILAR_SEARCH_ENABLED ? [similarActionButton] : []), filterToggle]);
+    // 以图找画师: an icon in the search pill (where "search by image" is expected), shown only when
+    // the server has the vision model; the picker accepts any image the phone offers.
+    const picture = el('input', { name: 'stylePicture', attrs: { type: 'file', accept: 'image/*', hidden: '', 'aria-hidden': 'true', tabindex: '-1' } });
+    const imageSearch = button('', 'artist-library-image-search', { 'data-image-search': 'true', 'aria-label': '以图找画师：选一张图，找画风相近的画师', title: '以图找画师' });
+    imageSearch.hidden = !state.imageSearch;
+    imageSearch.addEventListener('click', () => picture.click());
+    picture.addEventListener('change', () => { const file = picture.files?.[0]; picture.value = ''; searchByImage(file, imageSearch); });
+    const queryRow = el('div', { className: 'artist-library-search-row' }, [query, ...(SIMILAR_SEARCH_ENABLED ? [similarActionButton] : []), imageSearch, picture, filterToggle]);
     // Results follow the typing, so 查找 is optional; an IME composition is committed first.
     let typingTimer = 0;
     const typed = () => {
@@ -1823,6 +1868,53 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     }
   }
 
+  // 画风指纹 + 画风相近 from the style index (profile.styleProfile). A word opens the list ranked by
+  // it; an artist opens that artist; 全部 opens the full 找相似 list.
+  function renderStyleOverview(container, profile) {
+    const style = profile?.styleProfile;
+    container.replaceChildren();
+    if (!style) {
+      container.append(el('p', { className: 'artist-library-muted', text: state.styleIndex ? '这位画师还没有画风索引（需要 D 站原作例图）。' : '画风索引尚未建立。' }));
+      return;
+    }
+    const byWord = id => { closeDetailPanels(); state.filters.vibe = [id]; state.filters.like = ''; state.filters.image = null; state.page = 1; loadList({ scroll: 0 }); };
+    const head = el('div', { className: 'artist-overview-head' }, [el('h3', { text: '画风指纹' }), el('span', { text: `基于 ${style.images} 张原作` })]);
+    const bars = el('div', { className: 'artist-overview-bars' });
+    for (const word of style.strengths || []) {
+      const row = button('', 'artist-overview-bar', { 'data-overview-word': word.id, 'aria-label': `${word.label}：比多数画师突出，查看同样突出的画师` });
+      const fill = el('span', { className: 'artist-overview-bar-fill' });
+      fill.style.setProperty('--strength', String(Math.max(0.12, Math.min(1, word.z / 3))));
+      row.append(el('span', { className: 'artist-overview-bar-label', text: word.label }), el('span', { className: 'artist-overview-bar-track' }, [fill]));
+      row.addEventListener('click', () => byWord(word.id));
+      bars.append(row);
+    }
+    if (!bars.childElementCount) bars.append(el('p', { className: 'artist-library-muted', text: '没有特别突出的感觉词，画风接近全库平均。' }));
+    container.append(head, bars);
+    if (style.weaknesses?.length) {
+      container.append(el('p', { className: 'artist-overview-weak' }, [el('span', { text: '不太像' }),
+        ...style.weaknesses.map(word => el('b', { text: word.label }))]));
+    }
+    if (style.similar?.length) {
+      const all = button('全部 ›', 'artist-overview-all', { 'data-overview-similar-all': profile.artist });
+      all.addEventListener('click', () => { closeDetailPanels(); findSimilarStyle(profile.artist); });
+      container.append(el('div', { className: 'artist-overview-head' }, [el('h3', { text: '画风相近' }), all]));
+      const strip = el('div', { className: 'artist-overview-similar' });
+      for (const item of style.similar) {
+        const card = button('', 'artist-overview-artist', { 'data-overview-artist': item.artist, 'aria-label': `查看 ${item.artist}` });
+        const picture = el('span', { className: 'artist-overview-artist-cover' });
+        if (item.thumbUrl) {
+          const img = el('img', { attrs: { src: item.thumbUrl, alt: '', loading: 'lazy', decoding: 'async' } });
+          img.addEventListener('error', () => img.remove());
+          picture.append(img);
+        }
+        card.append(picture, el('span', { className: 'artist-overview-artist-name', text: item.artist }));
+        card.addEventListener('click', () => { closeDetailPanels(); loadDetail(item.artist); });
+        strip.append(card);
+      }
+      container.append(strip);
+    }
+  }
+
   function renderSampleEvidence(container, profile) {
     container.replaceChildren();
     const examples = Array.isArray(profile.examples) ? profile.examples : [];
@@ -2022,19 +2114,18 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
       results = el('div', { attrs: { 'data-artist-results': 'true' } });
       body.replaceChildren(buildFilters(), results);
     }
-    const summary = el('div', { className: 'artist-library-list-summary' }, [
-      el('strong', { text: `找到 ${state.total} 位画师` }),
-      // One note string rather than several siblings on purpose: this row is
-      // `justify-content: space-between`, so extra children get spread across the full
-      // width and reopen the "hole through the middle" defect this header already had
-      // once (1.5.50). Keeping one child preserves the existing geometry.
+    // 1.8.1 (owner): the count and the pager keep one line; how the list was read (像这张图, 画风特征 …)
+    // and 有新结果 · 更新 sit on their own full-width line under it, cut to one line. Inside the count's
+    // narrow column they wrapped and made the row two or three lines tall.
+    const summary = el('div', { className: 'artist-library-list-summary' }, [el('strong', { text: `找到 ${state.total} 位画师` })]);
+    const notes = el('div', { className: 'artist-library-list-notes' }, [
       //
       // A typed word used to be reinterpreted silently: an unrecognized style word
       // became an artist-name substring search with no indication that it had. Every
       // word is now accounted for under the heading that explains how it was used.
       (() => {
         const queryNotes = [];
-        if (state.filters.vibe?.length || state.filters.like) queryNotes.push(state.filters.like ? `按风格相近排序：像 ${state.filters.like}` : '按感觉排序');
+        if (state.filters.vibe?.length || state.filters.like || state.filters.image?.id) queryNotes.push(state.filters.image?.id ? '按风格相近排序：像这张图' : state.filters.like ? `按风格相近排序：像 ${state.filters.like}` : '按感觉排序');
         if (state.report.styleTerms.length) queryNotes.push(`画风特征：${state.report.styleTerms.map(item => item.label).join(' · ')}`);
         if (normalizeArtistSort(state.filters.sort) === 'relevance' && state.report.styleTerms.length) queryNotes.push('按相关性排序，卡片显示依据');
         if (state.report.nameTerms.length) queryNotes.push(`按画师名搜索：${state.report.nameTerms.join(' · ')}`);
@@ -2045,13 +2136,13 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
         if (state.report.ambiguousTerms.length) queryNotes.push(`需指定：${state.report.ambiguousTerms.join(' · ')}（同时属于多个特征，请在下方“细化特征”勾选）`);
         if (state.report.unmatchedTerms.length) queryNotes.push(`未匹配：${state.report.unmatchedTerms.join('、')}`);
         return queryNotes.length
-          ? el('span', { className: 'artist-library-query-note', attrs: { 'data-artist-query-notes': 'true' }, text: queryNotes.join(' · ') })
+          ? el('span', { className: 'artist-library-query-note', attrs: { 'data-artist-query-notes': 'true', title: queryNotes.join(' · ') }, text: queryNotes.join(' · ') })
           : null;
       })()
     ]);
     const update = button('有新结果 · 更新', 'ghost', { 'data-artist-updates': 'true' }); update.hidden = true;
-    update.addEventListener('click', () => loadList({ scroll: null })); summary.append(update);
-    fragment.append(summary, renderPagination());
+    update.addEventListener('click', () => loadList({ scroll: null })); notes.append(update);
+    fragment.append(summary, renderPagination(), notes);
     if (!state.list.length) {
       fragment.append(el('div', { className: 'artist-library-state', text: '没有符合当前条件的画师。可以清除筛选或搜索其他名称。' }));
     } else {
@@ -2098,6 +2189,8 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
       // with no fallbacks of its own.
       const report = queryReportFrom(data);
       state.styleIndex = data?.styleIndex === true;
+      state.imageSearch = data?.imageSearch === true;
+      for (const node of body.querySelectorAll('[data-image-search]')) node.hidden = !state.imageSearch;
       // The app can gain its style data mid-session (画风数据 downloaded in 设置): forget the "unavailable" answer.
       if (state.styleIndex && vibeInfo && !vibeInfo.available) vibeInfo = null;
       if (background && partial) {
@@ -2117,6 +2210,11 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
       if (scroll !== null) restoreScroll(scroll);
     } catch (error) {
       if (!gates.list.isCurrent(request.token) || error?.name === 'AbortError') return;
+      // The server forgot the picture (30 minutes, or a restart): drop it and show the list without it.
+      if (error?.status === 410 && state.filters.image) {
+        state.filters.image = null; notify(errorMessage(error), 'error');
+        queueMicrotask(scheduleFilterSearch); return;
+      }
       if (partial) {
         const update = results.querySelector('[data-artist-updates]'); if (update) { update.textContent = '更新失败 · 重试'; update.hidden = false; }
         if (!background) notify(`读取失败：${errorMessage(error)}`, 'error'); return;
@@ -3652,9 +3750,14 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     // under it; 资料 and 画风概览 open as sheets again.
     const profilePanel = makePanel('资料', profileEditor(profile), 'profile');
     const upload = makePanel('添加例图', uploadPanel(profile), 'upload');
+    // 画风概览 (1.8.2, owner: the old sheet was only annotation counts): what the style index says
+    // about this artist first, the per-image annotation evidence folded underneath.
     const evidence = el('section', { className: 'artist-library-evidence-summary', attrs: { 'data-artist-evidence-summary': 'true' } });
     renderSampleEvidence(evidence, profile);
-    const evidencePanel = makePanel('画风概览', evidence, 'evidence');
+    const styleOverview = el('div', { className: 'artist-style-overview', attrs: { 'data-artist-style-overview': 'true' } });
+    renderStyleOverview(styleOverview, profile);
+    const annotationDetails = el('details', { className: 'artist-overview-annotations' }, [el('summary', { text: '标注明细' }), evidence]);
+    const evidencePanel = makePanel('画风概览', el('div', { className: 'artist-overview' }, [styleOverview, annotationDetails]), 'evidence');
     fragment.append(detailToolbar(profile, [], { withAdd: false }));
 
     const hero = el('section', { className: 'artist-library-detail-hero' });

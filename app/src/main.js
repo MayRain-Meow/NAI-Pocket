@@ -17,7 +17,7 @@ import { openQueue } from './queue.js';
 import { openReferences } from './references.js';
 import { createLocalApi } from './api.js';
 import { settings } from './settings.js';
-import { artistResourcesSection, artistResourceNotice, stylePackSection } from './artist-resources-section.js';
+import { artistResourcesSection, artistResourceNotice, stylePackSection, styleModelSection } from './artist-resources-section.js';
 import { createImageLoader } from './image-loader.js';
 import { DEFAULT_ARTIST_CATALOG_URL } from './artist-resource-source.js';
 import { createUpdater } from './updater.js';
@@ -86,10 +86,18 @@ async function phoneAlbumSection(queue) {
   });
   section.append(heading, label, hint); return section;
 }
-const notice = message => {
-  const host = document.getElementById('toastHost');
-  const text = document.createElement('div'); text.className = 'toast error'; text.textContent = message; host?.append(text);
-  setTimeout(() => text.remove(), 10000);
+// The page's toast rules (public/app.js) for the app's own messages: a repeated message restarts its
+// timer, at most three stay on screen, and the update prompts are never pushed out.
+const notice = (message, type = 'error') => {
+  const host = document.getElementById('toastHost'); if (!host || !message) return;
+  const messages = () => [...host.querySelectorAll('.toast:not(.update-banner):not(.native-update-toast)')];
+  let node = messages().find(item => item.textContent === message && item.dataset.type === type);
+  if (node) clearTimeout(node.toastTimer);
+  else { node = document.createElement('div'); node.className = `toast ${type}`; node.dataset.type = type; node.textContent = message; }
+  host.append(node);
+  const stack = messages();
+  for (const old of stack.slice(0, Math.max(0, stack.length - 3))) { clearTimeout(old.toastTimer); old.remove(); }
+  node.toastTimer = setTimeout(() => node.remove(), type === 'error' ? 8000 : 4200);
 };
 window.addEventListener('nai-runtime-error', event => notice(event.detail));
 try {
@@ -131,7 +139,7 @@ try {
   const styleSection = stylePackSection({ request, notice });
   const updateSection = appUpdateSection({ updater: createUpdater({ fetch: http.fetch, state: queue.state, currentVersion: appVersion }),
     native: registerPlugin('AppUpdate'), currentVersion: appVersion });
-  settingsBody?.append(await phoneAlbumSection(queue), resourcesSection, styleSection, updateSection, aboutSection(appVersion, licenseButton));
+  settingsBody?.append(await phoneAlbumSection(queue), resourcesSection, styleSection, styleModelSection({ request, notice }), updateSection, aboutSection(appVersion, licenseButton));
   document.getElementById('artistLibraryMount')?.before(artistResourceNotice({ request, section: resourcesSection, styleSection }));
   await media.registerAll();
   await import('../../public/app.js');

@@ -22,11 +22,13 @@ import { nativeFiles, localPath } from './files.js';
 import { hashBytes } from './codecs.js';
 import { openArtistPacks } from './artist-packs.js';
 import { openStylePack } from './style-pack.js';
+import { openStyleImages } from './style-images.js';
 import artistRoster from './artist-roster.json';
 import { withArtistCatalogSource } from './artist-resource-source.js';
 
 export function openReferences(database, settings, http) {
   const stylePack = openStylePack();
+  const styleImages = openStyleImages();
   const artistDanbooru = createArtistDanbooruStats({ store: database.store(createArtistDanbooruStatsStore(database.db)), http });
   const artistResources = createArtistResourceService({ store:database.store(createArtistResourceStore(database.db)), files:nativeFiles, http });
   const translations = createTranslationService({ store: database.store(createTranslationStore(database.db)), settings, http });
@@ -56,10 +58,10 @@ export function openReferences(database, settings, http) {
   });
   return { translations, search, codex: createCodexService({ cache, http }), tagger: createTaggerService({ hash: hashBytes, http }),
     naxPreview: createNaxPreviewClient({ binary: Buffer, http }),
-    artistResources, artistPacks:openArtistPacks(database), stylePack,
+    artistResources, artistPacks:openArtistPacks(database), stylePack, styleImages,
     artistDanbooru,
     artistLibrary: createArtistLibraryView({ store: database.store(createArtistLibraryViewStore(database.db)), danbooru: artistDanbooru,
-      preferences: database.store(createArtistBrowserStore(database.db)), roster: artistRoster.artists, imageUrl: artistResourceImageUrl, styleIndex: stylePack.index }),
+      preferences: database.store(createArtistBrowserStore(database.db)), roster: artistRoster.artists, imageUrl: artistResourceImageUrl, styleIndex: stylePack.index, styleImages }),
     artists: withArtistCatalogSource(createArtistBrowserService({ store: database.store(createArtistBrowserStore(database.db)), resources:artistResources,
       names:[], roster:artistRoster.artists })),
     ...createTranslationRefresh({ semanticSearch: search.semanticSearch, translateText: translations.translateText }), ...inspector };

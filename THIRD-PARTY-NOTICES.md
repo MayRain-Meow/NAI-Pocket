@@ -19,5 +19,7 @@ NAI Pocket is an independent client. Third-party names identify compatible servi
 | [Ionic Android Filesystem](https://github.com/ionic-team/ion-android-filesystem/tree/1.1.1) 1.1.1 | Native file operations; MIT notice in `app/licenses/Ionic-filesystem.txt` |
 | AndroidX / Android support libraries, Kotlin / coroutines, OpenSSL 3 | Native dependencies distributed under Apache-2.0; license in `app/licenses/Apache-2.0.txt` |
 | [SQLCipher](https://github.com/sqlcipher/sqlcipher), [SQLCipher Android](https://github.com/sqlcipher/sqlcipher-android) 4.17.0 | SQLite platform library; original BSD notices in `app/licenses/SQLCipher.txt` and `app/licenses/SQLCipher-Android.txt` |
+| [ONNX Runtime](https://github.com/microsoft/onnxruntime) 1.20.0 | Runs the optional 以图找画师 model on the phone; MIT notice in `app/licenses/ONNX-Runtime.txt` |
+| [CLIP ViT-L/14](https://github.com/openai/CLIP) ([ONNX by Xenova](https://huggingface.co/Xenova/clip-vit-large-patch14)) | Optional ~293 MB model download for 以图找画师 and the source of the 画风数据 vectors; MIT notice in `app/licenses/CLIP-model.txt` |
 
 Licenses and attributions are available from the app's Settings → About / Licenses view. `app/scripts/licenses.mjs` collects the exact installed runtime package notices during each build. `app/licenses/Native-dependencies.txt` lists the resolved native release components and their packaged notices; refresh it when native dependencies change. Third-party source data and images keep their original terms; this repository does not grant rights to redistribute them.

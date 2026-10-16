@@ -24,6 +24,19 @@ export function validateStyleManifest(value, manifestUrl = '') {
     images: value.images, artists: value.artists, chips: value.chips, file: { url, bytes: file.bytes, sha256: file.sha256 } };
 }
 
+export const STYLE_MODEL_MAX_BYTES = 512 * 1024 * 1024;
+// The 以图找画师 model manifest (style-model.json in its own Release): the CLIP vision model file.
+export function validateStyleModelManifest(value, manifestUrl = '') {
+  check(value && typeof value === 'object' && value.format === 'nai-pocket-style-model' && value.formatVersion === 1, '模型目录格式无效。');
+  check(typeof value.model === 'string' && /^[0-9A-Za-z._-]{1,80}$/.test(value.model), '模型名称无效。');
+  const file = value.file || {};
+  const url = validateArtistResourceUrl(file.url, 'onnx');
+  check(Number.isSafeInteger(file.bytes) && file.bytes > 1024 && file.bytes <= STYLE_MODEL_MAX_BYTES, '模型大小无效。');
+  check(typeof file.sha256 === 'string' && /^[a-f0-9]{64}$/.test(file.sha256), '模型校验值无效。');
+  if (manifestUrl) check(repoOf(url) === repoOf(validateArtistResourceUrl(manifestUrl, 'json')), '模型必须与目录来自同一个仓库。');
+  return { format: value.format, formatVersion: 1, model: value.model, file: { url, bytes: file.bytes, sha256: file.sha256 } };
+}
+
 export function createLocalStyleIndex({ read }) {
   let index = null, loading = null, generation = 0, lastError = '';
   async function get() {

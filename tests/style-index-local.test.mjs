@@ -2,8 +2,8 @@
 // (vibe / like / styleIndex / vibeTags) matching the server's shapes.
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { STYLE_PACK_MAGIC, readStylePack, decodeStyleIndex, rankStyle } from '../public/style-rank.js';
-import { createLocalStyleIndex, validateStyleManifest } from '../service/style-index-local.js';
+import { STYLE_PACK_MAGIC, readStylePack, decodeStyleIndex, rankStyle, centerQuery, styleProfileOf } from '../public/style-rank.js';
+import { createLocalStyleIndex, validateStyleManifest, validateStyleModelManifest } from '../service/style-index-local.js';
 import { APP_SCHEMA } from '../service/storage/schema.js';
 import { createArtistLibraryView } from '../service/artist-library-view.js';
 import { createArtistLibraryViewStore } from '../service/storage/artist-library-view.js';
@@ -66,6 +66,17 @@ assert.deepEqual(ranked.artists[0].vibeTags, ['水彩']);
 const similar = await view.list({ like: 'alpha' });
 assert.equal(similar.artists[0].artist, 'beta', '找相似 ranks the closest artist first');
 assert.deepEqual((await view.profile('alpha')).vibeTags, ['水彩'], 'the detail carries the vibe words');
+// 画风概览 (1.8.2): standout words as z-scores against every artist, and the closest artists with
+// covers from the installed packs.
+{
+  const overview = (await view.profile('gamma')).styleProfile;
+  assert.equal(overview.images, 1);
+  assert.deepEqual(overview.strengths.map(word => word.id), ['gloomy'], 'gamma stands out on 暗调阴郁 only');
+  assert.ok(overview.strengths[0].z >= 0.8);
+  assert.deepEqual(overview.similar.map(item => item.artist).sort(), ['alpha', 'beta'], 'the other indexed artists, gamma itself excluded');
+  assert.ok(overview.similar.every(item => ['/img/a1', '/img/a2', '/img/b1'].includes(item.thumbUrl)), 'covers come from the installed packs');
+  assert.equal(styleProfileOf(fromPack, 'nobody'), null, 'an artist outside the index has no overview');
+}
 assert.equal((await view.styleInfo()).chips.length, 2);
 assert.equal(reads, 1, 'decoded once per install, not per request');
 
@@ -73,4 +84,48 @@ assert.equal(reads, 1, 'decoded once per install, not per request');
 bytes = new Uint8Array(file.subarray(0, 50)); styleIndex.reset();
 assert.equal((await view.list({})).styleIndex, false);
 assert.match((await view.styleInfo()).error, /不完整|格式/);
+// 以图找画师 (1.8.0): a picture's raw embedding is centred on the index mean, then ranks artists like
+// 找相似 does, with the cover being the artist's image closest to the picture.
+{
+  const withMean = decodeStyleIndex({ meta: { ...meta, mean: floats([0, 0, 0.5, 0]) }, rows, vectors: new Uint8Array(vectors) });
+  assert.equal(centerQuery(fromPack, [1, 0, 0, 0]), null, 'an index without a mean cannot take pictures');
+  const watery = centerQuery(withMean, [Math.sqrt(0.75), 0, 0.5, 0]); // unit length, so after the mean only axis 0 is left
+  assert.ok(Math.abs(watery[2]) < 1e-6 && watery[0] > 0.99, 'the library mean is removed before comparing');
+  const ranked = [...rankStyle(withMean, { image: { key: 'p1', vector: watery } })].sort((a, b) => b[1].score - a[1].score);
+  assert.deepEqual(ranked.map(([name]) => name), ['alpha', 'beta', 'gamma'], 'artists rank by closeness to the picture');
+  assert.equal(ranked.length, 3, 'no artist is excluded for a picture');
+  assert.equal(rankStyle(withMean, { image: { key: 'p1', vector: watery } }).get('alpha').exampleId, 'a1', 'the cover is the image closest to the picture');
+  const blended = rankStyle(withMean, { vibe: 'gloomy', image: { key: 'p1', vector: watery }, like: 'alpha' });
+  assert.ok(blended.has('alpha'), 'a picture replaces like, so the liked artist is not removed');
+  assert.notEqual(rankStyle(withMean, { image: { key: 'p2', vector: centerQuery(withMean, [0, 0, 1, 0]) } }), rankStyle(withMean, { image: { key: 'p1', vector: watery } }), 'each picture has its own cache entry');
+}
+// 以图找画师 in the app (0.6.0): the host embeds the picture; the view ranks image=<id> like the server,
+// reports imageSearch only with a model and an index that has a mean, and answers 410 for a forgotten id.
+{
+  const meanMeta = { ...meta, mean: floats([0, 0, 0, 0]) };
+  const header2 = Buffer.from(JSON.stringify({ format: 'nai-pocket-style-index', formatVersion: 1, version: 't', meta: meanMeta, rows }));
+  const length2 = Buffer.alloc(4); length2.writeUInt32LE(header2.length);
+  const withMean = new Uint8Array(Buffer.concat([Buffer.from(STYLE_PACK_MAGIC), length2, header2, vectors]));
+  let modelPresent = false;
+  const pictures = new Map([['pic1', Float32Array.from([0, 0, 1, 0])]]);
+  const images = { available: async () => modelPresent, vector: id => pictures.get(id) || null };
+  const index2 = createLocalStyleIndex({ async read() { return withMean; } });
+  const view2 = createArtistLibraryView({ store: createArtistLibraryViewStore(db), preferences: createArtistBrowserStore(db), imageUrl: id => '/img/' + id, styleIndex: index2, styleImages: images });
+  assert.equal((await view2.list({})).imageSearch, false, 'no model: no picture button');
+  modelPresent = true;
+  assert.equal((await view2.list({})).imageSearch, true, 'model and an index with a mean: picture button');
+  assert.equal((await view2.styleInfo()).imageSearch, true);
+  const byPicture = await view2.list({ image: 'pic1' });
+  assert.equal(byPicture.artists[0].artist, 'gamma', 'the artist closest to the picture first');
+  assert.equal(byPicture.artists[0].coverUrl, '/img/c1');
+  await assert.rejects(view2.list({ image: 'gone' }), error => error.status === 410);
+  const noMean = createArtistLibraryView({ store: createArtistLibraryViewStore(db), preferences: createArtistBrowserStore(db), imageUrl: id => id,
+    styleIndex: createLocalStyleIndex({ async read() { return new Uint8Array(file); } }), styleImages: images });
+  assert.equal((await noMean.list({})).imageSearch, false, 'an index without a mean cannot take pictures');
+  const modelBase = 'https://github.com/MayRain-Meow/NAI-Pocket/releases/download/style-model-x';
+  const modelManifest = { format: 'nai-pocket-style-model', formatVersion: 1, model: 'clip-vit-large-patch14-vision-int8', file: { url: modelBase + '/vision.onnx', bytes: 307001500, sha256: 'b'.repeat(64) } };
+  assert.equal(validateStyleModelManifest(modelManifest, modelBase + '/style-model.json').file.bytes, 307001500);
+  assert.throws(() => validateStyleModelManifest({ ...modelManifest, file: { ...modelManifest.file, url: modelBase + '/vision.bin' } }), /ONNX|下载链接/);
+  assert.throws(() => validateStyleModelManifest({ ...modelManifest, file: { ...modelManifest.file, bytes: 600 * 1024 * 1024 } }), /大小/);
+}
 console.log('style index local passed');

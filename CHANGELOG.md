@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.0 — Preview
+
+- 以图找画师 (new): the picture button in the artist page search bar ranks artists by how close their style is to a picture you choose, on the phone and offline, and combines with feel words. It needs 画风数据 and an optional one-time model download (about 293 MB, Settings → 以图找画师), verified by checksum; pictures never leave the phone.
+- 画风概览 redone: 画风指纹 shows the feel words an artist stands out on as bars (tap one to find artists strong in it) and the ones clearly absent; 画风相近 lists the six closest artists with their most similar picture; the annotation evidence is folded under 标注明细.
+- Messages: one message per action, in one place (inside an open sheet, otherwise at the top); at most three at once, a repeated message refreshes instead of stacking; adding an artist no longer shows two messages.
+- Artist list: the count and the pager keep one line; how the list was read and 有新结果 · 更新 sit on their own line.
+- The APK now contains code for ARM phones only (arm64-v8a, armeabi-v7a); ONNX Runtime brings it to about 40 MB.
+
 ## 0.5.0 — Preview
 
 - 画风数据 (new, optional download, about 24 MB): the artist page can now rank artists by feel and find similar artists. Settings → 画师标注资料 → 画风数据 downloads it from its own GitHub Release, verifies it and switches over only after it decodes; the artist page offers it once the annotation packs are installed. It holds style vectors and artist names for the g/s originals of the annotation packs, no images, and works offline.
