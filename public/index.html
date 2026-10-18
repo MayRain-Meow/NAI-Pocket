@@ -8,17 +8,17 @@
   
   <link rel="icon" href="/icons/icon-flow-192.png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="/styles.css?v=1.8.2">
+  <link rel="stylesheet" href="/styles.css?v=1.8.7">
   <link rel="stylesheet" href="/artist-library.css">
-  <link rel="stylesheet" href="/workspace.css?v=1.8.2">
-  <link rel="stylesheet" href="/tag-chips.css?v=1.8.2">
+  <link rel="stylesheet" href="/workspace.css?v=1.8.7">
+  <link rel="stylesheet" href="/tag-chips.css?v=1.8.7">
 <link rel="stylesheet" href="/native.css">
 <link rel="stylesheet" href="/artist-browser.css">
 </head>
 <body class="native-mode native-booting">
   <div id="toastHost" class="toast-host" aria-live="polite"></div>
-  <div id="inspectDropOverlay" class="inspect-drop-overlay hidden" aria-hidden="true">松开即可读取 NovelAI PNG 参数</div>
-  <input id="inspectImageFile" type="file" accept="image/png,.png" hidden="">
+  <div id="inspectDropOverlay" class="inspect-drop-overlay hidden" aria-hidden="true">松开即可读取 NovelAI 图片参数</div>
+  <input id="inspectImageFile" type="file" accept="image/png,image/webp,image/jpeg,.png,.webp,.jpg,.jpeg" hidden="">
 
   <main id="loginView" class="login-shell hidden">
     <form id="loginForm" class="login-card">
@@ -59,7 +59,7 @@
       <header class="topbar workspace-topbar">
         <div class="workspace-crumb"><span>Workspace</span><strong id="pageCrumb">编辑工作台</strong></div>
         <div class="top-actions">
-          <span id="connectionText" class="connection-text">连接中 · v1.8.2</span>
+          <span id="connectionText" class="connection-text">连接中 · v1.8.7</span>
           
           <button id="openNaiImportButton" class="ghost compact-button" type="button" title="导入 NAI / JSON">导入</button>
           
@@ -123,7 +123,7 @@
             <button id="focusModeButton" class="ghost editor-tool-button mode-tool-button" type="button" aria-pressed="false"><span aria-hidden="true">◎</span><span>专注</span></button>
             <button id="denseTagsButton" class="ghost editor-tool-button mode-tool-button" type="button" aria-pressed="false"><span aria-hidden="true">▦</span><span>紧凑</span></button>
           </div>
-          <button id="restoreToolButton" class="ghost editor-tool-button restore-tool-button" type="button" aria-label="从 NovelAI PNG 恢复参数" title="从图片恢复参数" data-onboarding-target="restore"><span aria-hidden="true">▣</span><span class="restore-tool-label">恢复</span></button>
+          <button id="restoreToolButton" class="ghost editor-tool-button restore-tool-button" type="button" aria-label="从 NovelAI 图片恢复参数" title="从图片恢复参数" data-onboarding-target="restore"><span aria-hidden="true">▣</span><span class="restore-tool-label">恢复</span></button>
         </div>
       </div>
       <div class="workspace">
@@ -252,19 +252,27 @@
             </div>
             <textarea id="promptPreview" rows="9" spellcheck="false" placeholder="可直接编辑最终 Prompt。" data-onboarding-target="prompt-text"></textarea>
             <div id="v5PromptBudget" class="prompt-budget" hidden="" aria-live="polite"></div>
-            <div class="inline-actions prompt-import-actions">
-              <button id="smartImportPromptButton" class="ghost">智能拆分并分类</button>
-              <button id="importPromptButton" class="ghost">全部拆到未分类</button>
-              <button id="syncPromptButton" class="ghost">用 Tag 卡片覆盖当前文本</button>
-            </div>
-            <div class="prompt-order-inline">
-              <label class="prompt-order-select compact">顺序
-                <select id="promptOrderMode">
-                  <option value="original">保持导入 / 设定顺序</option>
+            
+            <div class="prompt-tools">
+              <div class="prompt-tool-row prompt-import-actions">
+                <span class="prompt-tool-label">拆成卡片</span>
+                <button id="smartImportPromptButton" class="prompt-tool is-accent" type="button" title="把上面的文本拆成 Tag 卡片，并自动分到 画风 / 场景 / 镜头 / 其他">自动分类</button>
+                <button id="importPromptButton" class="prompt-tool" type="button" title="把上面的文本拆成 Tag 卡片，全部放进「其他」">全放进其他</button>
+                <button id="syncPromptButton" class="prompt-tool is-warn" type="button" hidden="" title="放弃对文本的直接修改，按 Tag 卡片重新生成文本">↺ 按卡片重写文本</button>
+              </div>
+              <div class="prompt-tool-row prompt-order-inline">
+                <span class="prompt-tool-label">顺序</span>
+                <div class="prompt-order-switch" role="group" aria-label="Prompt 生成顺序">
+                  <button type="button" data-prompt-order="original" aria-pressed="false" title="按导入 / 添加的先后生成，分类整理不改变顺序">保持顺序</button>
+                  <button type="button" data-prompt-order="grouped" aria-pressed="false" title="按分组先后生成，可调整分组顺序">按分组</button>
+                </div>
+                <button id="rebuildPromptOrderButton" class="prompt-tool" type="button" title="按当前分组把顺序重排一次，之后继续保持">按分组重排</button>
+                <select id="promptOrderMode" hidden="" aria-hidden="true" tabindex="-1">
+                  <option value="original">保持顺序</option>
                   <option value="grouped">画风 → 场景 → 镜头 → 其他</option>
                 </select>
-              </label>
-              <button id="rebuildPromptOrderButton" class="ghost" type="button" title="把当前分类排列确立为新的保持顺序">按分类重建</button>
+                <div id="promptGroupOrder" class="prompt-group-order" role="group" aria-label="分组顺序：点「‹」把分组往前移" hidden=""></div>
+              </div>
             </div>
           </div>
 
@@ -504,6 +512,7 @@
             <button id="galleryScopeGallery" class="ghost" type="button" aria-pressed="true">常规作品</button>
             
             <button id="galleryScopeIteration" class="ghost" type="button" aria-pressed="false">迭代实验</button>
+            <button id="galleryScopeTrash" class="ghost" type="button" aria-pressed="false" hidden="" data-owner-only="">回收站</button>
           </div>
           <div class="gallery-mode-row" role="group" aria-label="图库模式">
             <button id="galleryCleanupToggle" class="ghost" type="button" aria-pressed="false" data-owner-only="">清理模式</button>
@@ -539,6 +548,13 @@
           <span id="galleryResultSummary" class="hint">—</span>
         </div>
         <div id="storageMeter" class="storage-meter"></div>
+        <div id="galleryTrashBar" class="gallery-trash-bar" hidden="">
+          <p>删除的图片在这里保留 24 小时，之后自动彻底删除。如果是画师「生成例图」生成的图，画师资料里对应的那张例图也会一起删除。</p>
+          <div class="gallery-trash-bar-actions">
+            <button id="galleryTrashRestoreAll" class="primary" type="button">全部恢复</button>
+            <button id="galleryTrashEmpty" class="ghost danger" type="button">清空回收站</button>
+          </div>
+        </div>
         <div id="galleryGrid" class="gallery-grid empty-state">暂无图片</div>
         <button id="loadMoreButton" class="ghost wide hidden">加载更多</button>
       </div>
@@ -894,19 +910,11 @@
     <div class="inspect-body">
       <div class="inspect-preview-wrap"><img id="inspectPreview" alt="待检查图片"></div>
       <div class="inspect-info">
-        <div id="inspectSummary" class="meta-list"></div>
-        <section id="inspectSemanticSummary" class="inspect-semantic-summary" aria-live="polite" aria-label="导入语义摘要">
-          <div class="inspect-semantic-heading"><strong>语义摘要</strong></div>
-          <div class="inspect-semantic-grid">
-            <div class="inspect-semantic-stat" data-inspect-semantic="workflow"><span>识别工作流</span><b id="inspectSemanticWorkflow">等待识别</b></div>
-            <div class="inspect-semantic-stat" data-inspect-semantic="input"><span>输入图状态</span><b id="inspectSemanticInputStatus">等待识别</b></div>
-            <div class="inspect-semantic-stat" data-inspect-semantic="advanced"><span>高级参数</span><b id="inspectSemanticAdvancedCount">0 项</b></div>
-            <div class="inspect-semantic-stat" data-inspect-semantic="record-only"><span>仅记录字段</span><b id="inspectSemanticRecordOnlyCount">0 项</b></div>
-          </div>
-        </section>
+        <div id="inspectSummary" class="inspect-facts" aria-live="polite"></div>
+        <div id="inspectPrompts" class="inspect-prompts"></div>
         <div id="inspectFieldMap" class="inspect-field-map" aria-live="polite"></div>
         <details class="inspect-raw-box">
-          <summary>查看 Raw Parameters</summary>
+          <summary>原始 JSON</summary>
           <pre id="inspectRawParameters"></pre>
         </details>
         <div id="inspectWarnings" class="inspect-warnings hidden"></div>

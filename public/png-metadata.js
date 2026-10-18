@@ -1,16 +1,16 @@
 
-import { Inflate } from './vendor/pako-inflate.js?v=1.8.2';
-import { inferNovelAiModel } from './model-utils.js?v=1.8.2';
-import { DEFAULT_GENERATION_PARAMS } from './generation-state.js?v=1.8.2'; 
-import { repairJsonSyntax } from './import-repair.js?v=1.8.2';
-import { normalizeSampler, normalizeSchedule } from './nai-import.js?v=1.8.2';
+import { Inflate } from './vendor/pako-inflate.js?v=1.8.7';
+import { inferNovelAiModel } from './model-utils.js?v=1.8.7';
+import { DEFAULT_GENERATION_PARAMS } from './generation-state.js?v=1.8.7'; 
+import { repairJsonSyntax } from './import-repair.js?v=1.8.7';
+import { normalizeSampler, normalizeSchedule } from './nai-import.js?v=1.8.7';
 import {
   classifyNaiParameters,
   canonicalAdvancedParameterKey,
   filterAdvancedOverrides,
   KNOWN_ADVANCED_PARAMETER_KEYS,
   isNonAdvancedParameterKey
-} from './parameter-semantics.js?v=1.8.2';
+} from './parameter-semantics.js?v=1.8.7';
 
 const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 const STEALTH_MAGIC = new TextEncoder().encode('stealth_pngcomp');
@@ -95,6 +95,166 @@ function parseMaybeJson(value) {
     return parsed;
   }
   return value;
+}
+
+// WebP and JPEG: the same NovelAI record can travel in EXIF (UserComment / ImageDescription),
+// XMP or a JPEG comment, and a WebP keeps the alpha-LSB stealth payload when its alpha survives.
+
+export function imageContainer(buffer) {
+  if (!(buffer instanceof Uint8Array) || buffer.length < 12) return '';
+  if (buffer.length >= 8 && equalBytes(buffer.subarray(0, 8), PNG_SIGNATURE)) return 'png';
+  if (decodeText(buffer.subarray(0, 4), 'ascii') === 'RIFF' && decodeText(buffer.subarray(8, 12), 'ascii') === 'WEBP') return 'webp';
+  if (buffer[0] === 0xff && buffer[1] === 0xd8) return 'jpeg';
+  return '';
+}
+
+const startsWith = (bytes, text) => bytes.length >= text.length && [...text].every((char, index) => bytes[index] === char.charCodeAt(0));
+
+function decodeUtf16(bytes, littleEndian) {
+  const even = bytes.subarray(0, bytes.length - (bytes.length % 2));
+  return new TextDecoder(littleEndian ? 'utf-16le' : 'utf-16be').decode(even).replace(/\0+$/g, '');
+}
+
+// EXIF UserComment starts with an 8-byte character code; writers disagree on UTF-16 byte order.
+function decodeUserComment(bytes, littleEndian) {
+  if (bytes.length < 8) return decodeText(bytes, 'utf8').trim();
+  const code = decodeText(bytes.subarray(0, 8), 'ascii').replace(/\0+$/g, '');
+  const body = bytes.subarray(8);
+  if (code === 'UNICODE') {
+    const le = body.length > 1 && body[0] !== 0 && body[1] === 0, be = body.length > 1 && body[0] === 0 && body[1] !== 0;
+    return decodeUtf16(body, le ? true : be ? false : littleEndian).trim();
+  }
+  return decodeText(code === 'ASCII' || code === '' || code === 'JIS' ? body : bytes, 'utf8').trim();
+}
+
+// Plain TIFF/EXIF walker for the few text tags a NovelAI record can live in.
+function readExifText(tiff) {
+  const out = {};
+  if (!(tiff instanceof Uint8Array) || tiff.length < 8) return out;
+  const order = decodeText(tiff.subarray(0, 2), 'ascii');
+  if (order !== 'II' && order !== 'MM') return out;
+  const le = order === 'II';
+  const view = new DataView(tiff.buffer, tiff.byteOffset, tiff.byteLength);
+  const u16 = offset => view.getUint16(offset, le), u32 = offset => view.getUint32(offset, le);
+  const sizes = { 1: 1, 2: 1, 3: 2, 4: 4, 7: 1 };
+  const seen = new Set();
+  const walk = (offset, depth) => {
+    if (depth > 2 || seen.has(offset) || offset + 2 > tiff.length) return;
+    seen.add(offset);
+    const count = u16(offset);
+    for (let index = 0; index < count && index < 512; index += 1) {
+      const entry = offset + 2 + index * 12;
+      if (entry + 12 > tiff.length) return;
+      const tag = u16(entry), type = u16(entry + 2), n = u32(entry + 4);
+      if (tag === 0x8769 && type === 4) { walk(u32(entry + 8), depth + 1); continue; }
+      if (!sizes[type]) continue;
+      const length = n * sizes[type];
+      const start = length <= 4 ? entry + 8 : u32(entry + 8);
+      if (length > MAX_METADATA_BYTES || start + length > tiff.length) continue;
+      const bytes = tiff.subarray(start, start + length);
+      if (tag === 0x010e) out.ImageDescription = decodeText(bytes, 'utf8').trim();
+      else if (tag === 0x0131) out.Software = decodeText(bytes, 'utf8').trim();
+      else if (tag === 0x9286) out.UserComment = decodeUserComment(bytes, le);
+      else if (tag === 0x9c9c) out.XPComment = decodeUtf16(bytes, true).trim();
+    }
+  };
+  walk(u32(4), 0);
+  return out;
+}
+
+function xmlText(value) {
+  return value.replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code))).replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(parseInt(code, 16))).replace(/&amp;/g, '&').trim();
+}
+
+function readXmpText(bytes) {
+  const xml = decodeText(bytes, 'utf8'), out = {};
+  for (const [key, name] of [['UserComment', 'exif:UserComment'], ['ImageDescription', 'dc:description'], ['Software', 'xmp:CreatorTool']]) {
+    const element = xml.match(new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`));
+    const attribute = xml.match(new RegExp(`${name}="([^"]*)"`));
+    const text = element ? xmlText(element[1]) : attribute ? xmlText(attribute[1]) : '';
+    if (text) out[key] = text;
+  }
+  return out;
+}
+
+const isNovelAiComment = value => Boolean(value && typeof value === 'object' && !Array.isArray(value)
+  && (value.prompt != null || value.v4_prompt || value.steps != null || value.uc != null));
+
+// Map EXIF/XMP/comment text onto the PNG key names the normalizer already reads.
+function metadataFromTexts(texts) {
+  const metadata = {};
+  if (texts.Software) metadata.Software = texts.Software;
+  for (const text of [texts.UserComment, texts.XPComment, texts.Comment, texts.ImageDescription]) {
+    if (!text) continue;
+    const parsed = parseMaybeJson(text);
+    if (isNovelAiComment(parsed)) { metadata.Comment ??= parsed; continue; }
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && (parsed.Comment || parsed.Description)) {
+      // A whole NovelAI metadata dictionary (Software / Source / Description / Comment).
+      for (const [key, value] of Object.entries(parsed)) if (metadata[key] == null) metadata[key] = key === 'Comment' ? parseMaybeJson(value) : value;
+      continue;
+    }
+    if (/(^|\n)\s*Steps:\s*\d+/.test(text)) { metadata.parameters ??= text; continue; }
+    if (text === texts.ImageDescription && metadata.Description == null) metadata.Description = text;
+  }
+  return metadata;
+}
+
+function extractWebpMetadata(buffer) {
+  const texts = {};
+  let width = null, height = null, hasAlpha = false;
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  for (let offset = 12; offset + 8 <= buffer.length;) {
+    const type = decodeText(buffer.subarray(offset, offset + 4), 'ascii');
+    const size = view.getUint32(offset + 4, true);
+    const data = buffer.subarray(offset + 8, Math.min(buffer.length, offset + 8 + size));
+    if (type === 'VP8X' && data.length >= 10) {
+      hasAlpha = (data[0] & 0x10) !== 0;
+      width = 1 + (data[4] | (data[5] << 8) | (data[6] << 16));
+      height = 1 + (data[7] | (data[8] << 8) | (data[9] << 16));
+    } else if (type === 'VP8L' && data.length >= 5 && data[0] === 0x2f) {
+      const bits = data[1] | (data[2] << 8) | (data[3] << 16) | (data[4] << 24);
+      width ??= 1 + (bits & 0x3fff);
+      height ??= 1 + ((bits >>> 14) & 0x3fff);
+      hasAlpha = hasAlpha || ((bits >>> 28) & 1) === 1;
+    } else if (type === 'VP8 ' && data.length >= 10 && width == null) {
+      width = view.getUint16(offset + 8 + 6, true) & 0x3fff;
+      height = view.getUint16(offset + 8 + 8, true) & 0x3fff;
+    } else if (type === 'ALPH') {
+      hasAlpha = true;
+    } else if (type === 'EXIF') {
+      Object.assign(texts, readExifText(startsWith(data, 'Exif\0\0') ? data.subarray(6) : data));
+    } else if (type === 'XMP ') {
+      for (const [key, value] of Object.entries(readXmpText(data))) texts[key] ??= value;
+    }
+    offset += 8 + size + (size % 2);
+  }
+  return { metadata: metadataFromTexts(texts), width, height, hasAlpha };
+}
+
+function extractJpegMetadata(buffer) {
+  const texts = {};
+  let width = null, height = null;
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  for (let offset = 2; offset + 4 <= buffer.length;) {
+    if (buffer[offset] !== 0xff) { offset += 1; continue; }
+    const marker = buffer[offset + 1];
+    if (marker === 0xd8 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7) || marker === 0xff) { offset += marker === 0xff ? 1 : 2; continue; }
+    if (marker === 0xda || marker === 0xd9) break;
+    const length = view.getUint16(offset + 2, false);
+    const data = buffer.subarray(offset + 4, Math.min(buffer.length, offset + 2 + length));
+    if (marker === 0xe1 && startsWith(data, 'Exif\0\0')) Object.assign(texts, readExifText(data.subarray(6)));
+    else if (marker === 0xe1 && startsWith(data, 'http://ns.adobe.com/xap/1.0/\0')) {
+      for (const [key, value] of Object.entries(readXmpText(data.subarray(29)))) texts[key] ??= value;
+    } else if (marker === 0xfe) texts.Comment = decodeText(data, 'utf8').trim();
+    else if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker) && data.length >= 5) {
+      height = view.getUint16(offset + 5, false);
+      width = view.getUint16(offset + 7, false);
+    }
+    offset += 2 + length;
+  }
+  // JPEG has no alpha channel, so it can never carry the stealth payload.
+  return { metadata: metadataFromTexts(texts), width, height, hasAlpha: false };
 }
 
 // The host may keep native synchronous codecs; the parser and limits stay shared.
@@ -199,6 +359,16 @@ export function createPngMetadataParser({ inflate = inflateBytes, gunzip = gunzi
     return { metadata, width, height, hasAlpha };
   }
 
+  function extractStandardImageMetadata(buffer) {
+    const format = imageContainer(buffer);
+    if (format === 'png') return { ...extractStandardPngMetadata(buffer), format };
+    if (format === 'webp') return { ...extractWebpMetadata(buffer), format };
+    if (format === 'jpeg') return { ...extractJpegMetadata(buffer), format };
+    const error = new Error('只支持 PNG / WebP / JPEG 图片。');
+    error.status = 400;
+    throw error;
+  }
+
   function paethPredictor(left, up, upLeft) {
     const estimate = left + up - upLeft;
     const leftDistance = Math.abs(estimate - left);
@@ -300,10 +470,10 @@ export function createPngMetadataParser({ inflate = inflateBytes, gunzip = gunzi
   }
 
 
-  return { readPngChunks, extractStandardPngMetadata, decodeRgbaPng, extractStealthMetadataFromRgba };
+  return { readPngChunks, extractStandardPngMetadata, extractStandardImageMetadata, decodeRgbaPng, extractStealthMetadataFromRgba };
 }
 
-export const { readPngChunks, extractStandardPngMetadata, decodeRgbaPng, extractStealthMetadataFromRgba } = createPngMetadataParser();
+export const { readPngChunks, extractStandardPngMetadata, extractStandardImageMetadata, decodeRgbaPng, extractStealthMetadataFromRgba } = createPngMetadataParser();
 
 function asString(value) {
   return typeof value === 'string' ? value : '';

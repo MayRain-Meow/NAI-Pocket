@@ -149,6 +149,9 @@ try {
   if (revealed()) document.body.classList.remove('native-booting');
   else new MutationObserver((_, observer) => { if (revealed()) { observer.disconnect(); document.body.classList.remove('native-booting'); } }).observe(appView, { attributes: true, attributeFilter: ['class'] });
   await queue.start();
+  // 回收站: pictures deleted more than 24 hours ago are deleted for good — after start, then hourly.
+  const purgeTrash = () => media.gallery.purgeExpiredTrash().catch(() => {});
+  setTimeout(purgeTrash, 30 * 1000); setInterval(purgeTrash, 60 * 60 * 1000);
   updateSection.autoCheck(); // not awaited: startup never waits for GitHub
   import('../../public/confirm-sheet.js').then(({ confirmAction }) => inviteStarLater(confirmAction)).catch(() => {});
   await App.addListener('appStateChange', state => { if (state.isActive) queue.kick(); });

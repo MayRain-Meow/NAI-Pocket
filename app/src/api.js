@@ -153,7 +153,16 @@ export function createLocalApi({ database, settings, providers, client, assets, 
       }
     }
     if (pathname === '/api/images' && method === 'GET') { const result = await media.gallery.list(query); await media.registerIds(result.images.map(image => image.id)); return result; }
-    if (pathname === '/api/images/batch-delete' && method === 'POST') return media.gallery.deleteImages((await body()).ids);
+    if (pathname === '/api/images/batch-delete' && method === 'POST') { const data = await body(); return media.gallery.deleteImages(data.ids, { permanent: data.permanent === true }); }
+    // 回收站 (1.8.4 / 0.6.1): as on the server.
+    if (pathname === '/api/images/trash' && method === 'GET') return media.gallery.listTrash();
+    if (pathname === '/api/images/trash/restore' && method === 'POST') { const result = await media.gallery.restoreTrash((await body()).ids); await media.registerIds(result.restored); return result; }
+    if (pathname === '/api/images/trash/purge' && method === 'POST') { const data = await body(); return media.gallery.purgeTrash({ ids: data.ids, all: data.all === true }); }
+    match = pathname.match(/^\/api\/images\/trash\/([^/]+)\/thumbnail$/);
+    if (match && ['GET', 'HEAD'].includes(method)) {
+      const name = await media.gallery.trashThumbnailName(decodeURIComponent(match[1]));
+      return new Response(method === 'HEAD' ? null : await nativeFiles.read(localPath('thumbnails', name)), { headers: { 'Content-Type': 'image/webp', 'Cache-Control': 'no-store' } });
+    }
     match = pathname.match(/^\/api\/images\/([^/]+)(?:\/(payload|thumbnail|preview|original|clean|favorite|note))?$/);
     if (match) {
       const [, id, action] = match;

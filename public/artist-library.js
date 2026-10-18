@@ -1,12 +1,12 @@
-import { EXACT_CHIPS, VIBE_GROUP_ORDER, chipForWord, attributesForChips } from './artist-vibe-chips.js?v=1.8.2';
-import { STYLE_FACETS, queryHasStyleTerms } from './artist-catalog.js?v=1.8.2';
-import { createArtistResultViewer } from './artist-result.js?v=1.8.2';
-import { observeFittedChips } from './artist-chip-layout.js?v=1.8.2';
-import { buildNaxV5ArtistSearchUrl } from './artist-index-v5.js?v=1.8.2';
-import { modelDisplayName } from './model-utils.js?v=1.8.2';
-import { normalizeProviderId } from './provider-route.js?v=1.8.2';
-import { confirmAction } from './confirm-sheet.js?v=1.8.2';
-import { STYLE_ATTRIBUTES, STYLE_SCHEMA_VERSION, validateStyleAttributes, attributesFromLegacy, legacyFromAttributes, summarizeStyleEvidence } from './artist-style-schema.js?v=1.8.2';
+import { EXACT_CHIPS, VIBE_GROUP_ORDER, chipForWord, attributesForChips } from './artist-vibe-chips.js?v=1.8.7';
+import { STYLE_FACETS, queryHasStyleTerms } from './artist-catalog.js?v=1.8.7';
+import { createArtistResultViewer } from './artist-result.js?v=1.8.7';
+import { observeFittedChips } from './artist-chip-layout.js?v=1.8.7';
+import { buildNaxV5ArtistSearchUrl } from './artist-index-v5.js?v=1.8.7';
+import { modelDisplayName } from './model-utils.js?v=1.8.7';
+import { normalizeProviderId } from './provider-route.js?v=1.8.7';
+import { confirmAction } from './confirm-sheet.js?v=1.8.7';
+import { STYLE_ATTRIBUTES, STYLE_SCHEMA_VERSION, validateStyleAttributes, attributesFromLegacy, legacyFromAttributes, summarizeStyleEvidence } from './artist-style-schema.js?v=1.8.7';
 
 const PAGE_SIZE = 40;
 const MAX_COMPARE = 3;

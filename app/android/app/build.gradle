@@ -11,7 +11,7 @@ android {
         applicationId "app.naipocket.local"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 17
+        versionCode 18
         versionName pocketVersion
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         // ONNX Runtime ships native code per ABI; phones only (emulators are not a target).

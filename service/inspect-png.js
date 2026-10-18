@@ -1,11 +1,16 @@
 import { normalizeNovelAiMetadata, metadataValue } from '../public/png-metadata.js';
 import { redactPersistedApiPayload } from '../public/persistence-utils.js';
-export function createPngInspector({ extractStandardPngMetadata, extractStealthMetadata }) {
+// Reads PNG, WebP and JPEG (extractStandardImageMetadata); hosts without it fall back to PNG only.
+// extractStealthMetadata(buffer, width, height, format) decodes the pixels for the alpha-LSB record.
+export function createPngInspector({ extractStandardImageMetadata, extractStandardPngMetadata, extractStealthMetadata }) {
 const asString = value => typeof value === 'string' ? value : '';
+const FORMAT_LABEL = { png: 'PNG', webp: 'WebP', jpeg: 'JPEG' };
 async function inspectNovelAiPng(buffer) {
-  const standard = extractStandardPngMetadata(buffer);
+  const standard = extractStandardImageMetadata ? extractStandardImageMetadata(buffer) : { ...extractStandardPngMetadata(buffer), format: 'png' };
+  const format = standard.format || 'png';
   let metadata = standard.metadata;
-  let metadataSource = 'png-text';
+  let metadataSource = format === 'png' ? 'png-text' : `${format}-exif`;
+  let stealthFound = false;
   const commentValue = metadataValue(metadata, 'Comment', 'parameters', 'rawParameters');
   const softwareValue = asString(metadataValue(metadata, 'Software'));
   const standardHasUsefulData = Boolean(
@@ -25,11 +30,21 @@ async function inspectNovelAiPng(buffer) {
   // alpha-channel stealth payload. Read stealth metadata whenever the model is
   // still uncertain, instead of treating any Comment as a complete record.
   if (standard.hasAlpha !== false && (!standardHasUsefulData || !commentValue || (standardModel.modelDetected === false && !standardHasCoreParameters))) {
-    const stealth = await extractStealthMetadata(buffer, standard.width, standard.height);
+    const stealth = await extractStealthMetadata(buffer, standard.width, standard.height, format);
     if (stealth && typeof stealth === 'object') {
+      stealthFound = true;
       metadata = { ...metadata, ...stealth };
-      metadataSource = standardHasUsefulData ? 'png-text+stealth' : 'stealth';
+      metadataSource = standardHasUsefulData ? `${metadataSource}+stealth` : 'stealth';
     }
+  }
+  if (!standardHasUsefulData && !stealthFound && !metadataValue(metadata, 'parameters')) {
+    // Nothing NovelAI-like at all: say why instead of opening an empty reader full of warnings.
+    const kind = FORMAT_LABEL[format] || '图片';
+    const error = new Error(format === 'png'
+      ? '这张 PNG 里没有 NovelAI 参数：可能不是 NovelAI 生成的，或保存 / 转发时参数被去掉了。'
+      : `这张 ${kind} 里没有 NovelAI 参数：网站转存、截图和有损压缩通常会把参数去掉。请用 NovelAI 下载的 PNG 原图，或保留透明通道的 WebP。`);
+    error.status = 422;
+    throw error;
   }
 
   const normalized = normalizeNovelAiMetadata(metadata, { width: standard.width, height: standard.height });

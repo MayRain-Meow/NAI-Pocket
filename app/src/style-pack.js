@@ -10,7 +10,7 @@ import { nativeFiles } from './files.js';
 // same native JSON reader as the pack catalog; the file is saved natively, then decoded here before
 // the app switches to it, so a bad download never replaces working data.
 
-export const DEFAULT_STYLE_MANIFEST_URL = 'https://github.com/MayRain-Meow/NAI-Pocket/releases/download/artist-style-2026-10-15/style-index.json';
+export const DEFAULT_STYLE_MANIFEST_URL = 'https://github.com/MayRain-Meow/NAI-Pocket/releases/download/artist-style-2026-10-18/style-index.json';
 const native = registerPlugin('ArtistResources');
 const STATE = 'style-index/installed.json';
 const busyError = () => Object.assign(new Error('画风数据正在下载。'), { status: 409 });

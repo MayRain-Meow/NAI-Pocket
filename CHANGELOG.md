@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.1 — Preview
+
+- 画风空间: 找相似, 以图找画师 and 画风相近 now compare artists in a learned style space that discounts subject matter and character design (hair and eye colour, outfits, vehicles, scenery), so a picture of one character no longer pulls in artists who merely drew the same character. Needs the new 画风数据 (Settings → 画风数据 → 检查更新); feel words are unchanged.
+- 回收站 (new): deleting from the image viewer needs no confirmation; the picture stays in 回收站 (a fourth gallery view beside the other three) for 24 hours and can be restored, then is deleted for good.
+- 读取图片参数: grouped by what restoring really does, with NovelAI's own names; WebP and JPEG are read as well as PNG (the hidden alpha record in WebP, EXIF / XMP / comments), and a picture without any record says why.
+- Editor text mode: the tools under the text are two thin rows (拆成卡片, 顺序 switch); the order of the four groups can be changed; ↺ 按卡片重写文本 appears only after the text was edited by hand.
+- Messages: duplicates and stacked banners when adding artist tags are fixed.
+
 ## 0.6.0 — Preview
 
 - 以图找画师 (new): the picture button in the artist page search bar ranks artists by how close their style is to a picture you choose, on the phone and offline, and combines with feel words. It needs 画风数据 and an optional one-time model download (about 293 MB, Settings → 以图找画师), verified by checksum; pictures never leave the phone.

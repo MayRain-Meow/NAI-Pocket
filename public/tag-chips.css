@@ -1670,6 +1670,7 @@ body:not(.tag-layout-legacy) .raw-panel > .panel-title-row { display: flex; alig
 body:not(.tag-layout-legacy) .raw-panel .raw-title-cluster { display: flex; align-items: center; gap: 8px; min-width: 0; }
 body:not(.tag-layout-legacy) .raw-panel .raw-title-cluster h2 { margin: 0; color: var(--text); font-size: 14.5px; font-weight: 700; }
 body:not(.tag-layout-legacy) .raw-panel .prompt-mode-chip { padding: 2px 9px; border: 0; border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); font-size: 11px; font-weight: 650; }
+body:not(.tag-layout-legacy) .raw-panel .prompt-mode-chip[data-mode="direct"] { background: color-mix(in srgb, var(--warning) 14%, transparent); color: var(--warning); }
 body:not(.tag-layout-legacy) .raw-panel .panel-collapse-button { display: none; }
 body:not(.tag-layout-legacy) .raw-panel #copyPromptButton {
   min-width: 0; min-height: 32px; height: 32px; padding: 0 12px;
@@ -1700,20 +1701,27 @@ body:not(.tag-layout-legacy) :is(#promptPreview, #negativePrompt):focus { border
 .weight-highlight-mirror .weight-down.weight-2 { background: rgba(112, 162, 232, .27); }
 .weight-highlight-mirror .weight-down.weight-3 { background: rgba(112, 162, 232, .4); }
 body:not(.tag-layout-legacy):not(.edit-text-mode) .weight-highlight-wrap:has(> #negativePrompt) { display: none; }
-body:not(.tag-layout-legacy) .raw-panel .prompt-import-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 2px 0 0; }
-body:not(.tag-layout-legacy) .raw-panel .prompt-import-actions > #syncPromptButton { grid-column: 1 / -1; }
-body:not(.tag-layout-legacy) .raw-panel :is(.prompt-import-actions > button, #rebuildPromptOrderButton, #promptOrderMode) {
-  width: 100%; min-width: 0; min-height: 42px; padding: 0 12px;
-  border: 1px solid #ffffff12; border-radius: 12px;
-  background: linear-gradient(180deg, #ffffff12, #ffffff06); color: var(--text); font-size: 13.5px; font-weight: 600;
-  box-shadow: inset 0 1px 0 #ffffff12, 0 1px 2px #00000066;
+body:not(.tag-layout-legacy) .raw-panel .prompt-budget { margin: 6px 2px 10px; padding: 0; border: 0; border-radius: 0; font-size: 11.5px; }
+body:not(.tag-layout-legacy) .raw-panel .prompt-tools { display: grid; gap: 8px; margin: 2px 0 0; }
+body:not(.tag-layout-legacy) .raw-panel .prompt-tool-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; margin: 0; padding: 0; border: 0; background: none; }
+body:not(.tag-layout-legacy) .raw-panel .prompt-tool-label { flex: 0 0 auto; min-width: 4.2em; color: var(--muted); font-size: 12px; font-weight: 600; }
+body:not(.tag-layout-legacy) .raw-panel :is(button.prompt-tool, .prompt-order-switch > button) {
+  flex: 0 0 auto; width: auto; min-width: 0; height: 32px; min-height: 32px; padding: 0 12px;
+  border: 0; border-radius: 8px; background: #ffffff0b; color: var(--text);
+  font-size: 12.5px; font-weight: 600; white-space: nowrap; box-shadow: none;
 }
-body:not(.tag-layout-legacy) .raw-panel :is(.prompt-import-actions > button, #rebuildPromptOrderButton):active { transform: translateY(1px); background: #ffffff08; box-shadow: inset 0 1px 3px #00000080; }
-body:not(.tag-layout-legacy) .raw-panel #smartImportPromptButton { color: var(--accent); }
-body:not(.tag-layout-legacy) .raw-panel .prompt-order-inline { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; margin: 0; }
-body:not(.tag-layout-legacy) .raw-panel .prompt-order-select { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px; margin: 0; color: var(--muted); font-size: 12px; font-weight: 600; }
-body:not(.tag-layout-legacy) .raw-panel #promptOrderMode { text-align: left; }
-body:not(.tag-layout-legacy) .raw-panel #rebuildPromptOrderButton { width: auto; white-space: nowrap; }
+body:not(.tag-layout-legacy) .raw-panel button.prompt-tool:active { background: #ffffff16; transform: none; }
+body:not(.tag-layout-legacy) .raw-panel button.prompt-tool.is-accent { color: var(--accent); }
+body:not(.tag-layout-legacy) .raw-panel button.prompt-tool.is-warn { margin-left: auto; color: var(--warning); background: color-mix(in srgb, var(--warning) 12%, transparent); }
+body:not(.tag-layout-legacy) .raw-panel .prompt-order-switch { display: inline-flex; flex: 0 0 auto; padding: 2px; border-radius: 10px; background: #ffffff0b; }
+body:not(.tag-layout-legacy) .raw-panel .prompt-order-switch > button { height: 28px; min-height: 28px; padding: 0 11px; background: none; color: var(--muted); }
+body:not(.tag-layout-legacy) .raw-panel .prompt-order-switch > button[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--accent); }
+body:not(.tag-layout-legacy) .raw-panel .prompt-tool-row > .prompt-group-order { flex: 0 1 auto; gap: 4px; margin-left: 4px; }
+body:not(.tag-layout-legacy) .raw-panel .prompt-group-order-chip { height: 28px; padding: 0 9px; border-radius: 8px; font-size: 12px; }
+body:not(.tag-layout-legacy) .raw-panel .prompt-group-order-chip:has(.prompt-group-order-move) { padding-left: 0; }
+body:not(.tag-layout-legacy) .raw-panel button.prompt-group-order-move { width: 22px; height: 28px; min-height: 28px; border-radius: 8px 0 0 8px; }
+body:not(.tag-layout-legacy) .raw-panel .prompt-group-order-sep { font-size: 11px; opacity: .7; }
+body:not(.tag-layout-legacy) .raw-panel :is(button.prompt-tool, #promptOrderMode, .prompt-mode-chip)[hidden] { display: none !important; }
 body:not(.tag-layout-legacy) #imageCreateDialog { width: min(720px, calc(100vw - 24px)); }
 body:not(.tag-layout-legacy) #imageCreateDialog .image-create-choice-body { display: grid; gap: 16px; padding: 4px 16px 18px; max-height: calc(100dvh - 120px); overflow-y: auto; }
 body:not(.tag-layout-legacy) .image-create-group { display: grid; gap: 8px; }
@@ -1947,3 +1955,30 @@ body:not(.tag-layout-legacy) .artist-library-page .artist-library-search-row > .
 @media (prefers-reduced-motion: reduce) { body:not(.tag-layout-legacy) .artist-library-page .artist-library-search-row > .artist-library-image-search[aria-busy="true"]::before { animation: none; opacity: .5; } }
 body:not(.tag-layout-legacy) .artist-library-page .artist-active-pill.artist-active-pill-image { gap: 6px; padding-left: 4px; }
 body:not(.tag-layout-legacy) .artist-library-page .artist-active-pill.artist-active-pill-image img { width: 20px; height: 20px; border-radius: 6px; object-fit: cover; }
+.toast.has-action { display: flex; align-items: center; gap: 10px; pointer-events: auto; }
+.toast.has-action .toast-action { flex: none; margin-left: auto; min-height: 30px; padding: 0 12px; border: 0; border-radius: 15px; background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent); font-weight: 700; }
+.gallery-trash-bar { display: grid; gap: 8px; width: 100%; margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; background: #ffffff06; }
+.gallery-trash-bar p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.gallery-trash-bar-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.gallery-trash-bar[hidden] { display: none !important; }
+body:not(.tag-layout-legacy) #galleryTab .gallery-trash-bar { order: 6; flex: 1 1 100%; }
+#galleryTab .gallery-panel.is-trash :is(.gallery-filter-row, .gallery-mode-row, .gallery-selection-actions, #storageMeter, #galleryNewImagesButton) { display: none !important; }
+.gallery-trash-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 8px; }
+.gallery-trash-card { display: grid; gap: 6px; min-width: 0; }
+.gallery-trash-card img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 10px; background: #ffffff0a; }
+.gallery-trash-card small { color: var(--muted); font-size: 11.5px; }
+.gallery-trash-card-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.gallery-trash-card-actions button { min-height: 32px; padding: 0 6px; font-size: 12.5px; }
+@media (max-width: 520px) { .gallery-trash-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.prompt-group-order { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.prompt-group-order[hidden] { display: none !important; }
+.prompt-group-order-chip { display: inline-flex; align-items: center; gap: 2px; height: 30px; padding: 0 10px; border-radius: 15px; background: #ffffff0d; color: var(--text); font-size: 12.5px; }
+.prompt-group-order-chip:has(.prompt-group-order-move) { padding-left: 2px; }
+.prompt-group-order-chip b { font-weight: 600; }
+.prompt-group-order-sep { color: var(--muted); font-size: 12px; }
+.prompt-order-inline { flex-wrap: wrap; }
+.prompt-order-inline > .prompt-group-order { flex: 1 0 100%; grid-column: 1 / -1; }
+button.prompt-group-order-move { width: 26px; height: 26px; min-height: 26px; padding: 0; border: 0; border-radius: 13px; background: none; color: var(--accent); font-size: 16px; line-height: 1; box-shadow: none; }
+button.prompt-group-order-move:active { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+#galleryScopeTrash[hidden] { display: none !important; }
+#galleryTab .gallery-scope-row:has(> #galleryScopeTrash:not([hidden])) { column-gap: 6px; }

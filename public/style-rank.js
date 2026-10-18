@@ -35,7 +35,34 @@ export function decodeStyleIndex({ meta, rows, vectors: raw }) {
   });
   const chips = new Map(meta.chips.map(chip => [chip.id, { ...chip, vector: decodeFloats(chip.vector) }]));
   return { meta, rows, dims, vectors, scales, artists, names, profiles, chips, hub: meta.hub || {}, tags: meta.tags || {},
-    mean: meta.mean ? decodeFloats(meta.mean) : null, chipRanks: new Map(), cache: new Map() };
+    mean: meta.mean ? decodeFloats(meta.mean) : null, style: decodeStyleSpace(meta.style, rows.length, artists, names.length, dims),
+    chipRanks: new Map(), cache: new Map() };
+}
+
+// Style space (1.8.3, scripts/style-index/style-projection.py): a learned linear map that keeps what
+// separates artists and suppresses content and character design (vehicles, 4-koma, hair colour,
+// hairstyle, outfit …). Likeness — 找相似, 以图找画师, 画风相近 — is measured there; feel words stay in
+// CLIP space. Image vectors come precomputed (int8 + scale); only a query picture is projected.
+// An index without it (older builds) keeps the CLIP-space likeness.
+function decodeStyleSpace(style, count, artists, artistCount, dims) {
+  if (!style?.matrix || !style.vectors || style.dims !== dims) return null;
+  const k = style.k, matrix = decodeFloats(style.matrix), scales = decodeFloats(style.scales);
+  const text = atob(style.vectors), vectors = new Int8Array(text.length);
+  for (let i = 0; i < text.length; i++) vectors[i] = text.charCodeAt(i) << 24 >> 24;
+  if (matrix.length !== dims * k || vectors.length !== count * k || scales.length !== count) return null;
+  const profiles = new Float32Array(artistCount * k);
+  for (const entry of artists.values()) {
+    const profile = new Float32Array(k);
+    for (const i of entry.rows) { const s = scales[i], o = i * k; for (let c = 0; c < k; c++) profile[c] += vectors[o + c] * s; }
+    normalize(profile); profiles.set(profile, entry.profile * k);
+  }
+  return { k, matrix, vectors, scales, profiles, hub: style.hub || {} };
+}
+// A centred picture vector (centerQuery) into the style space.
+function projectStyle(ix, centred) {
+  const { k, matrix } = ix.style, out = new Float32Array(k);
+  for (let d = 0; d < ix.dims; d++) { const v = centred[d]; if (!v) continue; const o = d * k; for (let c = 0; c < k; c++) out[c] += v * matrix[o + c]; }
+  return normalize(out);
 }
 
 // The app's single-file pack: magic, uint32 LE header length, UTF-8 JSON { format, formatVersion,
@@ -158,16 +185,21 @@ export function rankStyle(ix, { vibe = '', like = '', image = null } = {}) {
   if (like || image) {
     const target = like ? ix.artists.get(like) : null;
     if (like && !target) throw fail('这位画师还没有画风索引。', 404);
-    const q = image ? image.vector : ix.profiles.subarray(target.profile * ix.dims, (target.profile + 1) * ix.dims);
+    // In the style space when the index has one, else in CLIP space (same scoring either way).
+    const space = ix.style ? { k: ix.style.k, profiles: ix.style.profiles, vectors: ix.style.vectors, scales: ix.style.scales, hub: ix.style.hub }
+      : { k: ix.dims, profiles: ix.profiles, vectors: ix.vectors, scales: ix.scales, hub: ix.hub };
+    const q = image ? (ix.style ? projectStyle(ix, image.vector) : image.vector) : space.profiles.subarray(target.profile * space.k, (target.profile + 1) * space.k);
+    const dotP = a => { let s = 0; const o = a * space.k; for (let c = 0; c < space.k; c++) s += space.profiles[o + c] * q[c]; return s; };
+    const dotR = i => { let s = 0; const o = i * space.k; for (let c = 0; c < space.k; c++) s += space.vectors[o + c] * q[c]; return s * space.scales[i]; };
     const vibeActive = scores.size > 0;
     for (const [name, entry] of ix.artists) {
       if (name === like) continue;
       // Hub-corrected (CSLS, precomputed offline): an artist close to everyone is pushed down.
-      const similarity = 2 * dotProfile(ix, entry.profile, q) - (ix.hub[name] || 0);
+      const similarity = 2 * dotP(entry.profile) - (space.hub[name] || 0);
       const prior = scores.get(name);
       // The cover is the candidate's image closest to the target (artist or picture), so the card shows the likeness.
       let best = entry.rows[0], bestScore = -Infinity;
-      for (const i of entry.rows) { const s = dotRow(ix, i, q); if (s > bestScore) { bestScore = s; best = i; } }
+      for (const i of entry.rows) { const s = dotR(i); if (s > bestScore) { bestScore = s; best = i; } }
       // With chips as well, both count; the similarity scale is larger, so it is quartered.
       scores.set(name, { score: vibeActive ? prior.score + similarity * 0.25 : similarity, exampleId: vibeActive ? prior.exampleId : ix.rows[best][0] });
     }

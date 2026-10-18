@@ -93,6 +93,18 @@ CREATE TABLE IF NOT EXISTS images (
 
 CREATE INDEX IF NOT EXISTS idx_images_created ON images(created_at DESC);
 
+-- 回收站 (1.8.4): a deleted picture's whole row, kept with its files for a day so it can be restored.
+CREATE TABLE IF NOT EXISTS image_trash (
+      id TEXT PRIMARY KEY,
+      row_json TEXT NOT NULL,
+      thumb_name TEXT NOT NULL DEFAULT '',
+      bytes INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      deleted_at INTEGER NOT NULL
+    );
+
+CREATE INDEX IF NOT EXISTS idx_image_trash_deleted ON image_trash(deleted_at);
+
 CREATE INDEX IF NOT EXISTS idx_images_favorite ON images(favorite, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_images_cursor ON images(created_at DESC, id DESC);

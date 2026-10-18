@@ -17,7 +17,7 @@ import { createArtistDanbooruStats } from '../../service/artist-danbooru-stats.j
 import { createArtistDanbooruStatsStore } from '../../service/storage/artist-danbooru-stats.js';
 import { createArtistLibraryViewStore } from '../../service/storage/artist-library-view.js';
 import { createArtistResourceStore } from '../../service/storage/artist-resources.js';
-import { extractStandardPngMetadata, decodeRgbaPng, extractStealthMetadataFromRgba } from '../../public/png-metadata.js';
+import { extractStandardImageMetadata, decodeRgbaPng, extractStealthMetadataFromRgba } from '../../public/png-metadata.js';
 import { nativeFiles, localPath } from './files.js';
 import { hashBytes } from './codecs.js';
 import { openArtistPacks } from './artist-packs.js';
@@ -25,6 +25,22 @@ import { openStylePack } from './style-pack.js';
 import { openStyleImages } from './style-images.js';
 import artistRoster from './artist-roster.json';
 import { withArtistCatalogSource } from './artist-resource-source.js';
+
+// WebP pixels through the WebView decoder. A 2D canvas stores premultiplied colour, but the alpha
+// byte itself comes back exactly, and the stealth record lives only in the alpha LSBs.
+async function decodeRgbaWithWebView(bytes, width, height, format) {
+  if (typeof createImageBitmap !== 'function') return null;
+  try {
+    const bitmap = await createImageBitmap(new Blob([bytes], { type: `image/${format}` }), { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+    if (bitmap.width !== width || bitmap.height !== height) { bitmap.close?.(); return null; }
+    const canvas = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(width, height) : Object.assign(document.createElement('canvas'), { width, height });
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    context.drawImage(bitmap, 0, 0);
+    bitmap.close?.();
+    const data = context.getImageData(0, 0, width, height).data;
+    return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+  } catch { return null; }
+}
 
 export function openReferences(database, settings, http) {
   const stylePack = openStylePack();
@@ -47,11 +63,11 @@ export function openReferences(database, settings, http) {
       for (const old of entries.files) if (old.name !== name && old.name.startsWith(prefix)) await nativeFiles.remove(localPath('codex-cache', old.name));
     }
   };
-  const inspector = createPngInspector({ extractStandardPngMetadata,
-    async extractStealthMetadata(bytes, width, height) {
+  const inspector = createPngInspector({ extractStandardImageMetadata,
+    async extractStealthMetadata(bytes, width, height, format = 'png') {
       if (!width || !height || width * height > 20000000) return null;
       // The shared decoder preserves RGBA bytes, including hidden alpha bits.
-      const rgba = decodeRgbaPng(bytes, width, height);
+      const rgba = format === 'png' ? decodeRgbaPng(bytes, width, height) : await decodeRgbaWithWebView(bytes, width, height, format);
       if (rgba) return extractStealthMetadataFromRgba(rgba, width, height);
       return null;
     }

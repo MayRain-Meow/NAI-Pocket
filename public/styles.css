@@ -2358,3 +2358,30 @@ body.editor-focus-mode .settings-column .generation-panel { display: block; }
   .confirm-sheet { width: calc(100vw - 32px); }
   .confirm-sheet-body { padding: 22px 20px 18px; }
 }
+.inspect-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; margin-bottom: 12px; }
+.inspect-fact { display: grid; gap: 1px; min-width: 0; }
+.inspect-fact > span { color: var(--muted); font-size: 11.5px; }
+.inspect-fact > b { color: var(--text); font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.inspect-fact > small { color: var(--muted); font-size: 11.5px; line-height: 1.4; }
+.inspect-fact.is-warning > small { color: var(--warning, #e0b062); }
+.inspect-prompts { display: grid; gap: 8px; margin-bottom: 12px; }
+.inspect-prompt { padding: 8px 10px; border-radius: 10px; background: #ffffff07; }
+.inspect-prompt > span { display: block; margin-bottom: 3px; color: var(--muted); font-size: 11.5px; }
+.inspect-prompt > p { max-height: 7.5em; margin: 0; overflow: auto; color: var(--text); font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.inspect-field-map { display: grid; gap: 12px; }
+.inspect-field-map section h3 { display: flex; align-items: baseline; gap: 8px; margin: 0 0 4px; font-size: 13px; }
+.inspect-field-map section h3 small, .inspect-other summary small { color: var(--muted); font-size: 11px; font-weight: 400; }
+.inspect-param-table { display: grid; }
+.inspect-param-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 34px; padding: 4px 0; border-bottom: 1px solid #ffffff0d; }
+.inspect-param-row > span { display: grid; min-width: 0; }
+.inspect-param-row > span b { font-size: 12.5px; font-weight: 600; }
+.inspect-param-row > span small { color: var(--muted); font-size: 11px; }
+.inspect-param-row > code { flex: none; max-width: 55%; overflow: hidden; color: var(--text); font-family: inherit; font-size: 13px; font-weight: 600; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.inspect-other summary { color: var(--muted); font-size: 12.5px; cursor: pointer; }
+.inspect-other summary small { margin-left: 6px; }
+.inspect-other-list { display: grid; gap: 3px; margin-top: 6px; }
+.inspect-other-list > div { display: flex; justify-content: space-between; gap: 10px; font-size: 11.5px; }
+.inspect-other-list code { color: var(--muted); }
+.inspect-other-name { min-width: 0; color: var(--text); }
+.inspect-other-name code { margin-left: 4px; font-size: 10.5px; }
+.inspect-other-list span { min-width: 0; overflow: hidden; color: var(--text); text-align: right; text-overflow: ellipsis; white-space: nowrap; }

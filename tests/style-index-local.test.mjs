@@ -128,4 +128,21 @@ assert.match((await view.styleInfo()).error, /不完整|格式/);
   assert.throws(() => validateStyleModelManifest({ ...modelManifest, file: { ...modelManifest.file, url: modelBase + '/vision.bin' } }), /ONNX|下载链接/);
   assert.throws(() => validateStyleModelManifest({ ...modelManifest, file: { ...modelManifest.file, bytes: 600 * 1024 * 1024 } }), /大小/);
 }
+// Style space (1.8.3): with meta.style, likeness (找相似, pictures) is measured in the learned space.
+// Here the map keeps only axis 1, so artists separate by that axis alone and axis 0 (shared by alpha
+// and beta) no longer makes them look alike.
+{
+  const k = 2, matrix = floats([0, 0, 1, 0, 0, 0, 0, 1]); // 4×2: axis 1 -> c0, axis 3 -> c1
+  const projected = raw.map(([, y, , w]) => { const n = Math.hypot(y, w) || 1; return [y / n, w / n]; });
+  const q8 = Buffer.from(Int8Array.from(projected.flatMap(([a, b]) => [Math.round(a * 127), Math.round(b * 127)])).buffer);
+  const styleMeta = { ...meta, mean: floats([0, 0, 0, 0]), style: { dims, k, matrix, vectors: q8.toString('base64'), scales: floats(projected.map(() => 1 / 127)), hub: {} } };
+  const styled = decodeStyleIndex({ meta: styleMeta, rows, vectors: new Uint8Array(vectors) });
+  assert.ok(styled.style, 'the style space decodes');
+  const near = [...rankStyle(styled, { like: 'beta' })].sort((a, b) => b[1].score - a[1].score).map(([name]) => name);
+  assert.equal(near[0], 'alpha', 'alpha shares the axis-1 style of beta');
+  const picture = [...rankStyle(styled, { image: { key: 'p', vector: centerQuery(styled, [0, 1, 0, 0]) } })].sort((a, b) => b[1].score - a[1].score);
+  assert.equal(picture.at(-1)[0], 'gamma', 'a picture along axis 1 ranks the artist without it last');
+  const plain = decodeStyleIndex({ meta: { ...styleMeta, style: { ...styleMeta.style, dims: 3 } }, rows, vectors: new Uint8Array(vectors) });
+  assert.equal(plain.style, null, 'a mismatched style block is ignored, likeness stays in CLIP space');
+}
 console.log('style index local passed');

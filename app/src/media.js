@@ -34,7 +34,7 @@ export function openMedia(database, resourceStatus) {
   async function registerAsset(row) {
     if (row) await PocketNative.registerMedia({ entries: [{ route: `/api/assets/${row.id}/original`, path: localPath('input-assets', row.stored_name), mime: row.mime }] });
   }
-  const gallery = createGalleryService({ store: database.store(createGalleryStore(db)), cursors, effects: { resourceStatus,
+  const gallery = createGalleryService({ store: database.store(createGalleryStore(db, transaction)), cursors, effects: { resourceStatus,
     async deleteGalleryRows(rows) {
       for (const row of rows) {
         await nativeFiles.remove(locate('original', row.original_name)); await nativeFiles.remove(locate('thumbnail', row.thumb_name));

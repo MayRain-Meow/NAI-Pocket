@@ -7,26 +7,26 @@ import {
   unwrapLegacyBrackets,
   parseStructuredPrompt as parseStructuredPromptUtil,
   cloneTagForStorage
-} from './prompt-utils.js?v=1.8.2';
-import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.8.2';
-import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.8.2';
-import { repairImportedPrompt } from './import-repair.js?v=1.8.2';
-import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.8.2';
-import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity } from './artist-index-v5.js?v=1.8.2';
-import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.8.2';
-import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.8.2';
-import { buildArtistStormPlan } from './storm-utils.js?v=1.8.2';
-import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.8.2';
-import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.8.2';
-import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.8.2';
-import { observeToastClearance } from './toast-layout.js?v=1.8.2';
-import { installSelectSheets } from './select-sheet.js?v=1.8.2';
-import { attachWeightHighlight } from './weight-highlight.js?v=1.8.2';
-import { confirmAction, promptText } from './confirm-sheet.js?v=1.8.2';
-import { createTaggerPanel } from './tagger-panel.js?v=1.8.2';
-import { createCodexPanel } from './codex-panel.js?v=1.8.2';
-import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.8.2';
-import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.8.2';
+} from './prompt-utils.js?v=1.8.7';
+import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.8.7';
+import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.8.7';
+import { repairImportedPrompt } from './import-repair.js?v=1.8.7';
+import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.8.7';
+import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity } from './artist-index-v5.js?v=1.8.7';
+import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.8.7';
+import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.8.7';
+import { buildArtistStormPlan } from './storm-utils.js?v=1.8.7';
+import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.8.7';
+import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.8.7';
+import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.8.7';
+import { observeToastClearance } from './toast-layout.js?v=1.8.7';
+import { installSelectSheets } from './select-sheet.js?v=1.8.7';
+import { attachWeightHighlight } from './weight-highlight.js?v=1.8.7';
+import { confirmAction, promptText } from './confirm-sheet.js?v=1.8.7';
+import { createTaggerPanel } from './tagger-panel.js?v=1.8.7';
+import { createCodexPanel } from './codex-panel.js?v=1.8.7';
+import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.8.7';
+import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.8.7';
 
 const GROUP_LABELS_BY_KEY = {
   scene: '场景',
@@ -37,7 +37,44 @@ const GROUP_LABELS_BY_KEY = {
 const GROUP_DEFS = GENERATION_GROUP_KEYS.map(key => [key, GROUP_LABELS_BY_KEY[key]]);
 
 const GROUP_LABELS = Object.fromEntries(GROUP_DEFS);
-const GLOBAL_PROMPT_ORDER = ['style', 'scene', 'camera', 'misc'];
+// The global prompt's group order. Default 画风 → 场景 → 镜头 → 其他; the user can set their own
+// (分组顺序 row beside the 顺序 menu), remembered on this device. Every compile reads it through
+// globalPromptOrder(), so the preview, generation and 按分类重建 always agree.
+const DEFAULT_GLOBAL_PROMPT_ORDER = Object.freeze(['style', 'scene', 'camera', 'misc']);
+const PROMPT_GROUP_ORDER_KEY = 'nai-prompt-group-order';
+let customGlobalPromptOrder = null;
+function globalPromptOrder() {
+  if (!customGlobalPromptOrder) {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(PROMPT_GROUP_ORDER_KEY) || 'null'); } catch {}
+    customGlobalPromptOrder = Array.isArray(saved) && saved.length === DEFAULT_GLOBAL_PROMPT_ORDER.length && DEFAULT_GLOBAL_PROMPT_ORDER.every(key => saved.includes(key))
+      ? saved : [...DEFAULT_GLOBAL_PROMPT_ORDER];
+  }
+  return customGlobalPromptOrder;
+}
+function setGlobalPromptOrder(order) {
+  customGlobalPromptOrder = [...order];
+  try { localStorage.setItem(PROMPT_GROUP_ORDER_KEY, JSON.stringify(customGlobalPromptOrder)); } catch {}
+}
+function renderPromptGroupOrder() {
+  const host = $('#promptGroupOrder'); if (!host) return;
+  const option = els.promptOrderMode?.querySelector('option[value="grouped"]');
+  if (option) option.textContent = globalPromptOrderLabel();
+  host.hidden = appState?.promptOrderMode === 'original';
+  host.replaceChildren(...globalPromptOrder().flatMap((key, index) => {
+    const chip = document.createElement('span'); chip.className = 'prompt-group-order-chip'; chip.dataset.group = key;
+    if (index > 0) {
+      const earlier = document.createElement('button'); earlier.type = 'button'; earlier.className = 'prompt-group-order-move'; earlier.dataset.groupEarlier = key;
+      earlier.textContent = '‹'; earlier.setAttribute('aria-label', `把「${GROUP_LABELS[key] || key}」往前移`);
+      chip.append(earlier);
+    }
+    chip.append(Object.assign(document.createElement('b'), { textContent: GROUP_LABELS[key] || key }));
+    if (!index) return [chip];
+    const sep = document.createElement('span'); sep.className = 'prompt-group-order-sep'; sep.setAttribute('aria-hidden', 'true'); sep.textContent = '→';
+    return [sep, chip];
+  }));
+}
+function globalPromptOrderLabel() { return globalPromptOrder().map(key => GROUP_LABELS[key] || key).join(' → '); }
 const SEMANTIC_MODE_PRESETS = Object.freeze({
   precise_lookup: { topK: 20, limit: 10, popularityWeight: 0.15, useSegmentation: false, groupMode: 'off', maxPerGroup: 2 },
   subject_describe: { topK: 20, limit: 20, popularityWeight: 0.15, useSegmentation: false, groupMode: 'off', maxPerGroup: 2 },
@@ -84,7 +121,7 @@ const els = {
   semanticDisplaySemantic: $('#semanticDisplaySemantic'), semanticDisplayLayer: $('#semanticDisplayLayer'), semanticDisplaySource: $('#semanticDisplaySource'), semanticSelectionSummary: $('#semanticSelectionSummary'), semanticAddSelectedButton: $('#semanticAddSelectedButton'), semanticClearSelectedButton: $('#semanticClearSelectedButton'),
   semanticSeedSource: $('#semanticSeedSource'), semanticRelatedLimit: $('#semanticRelatedLimit'), semanticArtistLimit: $('#semanticArtistLimit'), semanticRecommendationStatus: $('#semanticRecommendationStatus'), semanticRecommendationResults: $('#semanticRecommendationResults'),
   visitorAccessPanel: $('#visitorAccessPanel'), visitorPasswordInput: $('#visitorPasswordInput'), visitorPasswordHours: $('#visitorPasswordHours'), saveVisitorPasswordButton: $('#saveVisitorPasswordButton'), revokeVisitorPasswordButton: $('#revokeVisitorPasswordButton'), visitorPasswordStatus: $('#visitorPasswordStatus'), visitorPasswordSummary: $('#visitorPasswordSummary'),
-  inspectImageFile: $('#inspectImageFile'), restoreToolButton: $('#restoreToolButton'), restoreToolLabel: $('#restoreToolButton .restore-tool-label'), inspectDialog: $('#inspectDialog'), inspectPreview: $('#inspectPreview'), inspectSourceLabel: $('#inspectSourceLabel'), inspectSummary: $('#inspectSummary'), inspectSemanticSummary: $('#inspectSemanticSummary'), inspectSemanticWorkflow: $('#inspectSemanticWorkflow'), inspectSemanticInputStatus: $('#inspectSemanticInputStatus'), inspectSemanticAdvancedCount: $('#inspectSemanticAdvancedCount'), inspectSemanticRecordOnlyCount: $('#inspectSemanticRecordOnlyCount'), inspectFieldMap: $('#inspectFieldMap'), inspectRawParameters: $('#inspectRawParameters'), inspectWarnings: $('#inspectWarnings'), inspectActionStatus: $('#inspectActionStatus'), inspectDropOverlay: $('#inspectDropOverlay'),
+  inspectImageFile: $('#inspectImageFile'), restoreToolButton: $('#restoreToolButton'), restoreToolLabel: $('#restoreToolButton .restore-tool-label'), inspectDialog: $('#inspectDialog'), inspectPreview: $('#inspectPreview'), inspectSourceLabel: $('#inspectSourceLabel'), inspectSummary: $('#inspectSummary'), inspectPrompts: $('#inspectPrompts'), inspectFieldMap: $('#inspectFieldMap'), inspectRawParameters: $('#inspectRawParameters'), inspectWarnings: $('#inspectWarnings'), inspectActionStatus: $('#inspectActionStatus'), inspectDropOverlay: $('#inspectDropOverlay'),
   editorCommandBar: $('#editorCommandBar'), promptTagSearch: $('#promptTagSearch'), focusModeButton: $('#focusModeButton'), denseTagsButton: $('#denseTagsButton'), characterDragTargets: $('#characterDragTargets'),
   floatingGenerateBar: $('#floatingGenerateBar'), floatingGenerateButton: $('#floatingGenerateButton'), floatingQueueButton: $('#floatingQueueButton'), floatingQueueCount: $('#floatingQueueCount'),
   accountUsagePanel: $('#accountUsagePanel'), accountUsageSummary: $('#accountUsageSummary'), naiAccountUsage: $('#naiAccountUsage'), naiAccountTier: $('#naiAccountTier'), naiV5UsageText: $('#naiV5UsageText'), naiV5UsageMeter: $('#naiV5UsageMeter'), naiV5UsageHint: $('#naiV5UsageHint'), naiAnlasText: $('#naiAnlasText'), refreshNaiAccountButton: $('#refreshNaiAccountButton'),
@@ -1420,7 +1457,7 @@ function placeToastHost() {
 // stay on screen (oldest go first), so quick repeated actions never wall off the page. The update
 // prompts (site banner, app update toast) live in the same host but are not messages and are never evicted.
 const TOAST_LIMIT = 3;
-function toast(message, type = '') {
+function toast(message, type = '', { action = null } = {}) {
   placeToastHost();
   const host = $('#toastHost');
   const messages = () => [...host.querySelectorAll('.toast:not(.update-banner):not(.native-update-toast)')];
@@ -1432,10 +1469,92 @@ function toast(message, type = '') {
     node.dataset.type = type;
     node.textContent = message;
   }
+  if (action) {
+    node.classList.add('has-action');
+    const run = document.createElement('button');
+    run.type = 'button'; run.className = 'toast-action'; run.textContent = action.label;
+    run.addEventListener('click', () => { clearTimeout(node.toastTimer); node.remove(); action.run(); }, { once: true });
+    node.querySelector('.toast-action')?.remove(); node.append(run);
+  }
   host.append(node);
   const stack = messages();
   for (const old of stack.slice(0, Math.max(0, stack.length - TOAST_LIMIT))) { clearTimeout(old.toastTimer); old.remove(); }
-  node.toastTimer = setTimeout(() => node.remove(), 4200);
+  node.toastTimer = setTimeout(() => node.remove(), action ? 7000 : 4200);
+}
+
+// 回收站 (1.8.4): deleted pictures wait 24 hours. The list response says whether this backend has a bin;
+// only then does a delete skip its confirmation, because only then can it be undone.
+let galleryTrashSupported = false, galleryTrashCount = 0;
+function noteGalleryTrash(data) {
+  if (typeof data?.trash === 'boolean') galleryTrashSupported = data.trash;
+  if (Number.isFinite(Number(data?.trashCount))) galleryTrashCount = Number(data.trashCount);
+  renderGalleryTrashButton();
+}
+function renderGalleryTrashButton() {
+  const tab = $('#galleryScopeTrash'); if (!tab) return;
+  tab.hidden = !galleryTrashSupported || authContext.role !== 'owner' || (!galleryTrashCount && galleryScope !== 'trash');
+  tab.textContent = galleryTrashCount ? `回收站 ${galleryTrashCount > 99 ? '99+' : galleryTrashCount}` : '回收站';
+}
+async function confirmGalleryDelete(message) {
+  return galleryTrashSupported || confirmAction(message, { confirmLabel: '删除', danger: true });
+}
+function trashedToast(ids, prefix = '') {
+  const count = ids.length;
+  toast(`${prefix}${count > 1 ? `${count} 张图片` : '图片'}已移到回收站，24 小时内可恢复。`, 'success', { action: { label: '撤销', run: () => restoreTrashedImages(ids) } });
+}
+async function restoreTrashedImages(ids) {
+  try {
+    const result = await api('/api/images/trash/restore', { method: 'POST', body: { ids } });
+    galleryTrashCount = Number(result.trashCount) || 0; renderGalleryTrashButton();
+    if (result.latestImage !== undefined) renderQuickLatest(result.latestImage || null);
+    if (galleryScope === 'trash') await renderTrashView(); else await resetGallery();
+    toast(`已恢复 ${result.restored.length} 张图片。`, 'success');
+    return result;
+  } catch (error) { toast(`恢复失败：${error.message}`, 'error'); return null; }
+}
+// The 回收站 view: trashed pictures in the normal grid, newest deletion first, each with 恢复 /
+// 彻底删除; 全部恢复 / 清空 sit in the bar above. Search, time filters and batch modes do not apply.
+let trashViewEpoch = 0;
+async function renderTrashView() {
+  const epoch = ++trashViewEpoch, grid = els.galleryGrid;
+  let images = [];
+  try { images = (await api('/api/images/trash')).images || []; }
+  catch (error) { if (epoch === trashViewEpoch) { grid.textContent = `读取回收站失败：${error.message}`; } return; }
+  if (epoch !== trashViewEpoch || galleryScope !== 'trash') return;
+  galleryTrashCount = images.length; renderGalleryTrashButton();
+  const left = image => { const hours = Math.max(0, (image.expiresAt - Date.now()) / 3600000); return hours >= 1 ? `还剩 ${Math.ceil(hours)} 小时` : `还剩 ${Math.max(1, Math.round(hours * 60))} 分钟`; };
+  $('#galleryTrashRestoreAll').disabled = $('#galleryTrashEmpty').disabled = !images.length;
+  $('#galleryTrashRestoreAll').onclick = async () => { $('#galleryTrashRestoreAll').disabled = true; await restoreTrashedImages(images.map(image => image.id)); };
+  $('#galleryTrashEmpty').onclick = async () => {
+    if (!(await confirmAction(`彻底删除回收站里的 ${images.length} 张图片？之后无法恢复。`, { confirmLabel: '清空', danger: true }))) return;
+    $('#galleryTrashEmpty').disabled = true;
+    try { const result = await api('/api/images/trash/purge', { method: 'POST', body: { all: true } }); noteGalleryExamplesDeleted(result); toast('回收站已清空。', 'success'); }
+    catch (error) { toast(`清空失败：${error.message}`, 'error'); }
+    await renderTrashView();
+  };
+  els.loadMoreButton.classList.add('hidden');
+  if (els.galleryResultSummary) els.galleryResultSummary.textContent = images.length ? `回收站 ${images.length} 张` : '回收站是空的';
+  grid.classList.toggle('empty-state', !images.length);
+  if (!images.length) { grid.textContent = '回收站是空的。'; return; }
+  const list = document.createElement('div'); list.className = 'gallery-trash-grid';
+  list.append(...images.map(image => {
+    const card = document.createElement('div'); card.className = 'gallery-trash-card'; card.dataset.trashId = image.id;
+    const img = document.createElement('img'); img.src = image.thumbUrl; img.alt = ''; img.loading = 'lazy'; img.decoding = 'async';
+    const meta = document.createElement('small'); meta.textContent = left(image);
+    const restore = document.createElement('button'); restore.type = 'button'; restore.className = 'ghost'; restore.textContent = '恢复';
+    restore.addEventListener('click', async () => { restore.disabled = true; if (!(await restoreTrashedImages([image.id]))) restore.disabled = false; });
+    const purge = document.createElement('button'); purge.type = 'button'; purge.className = 'ghost danger'; purge.textContent = '彻底删除';
+    purge.addEventListener('click', async () => {
+      if (!(await confirmAction('彻底删除这张图片？之后无法恢复。', { confirmLabel: '彻底删除', danger: true }))) return;
+      try { const result = await api('/api/images/trash/purge', { method: 'POST', body: { ids: [image.id] } }); noteGalleryExamplesDeleted(result); }
+      catch (error) { toast(`删除失败：${error.message}`, 'error'); }
+      await renderTrashView();
+    });
+    const row = document.createElement('div'); row.className = 'gallery-trash-card-actions'; row.append(restore, purge);
+    card.append(img, meta, row);
+    return card;
+  }));
+  grid.replaceChildren(list);
 }
 
 // A release takes over open pages (its worker skips waiting and claims them),
@@ -1449,7 +1568,7 @@ function watchForUpdates() {
     if (!controlled) { controlled = true; return; } // first install, not an update
     showUpdateBanner();
   });
-  navigator.serviceWorker.register('/sw.js?v=1.8.2').then(registration => {
+  navigator.serviceWorker.register('/sw.js?v=1.8.7').then(registration => {
     let checkedAt = Date.now();
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible' || Date.now() - checkedAt < 10 * 60 * 1000) return;
@@ -1582,7 +1701,7 @@ function classifyTag(raw) {
 }
 
 function groupedGlobalTags(groups = appState.groups) {
-  return GLOBAL_PROMPT_ORDER.flatMap(key => groups?.[key] || []);
+  return globalPromptOrder().flatMap(key => groups?.[key] || []);
 }
 
 function nextGlobalOriginalOrder(groups = appState.groups) {
@@ -1787,13 +1906,21 @@ function compiledPrompt() {
 function updatePromptOrderUi() {
   const mode = appState.promptOrderMode === 'original' ? 'original' : 'grouped';
   if (els.promptOrderMode) els.promptOrderMode.value = mode;
+  // 1.8.7: a two-way switch replaces the menu; 按分组重排 only means something while keeping order.
+  $$('[data-prompt-order]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.promptOrder === mode)));
+  if (els.rebuildPromptOrderButton) els.rebuildPromptOrderButton.hidden = mode !== 'original';
+  const groupOrder = $('#promptGroupOrder'); if (groupOrder) groupOrder.hidden = mode === 'original';
 }
 
 function updatePromptModeHint() {
   const hint = $('#promptModeHint');
   if (!hint) return;
+  // The order is shown by the 顺序 switch; the title chip only flags hand-edited text, and only then
+  // is 按卡片重写文本 offered (otherwise the text already is the cards).
+  hint.hidden = !directPromptEdited;
+  const sync = $('#syncPromptButton'); if (sync) sync.hidden = !directPromptEdited;
   if (directPromptEdited) {
-    hint.textContent = '直接文本';
+    hint.textContent = '已手动修改';
     hint.dataset.mode = 'direct';
   } else if (appState.promptOrderMode === 'original') {
     hint.textContent = '保持顺序';
@@ -6736,12 +6863,12 @@ function normalizeStoredState(raw) {
   }
   if (promptOrderMode === 'original') {
     let maxOrder = -1;
-    for (const tag of GLOBAL_PROMPT_ORDER.flatMap(key => groups[key] || [])) {
+    for (const tag of globalPromptOrder().flatMap(key => groups[key] || [])) {
       const value = finiteOriginalOrder(tag.originalOrder);
       if (value !== null) maxOrder = Math.max(maxOrder, value);
     }
     let next = maxOrder + 1;
-    for (const tag of GLOBAL_PROMPT_ORDER.flatMap(key => groups[key] || [])) {
+    for (const tag of globalPromptOrder().flatMap(key => groups[key] || [])) {
       if (finiteOriginalOrder(tag.originalOrder) === null) tag.originalOrder = next++;
     }
   }
@@ -7317,7 +7444,7 @@ async function enqueue(count, stateOverride = null) {
 }
 
 function currentStormArtists() {
-  return GLOBAL_PROMPT_ORDER.flatMap(key => appState.groups[key] || [])
+  return globalPromptOrder().flatMap(key => appState.groups[key] || [])
     .filter(tag => tag.enabled !== false && isConfirmedArtistTag(tag.text))
     .map(tag => ({ id: tag.id, text: String(tag.text || '').trim(), weight: finiteTagWeight(tag.weight, 1) }));
 }
@@ -7365,7 +7492,7 @@ function renderStormPlan() {
 
 function stormRecommendationSeedTags() {
   const tags = [];
-  for (const key of GLOBAL_PROMPT_ORDER) {
+  for (const key of globalPromptOrder()) {
     for (const tag of appState.groups[key] || []) if (tag.enabled !== false && tag.text && !isConfirmedArtistTag(tag.text)) tags.push(normalizeNaiTagForDanbooru(tag.text));
   }
   for (const character of appState.characters || []) {
@@ -8431,79 +8558,9 @@ function renderAdvancedOverrideSummary() {
   node.textContent = rows.join('。') || '没有可发送的高级参数。';
 }
 
-const INSPECT_WORKFLOW_KEYS = new Set([
-  'image', 'mask', 'input_image', 'base_image', 'source_image', 'original_image', 'mask_image', 'strength', 'noise',
-  'color_correct', 'add_original_image', 'img2img', 'enhance', 'enhance_upscale_factor', 'upscaled_enhance',
-  'upscale', 'upscaled_width', 'upscaled_height', 'target_width', 'target_height', 'declared_blur_sigma',
-  'action', 'operation', 'request_type', 'director_tool', 'director_tool_type', 'tool', 'req_type'
-]);
 const INSPECT_MEDIA_KEYS = new Set([
   'image', 'mask', 'input_image', 'base_image', 'source_image', 'original_image', 'mask_image'
 ]);
-const INSPECT_GENERATION_KEYS = new Set([
-  'prompt', 'negative_prompt', 'uc', 'v4_prompt', 'v4_negative_prompt', 'width', 'height', 'steps', 'scale',
-  'sampler', 'noise_schedule', 'seed', 'extra_noise_seed', 'n_samples', 'ucpreset', 'uc_preset',
-  'qualitytoggle', 'quality_toggle', 'cfg_rescale', 'sm', 'sm_dyn', 'prefer_brownian',
-  'deliberate_euler_ancestral_bug', 'skip_cfg_above_sigma', 'straight_alpha', 'tag_hint_transparent_background',
-  'tag_hint_uc_preset', 'tag_hint_qt', 'image_format', 'native_alpha', 'variety_boost', 'size'
-]);
-const INSPECT_RECORD_ONLY_KEYS = new Set([
-  'uncond_scale', 'dynamic_thresholding_percentile', 'dynamic_thresholding_mimic_scale', 'skip_cfg_below_sigma',
-  'cfg_sched_eligibility', 'explike_fine_detail', 'minimize_sigma_inf', 'uncond_per_vibe', 'wonky_vibe_correlation',
-  'signed_hash', 'version', 'params_version', 'stream', 'model_name', 'model_hash', 'quality_boost',
-  'tag_hint_uc_preset', 'tag_hint_qt', 'extra_passthrough_testing', 'lora_unet_weights', 'lora_clip_weights',
-  'pd_grid', 'hide_debug_overlay', 'negative_momentum', 'crash_hydra', 'r', 'eta', 'original_width',
-  'original_height', 'crop_top', 'crop_left', 'hash', 'signature', 'signature_hash',
-  'signed', 'debug', 'debug_overlay', 'metadata', 'comment', 'raw_parameters', 'parameters', 'software',
-  'source', 'title', 'description', 'request_id', 'job_id', 'timestamp', 'created_at', 'updated_at'
-]);
-
-// Short explanations are deliberately kept next to the field map instead of
-// hidden in the Raw Parameters dump.  This makes a pasted NovelAI record
-// understandable without implying that every key is an editable override.
-const INSPECT_FIELD_DESCRIPTIONS = Object.freeze({
-  prompt: '正向 Prompt', negative_prompt: '负向 Prompt / UC', uc: '旧版 UC 文本',
-  width: '输出宽度', height: '输出高度', steps: '采样步数', scale: 'CFG / 提示词引导强度',
-  sampler: '采样器', noise_schedule: '噪声调度', seed: '随机种子', extra_noise_seed: '额外噪声种子',
-  n_samples: '一次生成的张数（本应用固定为 1）', cfg_rescale: 'CFG Rescale',
-  qualitytoggle: '质量开关', quality_toggle: '质量开关', ucpreset: 'UC Preset', uc_preset: 'UC Preset',
-  sm: 'SMEA 高分辨率采样开关', sm_dyn: 'SMEA 动态开关', prefer_brownian: 'Brownian 噪声偏好',
-  image: '图生图 / 局部重绘原图', mask: '局部重绘 Mask', input_image: '输入原图', base_image: '输入原图',
-  source_image: '输入原图', original_image: '输入原图', mask_image: '局部重绘 Mask',
-  strength: '图生图强度', noise: '图生图噪声强度', color_correct: '颜色校正',
-  add_original_image: '局部重绘是否保留原图', img2img: '局部重绘的图生图子配置',
-  enhance: '官方 Enhance 工作流标记', enhance_upscale_factor: '官方 Enhance 放大档位',
-  upscaled_enhance: 'V5 Max Enhance 标记', upscale: '专用 Upscale / 增强标记（由工具控件解释）',
-  upscaled_width: '官方 Enhance 目标宽度', upscaled_height: '官方 Enhance 目标高度',
-  target_width: '图像工作流目标宽度', target_height: '图像工作流目标高度',
-  declared_blur_sigma: '专用 Upscale 的模糊参数声明（由工具接管）',
-  action: '请求动作', operation: '操作类别', request_type: '请求类型（NativeInfilling = 局部重绘）',
-  req_type: '工具子类型（如 lineart / colorize）', director_tool: 'Director 工具类型', director_tool_type: 'Director 工具类型', tool: '工具类型别名',
-  size: '输出尺寸（导入时拆成宽度 / 高度）', controlnet_condition: 'ControlNet 条件（高级）',
-  controlnet_model: 'ControlNet 模型（高级）', controlnet_strength: 'ControlNet 强度（高级）',
-  dynamic_thresholding: 'Dynamic Thresholding（高级）', skip_cfg_above_sigma: 'Variety+ / 跳过 CFG',
-  uncond_scale: '旧版兼容字段（不发送）', dynamic_thresholding_percentile: '旧版兼容字段（不发送）',
-  dynamic_thresholding_mimic_scale: '旧版兼容字段（不发送）', skip_cfg_below_sigma: '旧版兼容字段（不发送）',
-  quality_boost: '导出器质量标记（不发送）', tag_hint_uc_preset: '标签里的 UC Preset 提示（已映射）',
-  tag_hint_qt: '标签里的质量提示（已映射）', straight_alpha: '透明 PNG / Alpha 开关',
-  tag_hint_transparent_background: '透明背景提示', model_name: '模型显示名（记录）',
-  model_hash: '模型哈希（记录）', signed_hash: '签名（记录，当前不验证）', version: '导出格式版本（记录）',
-  params_version: '请求参数版本', stream: '响应流设置（记录）', extra_passthrough_testing: 'NovelAI 调试/透传容器（记录）',
-  lora_unet_weights: 'LoRA 权重记录（当前不自动发送）', lora_clip_weights: 'LoRA 权重记录（当前不自动发送）',
-  pd_grid: '调试网格记录（不发送）', hide_debug_overlay: '调试显示开关（不发送）',
-  hash: '导出记录哈希（不发送）', signature: '导出记录签名（不发送）', debug: '调试标记（不发送）'
-});
-
-function inspectFieldDescription(key, group) {
-  const compact = String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-  const found = Object.entries(INSPECT_FIELD_DESCRIPTIONS).find(([name]) => name.replace(/[^a-z0-9]/g, '') === compact);
-  if (found) return found[1];
-  if (group === 'workflow') return '图像工作流字段，由工作流控件接管';
-  if (group === 'generation') return '已映射到普通生成控件';
-  if (group === 'record') return '仅供查看，不会发送给 NovelAI';
-  if (group === 'advanced') return '已识别为可发送的额外参数';
-  return '未识别字段，仅保留在导入记录中';
-}
 
 function inspectKeyMatches(set, key) {
   const lower = String(key || '').toLowerCase();
@@ -8611,76 +8668,122 @@ function inspectionInputStatus(data) {
   return { text: '未随记录保存', tone: 'warning', status: status || 'missing' };
 }
 
-function countInspectionRecordOnlyFields(data) {
-  const raw = data?.rawParameters && typeof data.rawParameters === 'object' && !Array.isArray(data.rawParameters)
-    ? data.rawParameters
-    : {};
-  return Object.keys(raw).filter(key => {
-    const lower = String(key).toLowerCase();
-    // Keep the count aligned with the field map: workflow and ordinary
-    // generation controls are shown in their own groups first.
-    if (inspectKeyMatches(INSPECT_WORKFLOW_KEYS, lower) || inspectKeyMatches(INSPECT_GENERATION_KEYS, lower)) return false;
-    return inspectKeyMatches(INSPECT_RECORD_ONLY_KEYS, lower) || isNonAdvancedParameterKey(key);
-  }).length;
+// The parameter view (1.8.5). Names follow NovelAI's own web UI so a record reads the same as the
+// generator it came from; each gets one short Chinese gloss. Prompt texts are shown once above, so they
+// are not repeated as rows; every field this table does not explain is listed under 其他记录.
+
+const INSPECT_ON_OFF = value => (value === true || Number(value) > 0 ? '开' : '关');
+const INSPECT_SAMPLER_LABELS = new Map(Object.values(SAMPLING_PROFILES).flatMap(profile => profile.samplers));
+const INSPECT_SCHEDULE_LABELS = new Map([...Object.values(SAMPLING_PROFILES).flatMap(profile => profile.schedules), ['native', 'Native']]);
+const INSPECT_PARAMETERS = [
+  // [raw keys, NovelAI name, gloss, format(value, raw), shown(data, value)]
+  [['steps'], 'Steps', '步数'],
+  [['scale'], 'Prompt Guidance', '提示词引导'],
+  [['cfg_rescale'], 'Prompt Guidance Rescale', '引导重缩放'],
+  [['sampler'], 'Sampler', '采样器', value => INSPECT_SAMPLER_LABELS.get(value) || value],
+  [['noise_schedule'], 'Noise Schedule', '噪声调度', value => INSPECT_SCHEDULE_LABELS.get(value) || value],
+  [['skip_cfg_above_sigma'], 'Variety+', '多样性增强', value => (Number(value) > 0 ? '开' : '关')],
+  [['qualityToggle', 'quality_toggle'], 'Add Quality Tags', '自动加质量词', INSPECT_ON_OFF],
+  [['ucPreset', 'uc_preset'], 'UC Preset', '负面预设'],
+  // V3-only switches: shown for V3 images, or when a record has one switched on.
+  [['sm'], 'SMEA', '仅 V3', INSPECT_ON_OFF, (data, value) => /diffusion-3/.test(String(data?.model || '')) || value === true],
+  [['sm_dyn'], 'DYN', '仅 V3', INSPECT_ON_OFF, (data, value) => /diffusion-3/.test(String(data?.model || '')) || value === true],
+  // Also restored into editor controls (and sent): Brownian Noise, the Euler Ancestral fix, 原生透明.
+  [['prefer_brownian'], 'Brownian Noise', '布朗噪声', INSPECT_ON_OFF],
+  [['deliberate_euler_ancestral_bug'], 'Euler Ancestral Bug', '保留旧版 Euler A 行为', INSPECT_ON_OFF],
+  [['straight_alpha', 'tag_hint_transparent_background'], 'Transparent Background', '原生透明', (value, raw) => INSPECT_ON_OFF(raw.straight_alpha === true || raw.tag_hint_transparent_background === true)]
+];
+// Restored as advanced parameters and sent with every generation (params.advancedOverrides).
+const INSPECT_ADVANCED_NAMES = Object.freeze({
+  dynamic_thresholding: ['Decrisper', '防过饱和', INSPECT_ON_OFF],
+  controlnet_condition: ['ControlNet Condition', 'ControlNet 条件'],
+  controlnet_model: ['ControlNet Model', 'ControlNet 模型'],
+  controlnet_strength: ['ControlNet Strength', 'ControlNet 强度']
+});
+// Recorded only: restoring never uses them. Named as NovelAI does where it has a name.
+const INSPECT_RECORD_NAMES = Object.freeze({
+  uncond_scale: ['Undesired Content Strength', value => `${Math.round(Number(value) * 100)}%`],
+  legacy: ['Legacy Prompt Parsing'], legacy_v3_extend: ['Legacy V3 Extend'], params_version: ['Params Version'],
+  signed_hash: ['Signature', () => '已签名'], request_type: ['Request Type'], strength: ['Strength'], noise: ['Noise'],
+  add_original_image: ['Add Original Image'], extra_noise_seed: ['Extra Noise Seed']
+});
+const INSPECT_WORKFLOW_PARAMETERS = [
+  [['strength'], 'Strength', '图生图强度'],
+  [['noise'], 'Noise', '图生图噪声'],
+  [['request_type'], 'Request Type', '请求类型', value => (value === 'NativeInfilling' ? 'Inpaint（局部重绘）' : value)],
+  [['enhance'], 'Enhance', '官方增强', INSPECT_ON_OFF],
+  [['enhance_upscale_factor'], 'Upscale Amount', '放大倍数', value => `${value}×`],
+  [['upscaled_width', 'upscaled_height'], 'Upscaled Size', '放大后尺寸', (value, raw) => `${raw.upscaled_width ?? '—'} × ${raw.upscaled_height ?? '—'}`],
+  [['target_width', 'target_height'], 'Target Size', '目标尺寸', (value, raw) => `${raw.target_width ?? '—'} × ${raw.target_height ?? '—'}`],
+  [['declared_blur_sigma'], 'Blur', '模糊']
+];
+// Shown above (prompts, size) or meaningless here (always one image per request).
+const INSPECT_SHOWN_ELSEWHERE = new Set(['prompt', 'negative_prompt', 'uc', 'v4_prompt', 'v4_negative_prompt', 'width', 'height', 'seed', 'n_samples', 'characterprompts']);
+const INSPECT_VIBE_KEYS = ['reference_image_multiple', 'reference_strength_multiple', 'reference_information_extracted_multiple'];
+const INSPECT_PRECISE_KEYS = ['director_reference_images', 'director_reference_descriptions', 'director_reference_strength_values', 'director_reference_information_extracted', 'director_reference_secondary_strength_values'];
+
+function inspectParameterRows(raw, table, data) {
+  const used = new Set(), rows = [];
+  for (const [keys, name, gloss, format, shown] of table) {
+    const key = keys.find(candidate => Object.hasOwn(raw, candidate));
+    if (!key || raw[key] == null) continue;
+    for (const candidate of keys) used.add(candidate);
+    // Restored either way; hidden only when it means nothing for this image (SMEA / DYN outside V3).
+    if (shown && !shown(data, raw[key])) continue;
+    rows.push({ name, gloss, value: format ? format(raw[key], raw) : String(raw[key]) });
+  }
+  return { rows, used };
 }
-
-function renderInspectionSemanticSummary(data) {
-  if (!els.inspectSemanticSummary) return;
-  const recovery = inspectionInputStatus(data);
-  const advanced = data?.params?.advancedOverrides;
-  const advancedCount = advanced && typeof advanced === 'object' && !Array.isArray(advanced)
-    ? Object.keys(advanced).length
-    : 0;
-  const recordOnlyCount = countInspectionRecordOnlyFields(data);
-
-  if (els.inspectSemanticWorkflow) els.inspectSemanticWorkflow.textContent = inspectionOperationLabel(data);
-  if (els.inspectSemanticInputStatus) els.inspectSemanticInputStatus.textContent = recovery.text;
-  if (els.inspectSemanticAdvancedCount) els.inspectSemanticAdvancedCount.textContent = `${advancedCount} 项`;
-  if (els.inspectSemanticRecordOnlyCount) els.inspectSemanticRecordOnlyCount.textContent = `${recordOnlyCount} 项`;
-
-  els.inspectSemanticSummary.dataset.workflow = inspectionOperationLabel(data);
-  els.inspectSemanticSummary.dataset.inputStatus = recovery.status;
-  els.inspectSemanticSummary.dataset.advancedCount = String(advancedCount);
-  els.inspectSemanticSummary.dataset.recordOnlyCount = String(recordOnlyCount);
-  els.inspectSemanticSummary.classList.toggle('is-ready', recovery.tone === 'ready');
-  els.inspectSemanticSummary.classList.toggle('is-warning', recovery.tone === 'warning');
-}
+function inspectListLine(values) { return (Array.isArray(values) ? values : [values]).map(value => Number.isFinite(Number(value)) ? Number(value) : value).join(' / '); }
 
 function renderInspectionFieldMap(data) {
   if (!els.inspectFieldMap) return;
-  const raw = data?.rawParameters && typeof data.rawParameters === 'object' ? data.rawParameters : {};
-  const advancedKeys = Object.keys(data?.params?.advancedOverrides || {});
-  const isAdvancedField = key => advancedKeys.some(candidate => inspectKeyMatches(new Set([candidate]), key));
-  const groups = [
-    ['工作流字段（由图像工作流控制）', [], 'workflow'],
-    ['已映射到普通控件', [], 'generation'],
-    ['仅记录信息（不会发送）', [], 'record'],
-    ['高级参数（可发送）', [], 'advanced'],
-    ['未识别（只保留在 Raw Parameters）', [], 'unknown']
-  ];
-  const byName = new Map(groups.map(group => [group[2], group]));
-  for (const [key, value] of Object.entries(raw)) {
-    const lower = String(key).toLowerCase();
-    const groupName = inspectKeyMatches(INSPECT_WORKFLOW_KEYS, lower)
-      ? 'workflow'
-      : inspectKeyMatches(INSPECT_GENERATION_KEYS, lower)
-        ? 'generation'
-        : inspectKeyMatches(INSPECT_RECORD_ONLY_KEYS, lower) || isNonAdvancedParameterKey(key)
-        ? 'record'
-          : (isAdvancedField(key) ? 'advanced' : 'unknown');
-    const group = byName.get(groupName);
-    const description = inspectFieldDescription(key, groupName);
-    group[1].push(`<div class="inspect-field-row"><code title="${escapeHtml(description)}">${escapeHtml(key)}</code><span><b>${escapeHtml(description)}</b> · ${escapeHtml(inspectValueSummary(key, value))}</span></div>`);
+  const raw = data?.rawParameters && typeof data.rawParameters === 'object' && !Array.isArray(data.rawParameters) ? data.rawParameters : {};
+  const generation = inspectParameterRows(raw, INSPECT_PARAMETERS, data);
+  // NovelAI stores strength / noise / request type on every record; for text-to-image they say nothing,
+  // so the workflow table appears only for an image workflow (they stay under 其他记录 otherwise).
+  const imageWorkflow = inspectionOperationLabel(data) !== '文生图';
+  const workflow = imageWorkflow ? inspectParameterRows(raw, INSPECT_WORKFLOW_PARAMETERS, data) : { rows: [], used: new Set() };
+  const used = new Set([...generation.used, ...workflow.used]);
+  // Vibe Transfer / Precise Reference: one line each, counts and per-image values.
+  const vibes = Array.isArray(raw.reference_image_multiple) ? raw.reference_image_multiple.length : 0;
+  // Empty reference lists carry nothing; they are not listed.
+  if (Array.isArray(raw.reference_image_multiple) && !vibes) for (const key of INSPECT_VIBE_KEYS) used.add(key);
+  if (Array.isArray(raw.director_reference_images) && !raw.director_reference_images.length) for (const key of INSPECT_PRECISE_KEYS) used.add(key);
+  if (vibes) {
+    workflow.rows.push({ name: 'Vibe Transfer', gloss: '氛围参考', value: `${vibes} 张 · 强度 ${inspectListLine(raw.reference_strength_multiple || [])} · 信息提取 ${inspectListLine(raw.reference_information_extracted_multiple || [])}` });
+    for (const key of INSPECT_VIBE_KEYS) used.add(key);
   }
-  const derivedAdvancedKeys = advancedKeys.filter(key => !Object.keys(raw).some(rawKey => inspectKeyMatches(new Set([key]), rawKey)));
-  if (derivedAdvancedKeys.length) {
-    byName.get('advanced')[1].push(...derivedAdvancedKeys.map(key => `<div class="inspect-field-row"><code title="${escapeHtml(inspectFieldDescription(key, 'advanced'))}">${escapeHtml(key)}</code><span><b>${escapeHtml(inspectFieldDescription(key, 'advanced'))}</b> · 已分流，可发送</span></div>`));
+  const precise = Array.isArray(raw.director_reference_images) ? raw.director_reference_images.length : 0;
+  if (precise) {
+    workflow.rows.push({ name: 'Precise Reference', gloss: '精准参考', value: `${precise} 张 · 强度 ${inspectListLine(raw.director_reference_strength_values || [])}` });
+    for (const key of INSPECT_PRECISE_KEYS) used.add(key);
   }
-  const sections = groups.filter(group => group[1].length).map(([title, rows]) => `<section><strong>${escapeHtml(title)}</strong>${rows.join('')}</section>`);
-  const note = data?.imageRecovery?.status === 'missing'
-    ? '<p class="inspect-field-note">这张 PNG 只带请求记录，没有输入图 Base64；因此不能凭 JSON 还原原图。</p>'
-    : '<p class="inspect-field-note">图片字段不会进入高级覆盖 JSON；只有识别为嵌入图片时才会上传为本地输入资产。</p>';
-  els.inspectFieldMap.innerHTML = `${sections.join('')}${note}`;
+  for (const key of INSPECT_MEDIA_KEYS) if (Object.hasOwn(raw, key)) {
+    workflow.rows.push({ name: key === 'mask' || key === 'mask_image' ? 'Mask' : 'Base Image', gloss: key.includes('mask') ? '重绘区域' : '输入原图', value: inspectValueSummary(key, raw[key]) });
+    used.add(key);
+  }
+  const compactKey = key => String(key).replace(/[^a-z0-9]/gi, '').toLowerCase();
+  const advanced = Object.entries(data?.params?.advancedOverrides || {}).map(([key, value]) => {
+    const [name, gloss = '', format] = INSPECT_ADVANCED_NAMES[key] || [key, '高级参数'];
+    for (const rawKey of Object.keys(raw)) if (compactKey(rawKey) === compactKey(key)) used.add(rawKey);
+    return { name, gloss, value: format ? format(value) : inspectValueSummary(key, value) };
+  });
+  const others = Object.entries(raw).filter(([key]) => !used.has(key) && !INSPECT_SHOWN_ELSEWHERE.has(key.toLowerCase()));
+  const table = rows => `<div class="inspect-param-table">${rows.map(row => `<div class="inspect-param-row"><span><b>${escapeHtml(row.name)}</b><small>${escapeHtml(row.gloss)}</small></span><code>${escapeHtml(row.value)}</code></div>`).join('')}</div>`;
+  const parts = [];
+  if (generation.rows.length) parts.push(`<section><h3>生成参数<small>恢复后写入编辑器</small></h3>${table(generation.rows)}</section>`);
+  if (advanced.length) parts.push(`<section><h3>高级参数<small>恢复后随生成发送</small></h3>${table(advanced)}</section>`);
+  if (workflow.rows.length) parts.push(`<section><h3>${imageWorkflow ? '图像工作流' : '参考图'}<small>${escapeHtml(inspectionOperationLabel(data))}</small></h3>${table(workflow.rows)}</section>`);
+  if (others.length) {
+    parts.push(`<details class="inspect-other"><summary>不会恢复 · ${others.length} 项<small>只作记录，恢复参数时不使用</small></summary><div class="inspect-other-list">${
+      others.map(([key, value]) => {
+        const [name, format] = INSPECT_RECORD_NAMES[key] || [];
+        return `<div><span class="inspect-other-name">${name ? `${escapeHtml(name)} <code>${escapeHtml(key)}</code>` : `<code>${escapeHtml(key)}</code>`}</span><span>${escapeHtml(format ? format(value) : inspectValueSummary(key, value))}</span></div>`;
+      }).join('')}</div></details>`);
+  }
+  if (!parts.length) parts.push('<p class="inspect-field-note">这张图没有 NovelAI 生成参数记录。</p>');
+  els.inspectFieldMap.innerHTML = parts.join('');
 }
 
 function showInspection(data, file) {
@@ -8692,7 +8795,10 @@ function showInspection(data, file) {
   els.inspectSourceLabel.textContent = ({
     'png-text': 'PNG 文本元数据',
     'stealth': 'Alpha 隐写元数据',
-    'png-text+stealth': 'PNG 文本 + Alpha 隐写元数据'
+    'png-text+stealth': 'PNG 文本 + Alpha 隐写元数据',
+    'webp-exif': 'WebP EXIF 元数据',
+    'webp-exif+stealth': 'WebP EXIF + Alpha 隐写元数据',
+    'jpeg-exif': 'JPEG EXIF 元数据'
   })[data.metadataSource] || data.metadataSource || 'PNG metadata';
   const characterCount = Array.isArray(data.characters) ? data.characters.length : 0;
   // Keep the compact metadata rows in lockstep with the semantic summary
@@ -8701,22 +8807,26 @@ function showInspection(data, file) {
   // with an apparently absent input image.
   const inspectedOperationLabel = inspectionOperationLabel(data);
   const inspectedInput = inspectionInputStatus(data);
-  els.inspectSummary.innerHTML = [
-    ['文件', file.name],
-    ['Software', data.software || '—'],
-    ['Source', data.source || '—'],
-    ['模型', data.modelDetected === false ? '未识别（恢复时保持当前模型）' : (data.model || '—')],
-    ['识别工作流', inspectedOperationLabel],
-    ['输入图状态', inspectedInput.text],
-    ['尺寸', `${data.params?.width || data.width || '—'}×${data.params?.height || data.height || '—'}`],
-    ['Seed', Number.isFinite(Number(data.seed)) ? data.seed : '—'],
-    ['签名', data.signaturePresent ? '已包含 signed_hash（本版未验证）' : '未检测到'],
-    ['角色 Prompt', characterCount],
-    ['Prompt', data.prompt || data.description || '—'],
-    ['Undesired Content', data.negativePrompt || '—']
-  ].map(([label, value]) => `<div class="meta-row"><span>${escapeHtml(label)}</span><code>${escapeHtml(value)}</code></div>`).join('');
+  const modelName = data.modelDetected === false ? '未识别' : ($("#model")?.querySelector(`option[value="${CSS.escape(String(data.model || ''))}"]`)?.textContent || data.model || '未识别');
+  const facts = [
+    ['模型', modelName, data.modelDetected === false ? '恢复时保持当前模型' : ''],
+    ['工作流', inspectedOperationLabel, inspectedInput.status === 'none' ? '' : inspectedInput.text],
+    ['尺寸', `${data.params?.width || data.width || '—'} × ${data.params?.height || data.height || '—'}`, ''],
+    ['Seed', Number.isFinite(Number(data.seed)) ? String(data.seed) : '—', ''],
+    ...(characterCount ? [['角色', `${characterCount} 位`, '']] : []),
+    ['来源', [data.software, els.inspectSourceLabel.textContent].filter(Boolean).join(' · '), '']
+  ];
+  els.inspectSummary.innerHTML = facts.map(([label, value, note]) => `<div class="inspect-fact${note && inspectedInput.tone === 'warning' && label === '工作流' ? ' is-warning' : ''}"><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b>${note ? `<small>${escapeHtml(note)}</small>` : ''}</div>`).join('');
+  if (els.inspectPrompts) {
+    const block = (label, text) => text ? `<div class="inspect-prompt"><span>${escapeHtml(label)}</span><p>${escapeHtml(text)}</p></div>` : '';
+    els.inspectPrompts.innerHTML = [
+      block('Prompt', data.prompt || data.description),
+      block('Undesired Content', data.negativePrompt),
+      ...(Array.isArray(data.characters) ? data.characters : []).map((character, index) =>
+        block(`角色 ${index + 1}${character.name && character.name !== `角色 ${index + 1}` ? ` · ${character.name}` : ''}`, [character.prompt, character.uc ? `UC：${character.uc}` : ''].filter(Boolean).join('\n')))
+    ].join('');
+  }
   const hasRawParameters = Boolean(data.rawParameters && Object.keys(data.rawParameters).length);
-  renderInspectionSemanticSummary(data);
   renderInspectionFieldMap(data);
   els.inspectRawParameters.textContent = JSON.stringify(redactRawParameters(data.rawParameters || {}), null, 2);
   const restoreAllButton = $('#inspectRestoreAll');
@@ -8735,7 +8845,8 @@ function showInspection(data, file) {
 async function inspectImageFile(file) {
   if (!file) return;
   if (inspectBusy) return;
-  if (file.type && file.type !== 'image/png' && !file.name.toLowerCase().endsWith('.png')) throw new Error('只支持 NovelAI 保存的 PNG 原图。');
+  // PNG, WebP and JPEG all get a real read; the server says plainly when a picture has no parameters.
+  if (!/^image\/(png|webp|jpe?g)$/.test(file.type || '') && !/\.(png|webp|jpe?g)$/i.test(file.name || '')) throw new Error('只支持 PNG / WebP / JPEG 图片。');
   inspectBusy = true;
   if (els.inspectImageFile) els.inspectImageFile.disabled = true;
   const restoreLabel = els.restoreToolLabel;
@@ -8758,7 +8869,7 @@ async function inspectImageFile(file) {
     const response = await fetch('/api/inspect-image', {
       method: 'POST',
       credentials: 'same-origin',
-      headers: { 'Content-Type': file.type || 'image/png', 'X-File-Name': encodeURIComponent(file.name) },
+      headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },
       body: file
     });
     let data = null;
@@ -9448,7 +9559,7 @@ async function toggleGalleryFavorite(image) {
 }
 
 async function deleteGalleryImageInline(image) {
-  if (!(await confirmAction('删除这张图片、缩略图和图库记录？', { confirmLabel: '删除', danger: true }))) return;
+  if (!(await confirmGalleryDelete('删除这张图片、缩略图和图库记录？'))) return;
   const wasCurrent = currentImage?.id === image.id;
   const wasLatest = $('#quickLatest')?.dataset.imageId === image.id;
   const oldIndex = loadedGalleryIndex(image.id);
@@ -9467,7 +9578,8 @@ async function deleteGalleryImageInline(image) {
     const result = await api('/api/images/batch-delete', { method: 'POST', body: { ids: [image.id] } });
     refillGalleryIfNeeded().catch(() => {});
     applyGalleryDeleteResult(result, { updateLatest: wasLatest });
-    toast(`图片已删除。${galleryExamplesSuffix(Number(result?.deletedExamples) || 0)}`, 'success');
+    if (result?.trashed) { noteGalleryTrash({ trashCount: result.trashCount }); trashedToast([image.id]); }
+    else toast(`图片已删除。${galleryExamplesSuffix(Number(result?.deletedExamples) || 0)}`, 'success');
   } catch (error) {
     restoreCleanupDeletedSummary({ image, index: oldIndex, wasLatest });
     toast(`删除失败，图片已放回原位置：${error.message}`, 'error');
@@ -9476,17 +9588,19 @@ async function deleteGalleryImageInline(image) {
 
 async function deleteSelectedGallery() {
   if (!selectedGalleryIds.size) return toast('先选择要删除的图片。');
-  if (!(await confirmAction(`删除选中的 ${selectedGalleryIds.size} 张图片？`, { confirmLabel: '删除', danger: true }))) return;
+  if (!(await confirmGalleryDelete(`删除选中的 ${selectedGalleryIds.size} 张图片？`))) return;
   const ids = [...selectedGalleryIds];
   const removedLatest = ids.includes($('#quickLatest')?.dataset.imageId || '');
   let handled = 0;
   let examplesRemoved = 0;
   let latestResult = null;
+  const movedIds = [];
   if (els.galleryDeleteSelected) els.galleryDeleteSelected.disabled = true;
   try {
     for (const chunk of chunkValues(ids, 200)) {
       const result = await api('/api/images/batch-delete', { method: 'POST', body: { ids: chunk } });
       const absentIds = [...new Set([...(result.deletedIds || []), ...(result.missingIds || [])])];
+      movedIds.push(...(result.deletedIds || []));
       for (const id of absentIds) {
         removeGalleryCard(id);
         selectedGalleryIds.delete(id);
@@ -9499,7 +9613,8 @@ async function deleteSelectedGallery() {
     }
     await refillGalleryIfNeeded();
     if (removedLatest) applyGalleryDeleteResult(latestResult, { updateLatest: true });
-    toast(`已删除 ${handled} 张图片。${galleryExamplesSuffix(examplesRemoved)}`, 'success');
+    if (latestResult?.trashed) { noteGalleryTrash({ trashCount: latestResult.trashCount }); trashedToast(movedIds); }
+    else toast(`已删除 ${handled} 张图片。${galleryExamplesSuffix(examplesRemoved)}`, 'success');
   } catch (error) {
     toast(`已完成 ${handled} 张，剩余图片保持选中：${error.message}`, 'error');
   } finally {
@@ -9508,6 +9623,7 @@ async function deleteSelectedGallery() {
 }
 
 async function resetGallery(switchTab = false) {
+  if (galleryScope === 'trash') return renderTrashView();
   const timeRange = resolveGalleryTimeRange();
   if (galleryCleanupMode) {
     galleryCleanupMode = false;
@@ -9598,7 +9714,7 @@ function canAutoLoadPendingGalleryImages() {
 }
 
 function loadPendingGalleryImages({ force = false } = {}) {
-  if (!pendingGalleryImages.size) return false;
+  if (!pendingGalleryImages.size || galleryScope === 'trash') return false;
   if (galleryHasActiveFilters() || galleryWindowStart !== 0) return false;
   if (!force && !canAutoLoadPendingGalleryImages()) return false;
 
@@ -9690,13 +9806,17 @@ function syncGalleryTimeControls() {
 }
 
 function syncGalleryScopeControls() {
-  for (const [scope, button] of [['gallery', els.galleryScopeGallery], ['rotation', els.galleryScopeRotation], ['iteration', els.galleryScopeIteration]]) {
+  for (const [scope, button] of [['gallery', els.galleryScopeGallery], ['rotation', els.galleryScopeRotation], ['iteration', els.galleryScopeIteration], ['trash', $('#galleryScopeTrash')]]) {
     const active = galleryScope === scope;
     button?.setAttribute('aria-pressed', String(active));
     button?.classList.toggle('is-active', active);
   }
   const heading = document.querySelector('.gallery-title-row h2');
-  if (heading) heading.textContent = { gallery: '云端图库', rotation: '例图样本', iteration: '迭代实验' }[galleryScope];
+  if (heading) heading.textContent = { gallery: '云端图库', rotation: '例图样本', iteration: '迭代实验', trash: '回收站' }[galleryScope];
+  // The bin view keeps the grid but not the list's search, time filter, batch modes or storage line.
+  document.querySelector('#galleryTab .gallery-panel')?.classList.toggle('is-trash', galleryScope === 'trash');
+  const bar = $('#galleryTrashBar'); if (bar) bar.hidden = galleryScope !== 'trash';
+  renderGalleryTrashButton();
 }
 
 function galleryMasonryTargetCount() {
@@ -9781,6 +9901,7 @@ function galleryEmptyMessage() {
 }
 
 function rebuildGalleryMasonry() {
+  if (galleryScope === 'trash') return; // the bin view lays out its own grid
   if (!loadedGalleryImages.length) {
     galleryMasonryColumns = [];
     galleryMasonryColumnCount = 0;
@@ -9794,6 +9915,7 @@ function rebuildGalleryMasonry() {
 }
 
 function syncGalleryMasonryForViewport() {
+  if (galleryScope === 'trash') return; // the bin view lays out its own grid
   if (!loadedGalleryImages.length) return;
   const nextCount = galleryMasonryTargetCount();
   if (nextCount !== galleryMasonryColumnCount) rebuildGalleryMasonry();
@@ -9937,6 +10059,7 @@ async function loadGalleryWindow(targetIndex) {
     const data = await api(`/api/images?${params.toString()}`);
     if (epoch !== galleryEpoch) return null;
     galleryTotal = data.total;
+    noteGalleryTrash(data);
     galleryWindowStart = Number(data.offset || 0);
     galleryCursor = String(data.nextCursor || '');
     gallerySnapshotCursor = String(data.snapshotCursor || gallerySnapshotCursor || '');
@@ -9978,6 +10101,7 @@ async function loadGallery() {
     const data = await api(`/api/images?${params.toString()}`);
     if (epoch !== galleryEpoch) return;
     galleryTotal = data.total;
+    noteGalleryTrash(data);
     galleryCursor = String(data.nextCursor || '');
     gallerySnapshotCursor = String(data.snapshotCursor || gallerySnapshotCursor || '');
     galleryHasMore = Boolean(data.hasMore);
@@ -10358,7 +10482,7 @@ async function switchFavorite() {
 }
 
 async function deleteCurrentImage() {
-  if (!currentImage || !(await confirmAction('删除这张图片、缩略图和图库记录？', { confirmLabel: '删除', danger: true }))) return;
+  if (!currentImage || !(await confirmGalleryDelete('删除这张图片、缩略图和图库记录？'))) return;
   const deleting = { ...currentImage };
   const oldIndex = loadedGalleryIndex(deleting.id);
   const wasLatest = $('#quickLatest')?.dataset.imageId === deleting.id;
@@ -10383,7 +10507,8 @@ async function deleteCurrentImage() {
       if (fallback) openImage(fallback.id).catch(error => toast(error.message, 'error'));
     }
     applyGalleryDeleteResult(result, { updateLatest: wasLatest });
-    toast(`${replacement ? '图片已删除，已立即顺延。' : '图片已删除。'}${galleryExamplesSuffix(Number(result?.deletedExamples) || 0)}`, 'success');
+    if (result?.trashed) { noteGalleryTrash({ trashCount: result.trashCount }); trashedToast([deleting.id]); }
+    else toast(`${replacement ? '图片已删除，已立即顺延。' : '图片已删除。'}${galleryExamplesSuffix(Number(result?.deletedExamples) || 0)}`, 'success');
   } catch (error) {
     restoreCleanupDeletedSummary({ image: deleting, index: oldIndex, wasLatest });
     toast(`删除失败，图片已放回原位置：${error.message}`, 'error');
@@ -10918,15 +11043,32 @@ function initBindings() {
     if (appState.promptOrderMode === 'original') ensureGlobalOriginalOrder();
     compilePromptToPreview();
     updatePromptModeHint();
-    toast(appState.promptOrderMode === 'original' ? '已切到保持顺序：分类整理不再改变生成先后。' : '已切到分类顺序：按画风 → 场景 → 镜头 → 其他构造。');
+    renderPromptGroupOrder();
+    toast(appState.promptOrderMode === 'original' ? '已切到保持顺序：分类整理不再改变生成先后。' : `已切到分组顺序：按 ${globalPromptOrderLabel()} 构造。`);
   });
+  $$('[data-prompt-order]').forEach(button => button.addEventListener('click', () => {
+    if (!els.promptOrderMode || els.promptOrderMode.value === button.dataset.promptOrder) return;
+    els.promptOrderMode.value = button.dataset.promptOrder;
+    els.promptOrderMode.dispatchEvent(new Event('change'));
+  }));
+  $('#promptGroupOrder')?.addEventListener('click', event => {
+    const move = event.target.closest('[data-group-earlier]'); if (!move) return;
+    const order = [...globalPromptOrder()], index = order.indexOf(move.dataset.groupEarlier);
+    if (index <= 0) return;
+    [order[index - 1], order[index]] = [order[index], order[index - 1]];
+    setGlobalPromptOrder(order);
+    compilePromptToPreview();
+    renderPromptGroupOrder();
+    $('#promptGroupOrder')?.querySelector(`[data-group-earlier="${move.dataset.groupEarlier}"]`)?.focus();
+  });
+  renderPromptGroupOrder();
   els.rebuildPromptOrderButton?.addEventListener('click', async () => {
-    if (!(await confirmAction('把当前卡片的分类排列写成新的“保持顺序”？这会明确重设 Global Tag 的生成先后。', { confirmLabel: '重设' }))) return;
+    if (!(await confirmAction(`按当前分组（${globalPromptOrderLabel()}）把 Prompt 顺序重排一次？之后继续保持这个顺序。`, { confirmLabel: '重排' }))) return;
     const count = rebuildGlobalOriginalOrderFromGrouped();
     appState.promptOrderMode = 'original';
     compilePromptToPreview();
     updatePromptModeHint();
-    toast(`已按当前分类排列重建 ${count} 个 Global Tag 的生成顺序。`, 'success');
+    toast(`已按分组重排 ${count} 个 Tag。`, 'success');
   });
   $('#clearNegativeButton').addEventListener('click', () => { els.negativePrompt.value = ''; appState.negativePrompt = ''; updatePromptPreviewFromStructure(); });
 
@@ -11118,15 +11260,16 @@ function initBindings() {
   // Switching the gallery view reloads from the start: the two lists share the
   // search and time filters but never the images.
   const setGalleryScope = scope => {
-    const next = ['rotation', 'iteration'].includes(scope) ? scope : 'gallery';
+    const next = ['rotation', 'iteration', 'trash'].includes(scope) ? scope : 'gallery';
     if (next === galleryScope) return;
     galleryScope = next;
     syncGalleryScopeControls();
-    resetGallery(false).catch(error => toast(error.message, 'error'));
+    (next === 'trash' ? renderTrashView() : resetGallery(false)).catch(error => toast(error.message, 'error'));
   };
   els.galleryScopeGallery?.addEventListener('click', () => setGalleryScope('gallery'));
   els.galleryScopeRotation?.addEventListener('click', () => setGalleryScope('rotation'));
   els.galleryScopeIteration?.addEventListener('click', () => setGalleryScope('iteration'));
+  $('#galleryScopeTrash')?.addEventListener('click', () => setGalleryScope('trash'));
   els.galleryMonthFilter?.addEventListener('change', () => resetGallery(false).catch(error => toast(error.message, 'error')));
   [els.galleryDateFrom, els.galleryDateTo].filter(Boolean).forEach(control => control.addEventListener('change', () => {
     if (els.galleryAgeFilter?.value !== 'custom') return;
