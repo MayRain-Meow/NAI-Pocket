@@ -13,6 +13,8 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- The system bar areas padded by Capacitor use the page background. -->
+        <item name="android:windowBackground">@color/pocketBackground</item>
     </style>
 
 

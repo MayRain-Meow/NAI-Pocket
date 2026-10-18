@@ -4,5 +4,8 @@
   "webDir": "www",
   "server": { "androidScheme": "https" },
   "android": { "allowMixedContent": false, "webContentsDebuggingEnabled": false },
-  "plugins": { "CapacitorHttp": { "enabled": false } }
+  "plugins": {
+    "CapacitorHttp": { "enabled": false },
+    "SystemBars": { "style": "DARK", "insetsHandling": "css" }
+  }
 }

@@ -23,6 +23,14 @@ export function publicHtml(source) {
       if (privateIds.has(attrs.id) || String(attrs.class || '').split(/\s+/).some(value => privateClasses.has(value))) return false;
       if (attrs['data-tab'] === 'storm' || attrs['data-menu-action'] === 'renewal' || attrs['data-gallery-proxy'] === 'storageAuditButton' || attrs['data-proxy'] === '#logoutButton') return false;
       if (child.tagName === 'link' && /manifest\.webmanifest/.test(attrs.href || '')) return false;
+      // 0.6.2 (issue #1, Redmi K80): without viewport-fit=cover, Capacitor's SystemBars pads the app out
+      // of the status and gesture bars natively instead of trusting the WebView's env(safe-area-inset-*),
+      // which some phones report as 0 while the app is drawn edge to edge.
+      
+      if (child.tagName === 'meta' && attrs.name === 'viewport') {
+        const content = child.attrs.find(attr => attr.name === 'content');
+        content.value = content.value.split(',').map(part => part.trim()).filter(part => !/^viewport-fit\s*=/.test(part)).join(',');
+      }
       if (child.tagName === 'link' && /^\/artist-library\.css/.test(attrs.href || '')) child.attrs.find(attr => attr.name === 'href').value = '/artist-library.css';
       if (child.tagName === 'script' && /^\/app\.js/.test(attrs.src || '')) child.attrs.find(attr => attr.name === 'src').value = '/main.js';
       // The app never logs in: start with the login view hidden and a launch screen until

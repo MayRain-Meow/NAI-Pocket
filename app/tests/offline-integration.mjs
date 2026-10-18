@@ -278,6 +278,37 @@ try {
   await page.waitForFunction(()=>globalThis.NAI_RUNTIME&& !document.querySelector('#appView').classList.contains('hidden'),{},{timeout:15000});
   assert.deepEqual(errors,[],'native app boots the real UI without missing imports/ports');
   assert.equal(await page.locator('[data-tab="artists"]').count(),1);
+  // Issue #1: exercise the built HTML, including a second public-export build.
+  // These are WebView content sizes after native padding, not an Android inset emulator.
+  const viewportContent = await page.locator('meta[name="viewport"]').getAttribute('content');
+  assert.doesNotMatch(viewportContent, /viewport-fit\s*=\s*cover/i, 'native SystemBars must own the safe area');
+  assert.match(viewportContent, /width=device-width/);
+  async function assertTouchable(selector) {
+    assert.equal(await page.locator(selector).evaluate(el => {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 && r.left >= 0 && r.top >= 0 &&
+        r.right <= innerWidth && r.bottom <= innerHeight &&
+        el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+    }), true, `${selector} stays visible and receives taps inside the content viewport`);
+  }
+  for (const size of [{width:360,height:720},{width:412,height:820}]) {
+    await page.setViewportSize(size);
+    await assertTouchable('#openSettingsButton');
+    await page.locator('#openSettingsButton').click();
+    await assertTouchable('#closeSettingsButton');
+    await page.locator('#settingsDialog').evaluate(el => { el.scrollTop = el.scrollHeight; });
+    await assertTouchable('#closeSettingsButton');
+    await page.locator('#settingsDialog').evaluate(el => { el.scrollTop = 0; });
+    await page.screenshot({path:path.join(temporary,`native-settings-safe-area-${size.width}.png`)});
+    await page.locator('#closeSettingsButton').click();
+    assert.equal(await page.locator('#settingsDialog').evaluate(el => el.open), false);
+    await assertTouchable('[data-tab="queue"]');
+    await page.locator('[data-tab="queue"]').click();
+    assert.equal(await page.locator('#queueTab').isVisible(), true);
+    await page.screenshot({path:path.join(temporary,`native-navigation-safe-area-${size.width}.png`)});
+    await page.locator('[data-tab="editor"]').click();
+  }
+  await page.setViewportSize({width:412,height:915});
   const call=(url,body,method=body?'POST':'GET')=>page.evaluate(async({url,body,method})=>{const response=await fetch(url,{method,headers:{'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});return {status:response.status,data:await response.json()};},{url,body,method});
   async function waitCompleted(count) {
     const deadline=Date.now()+20000;let jobs=[];

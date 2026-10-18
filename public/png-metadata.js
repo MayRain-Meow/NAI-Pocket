@@ -1,16 +1,16 @@
 
-import { Inflate } from './vendor/pako-inflate.js?v=1.8.7';
-import { inferNovelAiModel } from './model-utils.js?v=1.8.7';
-import { DEFAULT_GENERATION_PARAMS } from './generation-state.js?v=1.8.7'; 
-import { repairJsonSyntax } from './import-repair.js?v=1.8.7';
-import { normalizeSampler, normalizeSchedule } from './nai-import.js?v=1.8.7';
+import { Inflate } from './vendor/pako-inflate.js?v=1.8.8';
+import { inferNovelAiModel } from './model-utils.js?v=1.8.8';
+import { DEFAULT_GENERATION_PARAMS } from './generation-state.js?v=1.8.8'; 
+import { repairJsonSyntax } from './import-repair.js?v=1.8.8';
+import { normalizeSampler, normalizeSchedule } from './nai-import.js?v=1.8.8';
 import {
   classifyNaiParameters,
   canonicalAdvancedParameterKey,
   filterAdvancedOverrides,
   KNOWN_ADVANCED_PARAMETER_KEYS,
   isNonAdvancedParameterKey
-} from './parameter-semantics.js?v=1.8.7';
+} from './parameter-semantics.js?v=1.8.8';
 
 const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 const STEALTH_MAGIC = new TextEncoder().encode('stealth_pngcomp');

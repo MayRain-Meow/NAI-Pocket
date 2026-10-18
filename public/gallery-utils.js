@@ -1,4 +1,4 @@
-import { utf8Base64url, fromBase64url } from './base64.js?v=1.8.7';
+import { utf8Base64url, fromBase64url } from './base64.js?v=1.8.8';
 const MAX_CURSOR_ID_LENGTH = 160;
 
 export function encodeGalleryCompletionCursor(row) {

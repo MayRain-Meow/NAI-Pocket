@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.2 — Preview
+
+- Fixed (#1): on phones that draw apps edge to edge (seen on a Redmi K80 with 全屏显示), the header, the settings close button and the bottom tabs sat under the status bar and gesture bar and could not be tapped. The app is now padded out of the system bars natively, and the bar areas use the app background with light icons.
+- 队列: finished jobs are a picture grid under 已完成 (four per row on a phone); tap a picture to view it, 日志 stays under each one. Waiting, running and failed jobs keep their rows.
+
 ## 0.6.1 — Preview
 
 - 画风空间: 找相似, 以图找画师 and 画风相近 now compare artists in a learned style space that discounts subject matter and character design (hair and eye colour, outfits, vehicles, scenery), so a picture of one character no longer pulls in artists who merely drew the same character. Needs the new 画风数据 (Settings → 画风数据 → 检查更新); feel words are unchanged.

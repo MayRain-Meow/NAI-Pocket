@@ -7,26 +7,26 @@ import {
   unwrapLegacyBrackets,
   parseStructuredPrompt as parseStructuredPromptUtil,
   cloneTagForStorage
-} from './prompt-utils.js?v=1.8.7';
-import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.8.7';
-import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.8.7';
-import { repairImportedPrompt } from './import-repair.js?v=1.8.7';
-import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.8.7';
-import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity } from './artist-index-v5.js?v=1.8.7';
-import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.8.7';
-import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.8.7';
-import { buildArtistStormPlan } from './storm-utils.js?v=1.8.7';
-import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.8.7';
-import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.8.7';
-import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.8.7';
-import { observeToastClearance } from './toast-layout.js?v=1.8.7';
-import { installSelectSheets } from './select-sheet.js?v=1.8.7';
-import { attachWeightHighlight } from './weight-highlight.js?v=1.8.7';
-import { confirmAction, promptText } from './confirm-sheet.js?v=1.8.7';
-import { createTaggerPanel } from './tagger-panel.js?v=1.8.7';
-import { createCodexPanel } from './codex-panel.js?v=1.8.7';
-import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.8.7';
-import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.8.7';
+} from './prompt-utils.js?v=1.8.8';
+import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.8.8';
+import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.8.8';
+import { repairImportedPrompt } from './import-repair.js?v=1.8.8';
+import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.8.8';
+import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity } from './artist-index-v5.js?v=1.8.8';
+import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.8.8';
+import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.8.8';
+import { buildArtistStormPlan } from './storm-utils.js?v=1.8.8';
+import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.8.8';
+import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.8.8';
+import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.8.8';
+import { observeToastClearance } from './toast-layout.js?v=1.8.8';
+import { installSelectSheets } from './select-sheet.js?v=1.8.8';
+import { attachWeightHighlight } from './weight-highlight.js?v=1.8.8';
+import { confirmAction, promptText } from './confirm-sheet.js?v=1.8.8';
+import { createTaggerPanel } from './tagger-panel.js?v=1.8.8';
+import { createCodexPanel } from './codex-panel.js?v=1.8.8';
+import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.8.8';
+import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.8.8';
 
 const GROUP_LABELS_BY_KEY = {
   scene: '场景',
@@ -1568,7 +1568,7 @@ function watchForUpdates() {
     if (!controlled) { controlled = true; return; } // first install, not an update
     showUpdateBanner();
   });
-  navigator.serviceWorker.register('/sw.js?v=1.8.7').then(registration => {
+  navigator.serviceWorker.register('/sw.js?v=1.8.8').then(registration => {
     let checkedAt = Date.now();
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible' || Date.now() - checkedAt < 10 * 60 * 1000) return;
@@ -8319,11 +8319,16 @@ function renderJobs(data) {
   }
   queueRenderSignature = signature;
   els.queueList.innerHTML = '';
+  els.queueList.classList.toggle('empty-state', !jobs.length);
   if (!jobs.length) {
     els.queueList.textContent = '暂无任务';
     return;
   }
+  // 1.8.8: finished jobs are a thumbnail grid under 「已完成」 (tap a picture to view it, 日志 under
+  // it, details in the tooltip); waiting, running and failed jobs keep their full rows and actions.
+  const finished = jobs.filter(job => job.status === 'completed');
   for (const job of jobs) {
+    if (job.status === 'completed') continue;
     const item = document.createElement('div');
     item.className = `queue-item is-${job.status}`;
     item.dataset.queueId = job.id;
@@ -8355,6 +8360,38 @@ function renderJobs(data) {
       ${logsOpen ? `<div class="queue-log-panel" data-job-log-panel="${job.id}">${queueLogPanelHtml(job.id)}</div>` : ''}`;
     els.queueList.append(item);
   }
+  if (!finished.length) return;
+  const heading = document.createElement('h3');
+  heading.className = 'queue-section-heading';
+  heading.innerHTML = `已完成 <span>${finished.length}</span>`;
+  const grid = document.createElement('div');
+  grid.className = 'queue-done-grid';
+  for (const job of finished) {
+    const storm = job.experiment?.type === 'artist-storm' ? job.experiment : null;
+    const details = [`第 ${job.position} 张`, `Seed ${job.seed}`, queueRouteName(job), queueBillingText(job), storm ? `Storm ${storm.index}/${storm.total}` : '', formatDate(job.created_at)].filter(Boolean).join(' · ');
+    const tile = document.createElement('div');
+    tile.className = `queue-done-tile${expandedJobLogs.has(job.id) ? ' is-log-open' : ''}`;
+    tile.dataset.queueId = job.id;
+    if (job.image_id) tile.dataset.imageId = job.image_id;
+    tile.title = details;
+    tile.innerHTML = `
+      ${job.image_id
+        ? `<button type="button" class="queue-done-thumb" data-queue-action="open" aria-label="查看${escapeHtml(details)}"><img src="/api/images/${encodeURIComponent(job.image_id)}/thumbnail" alt="" loading="lazy" decoding="async"></button>`
+        : '<span class="queue-done-thumb is-empty" aria-hidden="true"></span>'}
+      ${storm ? `<span class="queue-done-badge">Storm ${storm.index}/${storm.total}</span>` : ''}
+      <div class="queue-done-meta"><span>第 ${job.position} 张</span><button type="button" class="queue-done-log" data-queue-action="logs" aria-pressed="${expandedJobLogs.has(job.id)}">${expandedJobLogs.has(job.id) ? '收起' : '日志'}</button></div>`;
+    grid.append(tile);
+    if (expandedJobLogs.has(job.id)) {
+      // The open log spans the whole grid row right after its picture.
+      const panel = document.createElement('div');
+      panel.className = 'queue-log-panel queue-done-log-panel';
+      panel.dataset.queueId = job.id;
+      panel.dataset.jobLogPanel = job.id;
+      panel.innerHTML = queueLogPanelHtml(job.id);
+      grid.append(panel);
+    }
+  }
+  els.queueList.append(heading, grid);
 }
 
 function renderResourceStatus(resources) {
