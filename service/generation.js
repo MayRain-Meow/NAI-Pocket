@@ -2,10 +2,12 @@ import { DIRECTOR_TOOL_TYPES } from '../public/parameter-semantics.js';
 import { DEFAULT_ENHANCE_UPSCALE_FACTOR } from '../public/generation-state.js';
 import { buildPayload, apiModelFor, safeEnhanceTargetDimensions } from '../public/generation-payload.js';
 import { createImageResponseParser } from './image-response.js';
+import { attachFocusedInpaintMetadata } from './focused-inpaint-metadata.js';
+import { parseUpstreamError } from './upstream-error.js';
 
 
 // binary is a byte-buffer codec; inflateRaw must enforce maxOutputLength.
-export function createGenerationClient({ settings, assets, generationProvider, binary, inflateRaw, ids,
+export function createGenerationClient({ settings, assets, generationProvider, binary, inflateRaw, ids, focusedInpaint,
   http = { fetch: (...args) => globalThis.fetch(...args) }, clock = { now: () => Date.now() } }) {
 const { base64ForRef, encodeVibeReference, preciseReferenceBase64, resolveImageRef } = assets;
 function correlationId() {
@@ -84,14 +86,14 @@ function detectMime(buffer, fallback = 'image/png') {
 }
 
 
-async function resolveGenerationMedia(state, officialToken = '', { signal } = {}) {
+async function resolveGenerationMedia(state, officialToken = '', { signal, preparedMedia } = {}) {
   const workflow = state.imageWorkflow || { mode: 'text' };
   const reference = state.referenceControl || { mode: 'none' };
   const media = {};
   if (workflow.mode === 'img2img' || workflow.mode === 'inpaint') {
-    media.baseImage = await base64ForRef(workflow.baseImage, { signal });
+    media.baseImage = preparedMedia?.baseImage ?? await base64ForRef(workflow.baseImage, { signal });
   }
-  if (workflow.mode === 'inpaint') media.maskImage = await base64ForRef(workflow.maskImage, { signal });
+  if (workflow.mode === 'inpaint') media.maskImage = preparedMedia?.maskImage ?? await base64ForRef(workflow.maskImage, { signal });
   if (reference.mode === 'precise') {
     media.precise = [];
     for (const item of reference.precise || []) {
@@ -237,6 +239,8 @@ async function generateImage(state, seed, options = {}) {
   const controller = new AbortController();
   let cancelledByCaller = false;
   let timedOut = false;
+  let imageReceived = false;
+  let generationResponseReceived = false;
 
   const abortFromCaller = () => {
     cancelledByCaller = true;
@@ -265,11 +269,36 @@ async function generateImage(state, seed, options = {}) {
     }
     emit('info', 'prepare', '正在准备参考图、遮罩与生成参数。');
     let requestState = state;
+    let focused = null;
+    let preparedMedia = null;
+    
+    if (state.imageWorkflow?.mode === 'inpaint' && state.imageWorkflow.inpaintRegion) {
+      if (!focusedInpaint) throw new Error('当前运行环境尚未支持框选高清修补，请使用服务器版。');
+      const [source, mask] = await Promise.all([
+        base64ForRef(state.imageWorkflow.baseImage, { signal: controller.signal }),
+        base64ForRef(state.imageWorkflow.maskImage, { signal: controller.signal })
+      ]);
+      focused = await focusedInpaint.prepare(binary.from(source, 'base64'), binary.from(mask, 'base64'), state.imageWorkflow.inpaintRegion, { signal: controller.signal });
+      const { region, sourceWidth, sourceHeight, width, height } = focused.plan;
+      let characters = state.characters;
+      if (state.v4Options?.useCoords) {
+        characters = (state.characters || []).flatMap(character => {
+          const centers = (character.centers || []).map(center => ({
+            x: (center.x * sourceWidth - region.x) / region.width,
+            y: (center.y * sourceHeight - region.y) / region.height
+          })).filter(center => center.x >= 0 && center.x <= 1 && center.y >= 0 && center.y <= 1);
+          return centers.length ? [{ ...character, centers }] : [];
+        });
+      }
+      requestState = { ...state, characters, params: { ...state.params, width, height } };
+      preparedMedia = { baseImage: binary.from(focused.imageBytes).toString('base64'), maskImage: binary.from(focused.maskBytes).toString('base64') };
+      emit('info', 'prepare', `框选区域 ${region.width}×${region.height} 已放大到 ${width}×${height}，生成后将贴回原图。`);
+    }
     if (state.imageWorkflow?.enhance === true) {
       const resolved = await resolveImageRef(state.imageWorkflow.baseImage, { signal: controller.signal });
       requestState = await stateForOfficialEnhance(state, resolved);
     }
-    const media = await resolveGenerationMedia(requestState, provider.id === 'official' ? provider.token : '', { signal: controller.signal });
+    const media = await resolveGenerationMedia(requestState, provider.id === 'official' ? provider.token : '', { signal: controller.signal, preparedMedia });
     emit('info', 'prepare', '生成参数准备完成。');
     if (cancelledByCaller) {
       const error = new Error('生成任务已取消。');
@@ -283,6 +312,7 @@ async function generateImage(state, seed, options = {}) {
     });
     const response = await http.fetch(provider.apiUrl, {
       method: 'POST',
+      allowInsecureHttp: provider.allowInsecureHttp === true,
       headers: {
         Authorization: `Bearer ${provider.token}`,
         'Content-Type': 'application/json',
@@ -294,28 +324,32 @@ async function generateImage(state, seed, options = {}) {
     });
 
     const contentType = response.headers.get('content-type') || '';
-    const retryAfterMs = response.status === 429 ? parseRetryAfterMs(response.headers.get('retry-after')) : 0;
+    const retryAfterMs = parseRetryAfterMs(response.headers.get('retry-after'));
     emit(response.ok ? 'info' : 'warn', 'response', `${provider.label}已响应 · HTTP ${response.status}`, {
       requestId, provider: provider.id, status: response.status, contentType, retryAfterMs
     });
     if (!response.ok) {
-      const text = (await response.text()).slice(0, 2000);
-      emit('error', 'response-error', `${provider.label} ${response.status}: ${text || response.statusText}`, {
-        requestId, provider: provider.id, status: response.status, body: text || response.statusText, retryAfterMs
+      const error = parseUpstreamError({ status: response.status, statusText: response.statusText,
+        body: await response.text(), label: provider.label, retryAfterMs });
+      emit('error', 'response-error', error.message, {
+        requestId, provider: provider.id, status: error.status, gatewayStatus: error.gatewayStatus,
+        upstreamStatus: error.upstreamStatus, retryAfterMs: error.retryAfterMs || 0
       });
-      const error = new Error(`${provider.label} ${response.status}: ${text || response.statusText}`);
-      error.status = response.status;
-      if (response.status === 429) error.retryAfterMs = retryAfterMs;
       throw error;
     }
 
+    // A 2xx response may already represent a billed generation, even if a relay's
+    // wrapper or linked download cannot be decoded. Never repeat that POST automatically.
+    
+    generationResponseReceived = true;
     // The body is identified by its bytes (image, ZIP, JSON, event stream, bare base64), so a
     // relay that labels or wraps the image differently still works; a JSON link is followed once.
     const readImageBody = (buffer, bodyType, { allowUrl, bodySeed }) => {
       const kind = responseParser.sniff(buffer);
       const structured = kind === 'json' || kind === 'sse';
       if (!structured) emit('info', 'received', `已收到 NovelAI 返回数据 · ${Math.round(buffer.length / 1024)} KB`, { requestId, bytes: buffer.length, contentType: bodyType });
-      const parsed = responseParser.parse({ bytes: buffer, defaultSeed: bodySeed, noImageMessage: 'NovelAI JSON 返回中没有图片。', allowUrl });
+      const parsed = responseParser.parse({ bytes: buffer, defaultSeed: bodySeed, noImageMessage: 'NovelAI JSON 返回中没有图片。', allowUrl,
+        allowInsecureHttp: provider.allowInsecureHttp === true });
       if (parsed.kind === 'url') return parsed;
       if (structured) emit('info', 'received', `已收到 NovelAI 图片数据 · ${Math.round(parsed.buffer.length / 1024)} KB`, { requestId, bytes: parsed.buffer.length });
       if (parsed.source === 'zip') emit('info', 'received', `已从 ZIP 解出 ${parsed.filename} · ${Math.round(parsed.buffer.length / 1024)} KB`, { requestId, bytes: parsed.buffer.length, filename: parsed.filename });
@@ -324,9 +358,16 @@ async function generateImage(state, seed, options = {}) {
     let image = readImageBody(binary.from(await response.arrayBuffer()), contentType, { allowUrl: true, bodySeed: seed });
     if (image.kind === 'url') {
       emit('info', 'received', `返回的是图片链接，正在下载 · ${new URL(image.url).host}`, { requestId, url: image.url });
-      const linked = await http.fetch(image.url, { method: 'GET', signal: controller.signal });
+      const linked = await http.fetch(image.url, { method: 'GET', signal: controller.signal, allowInsecureHttp: provider.allowInsecureHttp === true });
       if (!linked.ok) throw Object.assign(new Error(`图片链接下载失败：HTTP ${linked.status}`), { status: 502 });
       image = readImageBody(binary.from(await linked.arrayBuffer()), linked.headers.get('content-type') || '', { allowUrl: false, bodySeed: image.seed });
+    }
+    imageReceived = true;
+    if (focused) {
+      emit('info', 'composite', '正在把高清修补区域贴回原图，保留蒙版外像素。');
+      const composed = await focusedInpaint.composite(image.buffer, focused, { signal: controller.signal });
+      const buffer = binary.from(await attachFocusedInpaintMetadata(composed, { state, payload, seed: image.seed, plan: focused.plan }, binary));
+      return { buffer, mime: 'image/png', seed: image.seed, payload, effectiveState: state };
     }
     return { buffer: image.buffer, mime: image.mime, ...(image.filename ? { filename: image.filename } : {}), seed: image.seed, payload, effectiveState: requestState };
   } catch (error) {
@@ -334,6 +375,8 @@ async function generateImage(state, seed, options = {}) {
       emit('warn', 'cancelled', 'NovelAI 请求已由用户停止。');
       const cancelError = new Error('生成任务已取消。');
       cancelError.code = 'JOB_CANCELLED';
+      if (imageReceived) cancelError.imageReceived = true;
+      if (generationResponseReceived) cancelError.generationResponseReceived = true;
       throw cancelError;
     }
     if (timedOut || error.name === 'AbortError') {
@@ -341,8 +384,12 @@ async function generateImage(state, seed, options = {}) {
       emit('error', 'timeout', message, { timeoutMs: settings.naiTimeoutMs });
       const timeoutError = new Error(message);
       timeoutError.status = 504;
+      if (imageReceived) timeoutError.imageReceived = true;
+      if (generationResponseReceived) timeoutError.generationResponseReceived = true;
       throw timeoutError;
     }
+    if (imageReceived) error.imageReceived = true;
+    if (generationResponseReceived) error.generationResponseReceived = true;
     throw error;
   } finally {
     clearTimeout(timer);

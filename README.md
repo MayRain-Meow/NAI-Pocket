@@ -4,7 +4,7 @@
 
 用你自己的 NovelAI Token，或你选择的第三方中转，在手机本地运行，不需要服务器。
 
-[![下载 APK](https://img.shields.io/badge/下载-Android%20APK-d6a774)](https://github.com/MayRain-Meow/NAI-Pocket/releases/tag/v0.4.0-preview) ![Android](https://img.shields.io/badge/Android-7.0%2B-7fbf95) ![Status](https://img.shields.io/badge/status-0.3%20preview-ab9cf0) [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-8a8a8a)](LICENSE)
+[![下载 APK](https://img.shields.io/badge/下载-Android%20APK-d6a774)](https://github.com/MayRain-Meow/NAI-Pocket/releases/tag/v0.6.3-preview) ![Android](https://img.shields.io/badge/Android-7.0%2B-7fbf95) ![Status](https://img.shields.io/badge/status-0.6.3%20preview-ab9cf0) [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-8a8a8a)](LICENSE)
 
 <p align="center"><img src="docs/screenshots/demo-sort.gif" width="300" alt="粘贴一段 Prompt，自动分进场景、镜头、画风、其他四栏"></p>
 
@@ -24,8 +24,12 @@
 ### 生成与管理
 文生图、图生图、局部重绘、角色参考、Vibe Transfer 都在。任务进**后台队列**，可暂停、取消、重试；生成的图进入本机**图库**，搜索、收藏、一键恢复参数，并自动存一份到手机相册。常用设置存成**方案**，随时切换、导入导出。
 
+局部重绘的**框选高清修补**先圈出上下文，再用画笔涂出要改的位置；局部放大生成后贴回原图，保留原尺寸和蒙版外像素。选框也能随方案、草稿恢复。
+
 ### 官方账号或第三方中转
 可以同时保存多个 NovelAI 官方 Token；也可以在「管理第三方中转」里添加 RBQ，或其他与 NovelAI 生图接口兼容的中转，生成时随时切换。中转返回的图片格式会自动识别。
+
+自定义中转优先使用 HTTPS；服务只提供 HTTP 时，需在该中转中明确允许。HTTP 会明文传输 Key、提示词和图片，请只用于你信任的服务与网络。
 
 <p align="center">
 <img src="docs/screenshots/editor.png" width="200" alt="四栏 Tag 编辑">
@@ -36,7 +40,7 @@
 
 ## 开始使用
 
-1. 从 [Releases](https://github.com/MayRain-Meow/NAI-Pocket/releases/tag/v0.4.0-preview) 下载 APK 安装。
+1. 从 [Releases](https://github.com/MayRain-Meow/NAI-Pocket/releases/tag/v0.6.3-preview) 下载 APK 安装。
 2. 打开设置添加账号：NovelAI 官方 Token，或在「管理第三方中转」里添加中转。
 3. 写好 Prompt，点生成。
 

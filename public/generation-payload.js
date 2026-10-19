@@ -3,12 +3,13 @@
 // Environment-specific values (API model names and tool endpoints) are set once by the
 // host through configureGenerationPayload(); the defaults are NovelAI's public ones.
 
-import { formatTag } from './prompt-utils.js?v=1.8.8';
-import { normalizeProviderId } from './provider-route.js?v=1.8.8';
-import { extractQuotedText, prepareV5Prompt } from './v5-utils.js?v=1.8.8';
-import { DIRECTOR_TOOL_TYPES, filterAdvancedOverrides } from './parameter-semantics.js?v=1.8.8';
-import { DEFAULT_GENERATION_MODEL, DEFAULT_GENERATION_PARAMS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.8.8';
-import { characterLimitForModel, isV5GenerationModel, supportsPreciseReference, supportsVibeTransfer, supportsCharacterPrompt, V5_CHARACTER_LIMIT } from './model-utils.js?v=1.8.8';
+import { formatTag } from './prompt-utils.js?v=1.8.10';
+import { sanitizeInpaintRegion } from './focused-inpaint.js?v=1.8.10';
+import { normalizeProviderId } from './provider-route.js?v=1.8.10';
+import { extractQuotedText, prepareV5Prompt } from './v5-utils.js?v=1.8.10';
+import { DIRECTOR_TOOL_TYPES, filterAdvancedOverrides } from './parameter-semantics.js?v=1.8.10';
+import { DEFAULT_GENERATION_MODEL, DEFAULT_GENERATION_PARAMS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.8.10';
+import { characterLimitForModel, isV5GenerationModel, supportsPreciseReference, supportsVibeTransfer, supportsCharacterPrompt, V5_CHARACTER_LIMIT } from './model-utils.js?v=1.8.10';
 
 const settings = {
   v5FullModel: 'nai-diffusion-5-full',
@@ -195,6 +196,7 @@ function sanitizeImageWorkflow(raw, model = '') {
     mode,
     baseImage: sanitizeImageRef(raw?.baseImage),
     maskImage: sanitizeImageRef(raw?.maskImage),
+    inpaintRegion: mode === 'inpaint' ? sanitizeInpaintRegion(raw?.inpaintRegion) : null,
     strength: number(raw?.strength, 0.65, 0, 1),
     noise: number(raw?.noise, 0, 0, 1),
     colorCorrect: raw?.colorCorrect === true,

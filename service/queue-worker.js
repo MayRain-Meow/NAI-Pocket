@@ -72,7 +72,7 @@ async function processOne(job) {
 
     const message = String(error?.message || error).slice(0, 4000);
     const status = Number(error?.status || 0);
-    if (!error?.imageReceived && status === 429 && attempts <= settings.rateLimitRetries) {
+    if (!error?.imageReceived && !error?.generationResponseReceived && status === 429 && attempts <= settings.rateLimitRetries) {
       const delayMs = rateLimitDelayMs(error);
       const until = clock.now() + delayMs;
       await setAppState('queue_rate_limit_until', String(until));

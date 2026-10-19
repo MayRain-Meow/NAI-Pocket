@@ -31,6 +31,16 @@ test('upstream rate limit requeues once and records cooldown', async () => {
   const f = fixture({ generateImage: async () => { throw Object.assign(new Error('rate limited'), { status: 429 }); } });
   await f.worker.processOne(job()); assert.equal(f.status(), 'pending'); assert.ok(f.effects.includes('cooldown')); assert.equal(f.controllers.size, 0);
 });
+test('successful generation response never resubmits after wrapper or download failures', async () => {
+  for (const status of [0, 429, 502]) {
+    let calls = 0;
+    const f = fixture({ generateImage: async () => { calls++; throw Object.assign(new Error('response decode failed'), { status, generationResponseReceived: true }); } });
+    await f.worker.processOne(job());
+    assert.equal(calls, 1); assert.equal(f.status(), 'failed');
+    assert.ok(!f.effects.includes('retry')); assert.ok(!f.effects.includes('cooldown'));
+    assert.equal(f.controllers.size, 0);
+  }
+});
 test('cancel during response prevents saving', async () => {
   let saved = false; const f = fixture({ generateImage: async () => { f.cancel(); return {}; }, saveImage: async () => { saved = true; } });
   await f.worker.processOne(job()); assert.equal(saved, false); assert.equal(f.status(), 'cancelled'); assert.equal(f.controllers.size, 0);

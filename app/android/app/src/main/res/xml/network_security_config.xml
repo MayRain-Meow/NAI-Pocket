@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Custom relay hosts are chosen at runtime. The native HTTP bridge requires
+         explicit per-request consent; the WebView still blocks mixed content. -->
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

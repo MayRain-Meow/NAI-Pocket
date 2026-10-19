@@ -13,7 +13,7 @@
 // and the Node server already import prompt/parameter helpers from here, so both runtimes read
 // the same object. Nothing here may touch `db.js`, `node:*` or the network — the browser loads
 // this file directly.
-import { DEFAULT_NAI_MODEL } from './model-utils.js?v=1.8.8';
+import { DEFAULT_NAI_MODEL } from './model-utils.js?v=1.8.10';
 
 
 export const DEFAULT_GENERATION_MODEL = DEFAULT_NAI_MODEL;
@@ -48,7 +48,7 @@ export function createDefaultGenerationState() {
     characters: [],
     v4Options: { useCoords: false, useOrder: true, negativeUseOrder: false, legacyUc: false },
     imageWorkflow: {
-      mode: 'text', baseImage: null, maskImage: null, strength: 0.65, noise: 0,
+      mode: 'text', baseImage: null, maskImage: null, inpaintRegion: null, strength: 0.65, noise: 0,
       colorCorrect: false, enhance: false, enhanceUpscaleFactor: DEFAULT_ENHANCE_UPSCALE_FACTOR,
       enhanceTargetWidth: null, enhanceTargetHeight: null
     },

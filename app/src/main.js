@@ -1,9 +1,8 @@
 
-import { Buffer } from 'buffer';
 import { App } from '@capacitor/app';
 import { registerPlugin } from '@capacitor/core';
 import { version as appVersion } from '../package.json';
-import { createGenerationClient } from '../../service/generation.js';
+import { createNativeGenerationClient } from './novelai.js';
 import { createSchemesService } from '../../service/schemes.js';
 import { createSchemesStore } from '../../service/storage/schemes.js';
 import { sanitizeGenerationState } from '../../public/generation-payload.js';
@@ -11,7 +10,6 @@ import { openDatabase } from './sqlite.js';
 import { openProviders, PocketNative } from './providers.js';
 import { nativeFetch } from './http.js';
 import { openAssets } from './assets.js';
-import { inflateRaw } from './codecs.js';
 import { openMedia } from './media.js';
 import { openQueue } from './queue.js';
 import { openReferences } from './references.js';
@@ -103,7 +101,7 @@ window.addEventListener('nai-runtime-error', event => notice(event.detail));
 try {
   const database = await openDatabase(), http = { fetch: nativeFetch };
   const providers = await openProviders(settings, http), assets = openAssets(database, settings, http, providers);
-  const client = createGenerationClient({ settings, assets, generationProvider: providers.generationProvider, binary: Buffer, inflateRaw,
+  const client = createNativeGenerationClient({ settings, assets, generationProvider: providers.generationProvider,
     ids: { request: () => crypto.randomUUID().slice(0, 6) }, http });
   let queue;
   const media = openMedia(database, () => queue.resources());

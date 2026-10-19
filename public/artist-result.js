@@ -1,4 +1,4 @@
-import { STYLE_ATTRIBUTES, observationAttributes } from './artist-style-schema.js?v=1.8.8';
+import { STYLE_ATTRIBUTES, observationAttributes } from './artist-style-schema.js?v=1.8.10';
 
 const GROUPS = { line: '线条', coloring: '上色', palette: '色彩', lighting: '光影', texture: '质感', shape: '造型', composition: '构图', work: '作品类型' };
 const clean = (value, max = 2000) => String(value ?? '').trim().slice(0, max);

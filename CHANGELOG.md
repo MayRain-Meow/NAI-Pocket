@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.3 — Preview
+
+- Third-party relays: a saved relay can explicitly allow HTTP; HTTPS remains the default. Optional site/internal Key fields are concatenated without separators. Saving settings does not send a generation request.
+- Relay responses: bounded gzip decoding, readable upstream errors, and no automatic second generation when a successful response cannot be decoded or downloaded.
+- Focused inpaint: select context, paint the desired edit, generate an enlarged crop and composite it back at the original size. Pixels outside the original mask are preserved; regions survive schemes and drafts.
+
 ## 0.6.2 — Preview
 
 - Fixed (#1): on phones that draw apps edge to edge (seen on a Redmi K80 with 全屏显示), the header, the settings close button and the bottom tabs sat under the status bar and gesture bar and could not be tapped. The app is now padded out of the system bars natively, and the bar areas use the app background with light icons.

@@ -7,26 +7,27 @@ import {
   unwrapLegacyBrackets,
   parseStructuredPrompt as parseStructuredPromptUtil,
   cloneTagForStorage
-} from './prompt-utils.js?v=1.8.8';
-import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.8.8';
-import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.8.8';
-import { repairImportedPrompt } from './import-repair.js?v=1.8.8';
-import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.8.8';
-import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity } from './artist-index-v5.js?v=1.8.8';
-import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.8.8';
-import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.8.8';
-import { buildArtistStormPlan } from './storm-utils.js?v=1.8.8';
-import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.8.8';
-import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.8.8';
-import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.8.8';
-import { observeToastClearance } from './toast-layout.js?v=1.8.8';
-import { installSelectSheets } from './select-sheet.js?v=1.8.8';
-import { attachWeightHighlight } from './weight-highlight.js?v=1.8.8';
-import { confirmAction, promptText } from './confirm-sheet.js?v=1.8.8';
-import { createTaggerPanel } from './tagger-panel.js?v=1.8.8';
-import { createCodexPanel } from './codex-panel.js?v=1.8.8';
-import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.8.8';
-import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.8.8';
+} from './prompt-utils.js?v=1.8.10';
+import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.8.10';
+import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.8.10';
+import { repairImportedPrompt } from './import-repair.js?v=1.8.10';
+import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.8.10';
+import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity } from './artist-index-v5.js?v=1.8.10';
+import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.8.10';
+import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.8.10';
+import { buildArtistStormPlan } from './storm-utils.js?v=1.8.10';
+import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.8.10';
+import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.8.10';
+import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.8.10';
+import { focusedInpaintPlan, sanitizeInpaintRegion } from './focused-inpaint.js?v=1.8.10';
+import { observeToastClearance } from './toast-layout.js?v=1.8.10';
+import { installSelectSheets } from './select-sheet.js?v=1.8.10';
+import { attachWeightHighlight } from './weight-highlight.js?v=1.8.10';
+import { confirmAction, promptText } from './confirm-sheet.js?v=1.8.10';
+import { createTaggerPanel } from './tagger-panel.js?v=1.8.10';
+import { createCodexPanel } from './codex-panel.js?v=1.8.10';
+import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.8.10';
+import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.8.10';
 
 const GROUP_LABELS_BY_KEY = {
   scene: '场景',
@@ -137,6 +138,7 @@ const els = {
   chooseBaseImageButton: $('#chooseBaseImageButton'), replaceBaseImageButton: $('#replaceBaseImageButton'), clearBaseImageButton: $('#clearBaseImageButton'), baseImagePreview: $('#baseImagePreview'), baseImagePlaceholder: $('#baseImagePlaceholder'), baseImageMeta: $('#baseImageMeta'), workflowSliderGrid: $('#workflowSliderGrid'), officialImageToolPanel: $('#officialImageToolPanel'), officialImageToolName: $('#officialImageToolName'), officialImageToolHint: $('#officialImageToolHint'), enhanceUpscaleFactorField: $('#enhanceUpscaleFactorField'), enhanceUpscaleFactor: $('#enhanceUpscaleFactor'), officialUpscaleScaleField: $('#officialUpscaleScaleField'), officialDirectorPromptField: $('#officialDirectorPromptField'), officialDirectorPrompt: $('#officialDirectorPrompt'), officialDirectorDefryField: $('#officialDirectorDefryField'), officialDirectorDefry: $('#officialDirectorDefry'),
   imageStrength: $('#imageStrength'), imageStrengthValue: $('#imageStrengthValue'), imageNoise: $('#imageNoise'), imageNoiseValue: $('#imageNoiseValue'), imageColorCorrect: $('#imageColorCorrect'),
   inpaintEditor: $('#inpaintEditor'), inpaintBaseImage: $('#inpaintBaseImage'), inpaintMaskCanvas: $('#inpaintMaskCanvas'), maskStatus: $('#maskStatus'), maskBrushButton: $('#maskBrushButton'), maskEraserButton: $('#maskEraserButton'), maskBrushSize: $('#maskBrushSize'), maskUndoButton: $('#maskUndoButton'), maskRedoButton: $('#maskRedoButton'), maskInvertButton: $('#maskInvertButton'), maskClearButton: $('#maskClearButton'),
+  inpaintCanvasStage: $('#inpaintCanvasStage'), inpaintRegionOverlay: $('#inpaintRegionOverlay'), focusedInpaintToggle: $('#focusedInpaintToggle'), inpaintRegionButton: $('#inpaintRegionButton'), focusedInpaintStatus: $('#focusedInpaintStatus'),
   preciseReferencePanel: $('#preciseReferencePanel'), preciseReferenceList: $('#preciseReferenceList'), addPreciseReferenceButton: $('#addPreciseReferenceButton'), vibeReferencePanel: $('#vibeReferencePanel'), vibeReferenceList: $('#vibeReferenceList'), addVibeReferenceButton: $('#addVibeReferenceButton'), vibeTotalStrength: $('#vibeTotalStrength'), normalizeVibeStrengthButton: $('#normalizeVibeStrengthButton'),
   imagePickerDialog: $('#imagePickerDialog'), imagePickerTitle: $('#imagePickerTitle'), imagePickerStatus: $('#imagePickerStatus'), imagePickerGallery: $('#imagePickerGallery'), workflowImageFile: $('#workflowImageFile'), uploadWorkflowImageButton: $('#uploadWorkflowImageButton'), refreshImagePickerGallery: $('#refreshImagePickerGallery'),
   imageCreateDialog: $('#imageCreateDialog'), dialogCreateFromImage: $('#dialogCreateFromImage'), dialogSimilarFromImage: $('#dialogSimilarFromImage')
@@ -345,6 +347,15 @@ let maskHasPaint = false;
 let maskHistory = [];
 let maskHistoryIndex = -1;
 let inpaintImageEpoch = 0;
+let inpaintCanvasReady = false;
+let inpaintImageLoading = false;
+let maskRevision = 0;
+let maskBoundsRevision = -1;
+let maskBoundsCache = null;
+let maskPointerId = null;
+let focusedInpaintEnabled = false;
+let focusedInpaintDraft = null;
+let inpaintRegionDrag = null;
 
 
 function createDefaultState() {
@@ -1568,7 +1579,7 @@ function watchForUpdates() {
     if (!controlled) { controlled = true; return; } // first install, not an update
     showUpdateBanner();
   });
-  navigator.serviceWorker.register('/sw.js?v=1.8.8').then(registration => {
+  navigator.serviceWorker.register('/sw.js?v=1.8.10').then(registration => {
     let checkedAt = Date.now();
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible' || Date.now() - checkedAt < 10 * 60 * 1000) return;
@@ -5765,6 +5776,7 @@ function setGenerationMode(mode) {
     && workflow.maskImage
     && (previousMode === 'inpaint' || previousMode === 'unknown');
   if (!preserveRecoveredMask) workflow.maskImage = null;
+  if (requestedMode !== 'inpaint' || (previousMode !== 'inpaint' && !preserveRecoveredMask)) resetFocusedInpaint();
   maskDrawing = requestedMode === 'inpaint' && (previousMode === 'inpaint' || preserveRecoveredMask) ? maskDrawing : false;
   if (!preserveRecoveredMask) resetMaskCanvas();
   renderImageWorkflow();
@@ -5993,7 +6005,8 @@ function renderImageWorkflow() {
   renderPreciseReferences();
   renderVibeReferences();
   if (workflow.mode === 'inpaint') syncInpaintBaseImage();
-  else inpaintImageEpoch += 1;
+  else { inpaintImageEpoch += 1; inpaintCanvasReady = false; inpaintImageLoading = false; }
+  renderFocusedInpaint();
   updateWorkflowRows();
 }
 
@@ -6023,6 +6036,7 @@ function applyWorkflowAsset(asset, expectedToken = imagePickerActionToken) {
   if (target.kind === 'base') {
     const previousBaseId = String(appState.imageWorkflow?.baseImage?.id || '');
     const nextBaseId = String(asset.ref?.id || '');
+    if (previousBaseId !== nextBaseId) resetFocusedInpaint();
     const existingMask = appState.imageWorkflow?.maskImage;
     // If an imported inpaint record retained a Mask but not its source, the
     // first source selection should complete that workflow without throwing
@@ -6291,7 +6305,104 @@ function openImagePicker(target) {
   });
 }
 
+// Note: the region is context, not a mask; original pixels remain the coordinate owner.
+
+function setMaskTool(tool) {
+  maskTool = tool;
+  [[els.maskBrushButton, 'brush'], [els.maskEraserButton, 'eraser'], [els.inpaintRegionButton, 'region']].forEach(([button, value]) => {
+    button?.classList.toggle('active', tool === value);
+    button?.setAttribute('aria-pressed', String(tool === value));
+  });
+}
+
+function resetFocusedInpaint() {
+  focusedInpaintEnabled = false;
+  focusedInpaintDraft = null;
+  inpaintRegionDrag = null;
+  if (appState.imageWorkflow) appState.imageWorkflow.inpaintRegion = null;
+  if (maskTool === 'region') setMaskTool('brush');
+  renderFocusedInpaint();
+}
+
+function currentMaskBounds() {
+  if (maskBoundsRevision === maskRevision) return maskBoundsCache;
+  const canvas = els.inpaintMaskCanvas;
+  if (!canvas?.width || !canvas?.height) return null;
+  const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+  let left = canvas.width, top = canvas.height, right = -1, bottom = -1;
+  for (let y = 0, i = 3; y < canvas.height; y++) {
+    for (let x = 0; x < canvas.width; x++, i += 4) {
+      if (pixels[i] <= 16) continue;
+      left = Math.min(left, x); right = Math.max(right, x);
+      top = Math.min(top, y); bottom = Math.max(bottom, y);
+    }
+  }
+  maskBoundsCache = right < 0 ? null : { left, top, right, bottom };
+  maskBoundsRevision = maskRevision;
+  return maskBoundsCache;
+}
+
+function validateFocusedInpaint(region = focusedInpaintDraft || appState.imageWorkflow?.inpaintRegion) {
+  if (!appState.imageWorkflow?.baseImage) throw new Error('请先选择局部重绘原图。');
+  if (!inpaintCanvasReady) throw new Error('原图或 Mask 尚未读取完成，请稍候。');
+  if (!region) throw new Error('请先拖框选择修补区域，再用画笔涂抹 Mask。');
+  if (region.width < 8 || region.height < 8) throw new Error('框选太小：宽高都须至少 8 原图像素，请重新拖框。');
+  if (region.width * region.height > 768 * 768) throw new Error('框选面积过大：最多 768×768 原图像素，请缩小选区。');
+  const canvas = els.inpaintMaskCanvas;
+  const plan = focusedInpaintPlan(region, canvas.width, canvas.height);
+  const bounds = currentMaskBounds();
+  if (bounds && (bounds.left < region.x || bounds.top < region.y || bounds.right >= region.x + region.width || bounds.bottom >= region.y + region.height)) {
+    throw new Error('Mask 有涂抹落在框外。请扩大或重画选框，或用橡皮擦除框外涂抹；不会自动裁掉。');
+  }
+  return plan;
+}
+
+function renderFocusedInpaint() {
+  const workflow = appState.imageWorkflow;
+  const enabled = focusedInpaintEnabled && workflow?.mode === 'inpaint';
+  els.focusedInpaintToggle?.classList.toggle('active', enabled);
+  els.focusedInpaintToggle?.setAttribute('aria-pressed', String(enabled));
+  if (els.focusedInpaintToggle) els.focusedInpaintToggle.textContent = enabled ? '退出高清修补' : '框选高清修补';
+  els.inpaintRegionButton?.classList.toggle('hidden', !enabled);
+  els.focusedInpaintStatus?.classList.toggle('hidden', !enabled);
+  const region = focusedInpaintDraft || workflow?.inpaintRegion;
+  const overlay = els.inpaintRegionOverlay;
+  const visible = enabled && inpaintCanvasReady && region;
+  overlay?.classList.toggle('hidden', !visible);
+  if (visible && overlay) {
+    overlay.setAttribute('viewBox', `0 0 ${els.inpaintMaskCanvas.width} ${els.inpaintMaskCanvas.height}`);
+    overlay.querySelectorAll('rect').forEach(rect => {
+      for (const key of ['x', 'y', 'width', 'height']) rect.setAttribute(key, String(region[key]));
+    });
+  }
+  if (!enabled || !els.focusedInpaintStatus) return;
+  let message, invalid = false;
+  try {
+    const plan = validateFocusedInpaint(region);
+    message = `框选 ${region.width}×${region.height} → 修补 ${plan.workWidth}×${plan.workHeight}。框只定上下文；用画笔涂出要改的位置，输出保留原图尺寸。`;
+  } catch (error) {
+    message = error.message;
+    invalid = true;
+  }
+  els.focusedInpaintStatus.textContent = message;
+  els.focusedInpaintStatus.classList.toggle('warning-text', invalid);
+  if (overlay) overlay.dataset.invalid = String(invalid);
+}
+
+function regionFromPoints(start, end) {
+  const canvas = els.inpaintMaskCanvas;
+  const x = Math.max(0, Math.min(canvas.width, Math.floor(Math.min(start.x, end.x))));
+  const y = Math.max(0, Math.min(canvas.height, Math.floor(Math.min(start.y, end.y))));
+  const right = Math.max(x, Math.min(canvas.width, Math.ceil(Math.max(start.x, end.x))));
+  const bottom = Math.max(y, Math.min(canvas.height, Math.ceil(Math.max(start.y, end.y))));
+  return { x, y, width: right - x, height: bottom - y, sourceWidth: canvas.width, sourceHeight: canvas.height };
+}
+
 function resetMaskCanvas() {
+  maskRevision += 1;
+  maskDrawing = false;
+  maskPointerId = null;
+  inpaintRegionDrag = null;
   if (els.inpaintMaskCanvas) {
     const ctx = els.inpaintMaskCanvas.getContext('2d');
     ctx?.clearRect(0, 0, els.inpaintMaskCanvas.width, els.inpaintMaskCanvas.height);
@@ -6305,6 +6416,7 @@ function resetMaskCanvas() {
 
 function markMaskUnsaved(reason = 'Mask 已修改，生成时会自动保存。') {
   appState.imageWorkflow.maskImage = null;
+  if (inpaintCanvasReady && els.inpaintBaseImage?.dataset.assetId === appState.imageWorkflow?.baseImage?.id) els.inpaintBaseImage.dataset.maskId = '';
   if (appState.imageWorkflow?.mode !== 'inpaint') return;
   const sourceReady = Boolean(appState.imageWorkflow?.baseImage);
   appState.imageRecovery = {
@@ -6330,9 +6442,12 @@ function pushMaskHistory() {
 
 function restoreMaskSnapshot(index) {
   if (index < 0 || index >= maskHistory.length) return;
+  if (!inpaintCanvasReady) return;
+  const epoch = inpaintImageEpoch, revision = ++maskRevision;
   const canvas = els.inpaintMaskCanvas;
   const image = new Image();
   image.onload = () => {
+    if (epoch !== inpaintImageEpoch || revision !== maskRevision) return;
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
@@ -6340,28 +6455,34 @@ function restoreMaskSnapshot(index) {
     maskHasPaint = true;
     markMaskUnsaved();
     if (els.maskStatus) els.maskStatus.textContent = 'Mask 已修改，生成时会自动保存。';
+    renderFocusedInpaint();
   };
   image.src = maskHistory[index];
 }
 
-async function loadSavedMaskIntoCanvas(ref) {
+async function loadSavedMaskIntoCanvas(ref, epoch = inpaintImageEpoch) {
   const url = workflowRefUrl(ref);
   const canvas = els.inpaintMaskCanvas;
   if (!url || !canvas?.width) return;
+  const revision = maskRevision;
   const image = new Image();
   image.decoding = 'async';
   await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error('保存的 Mask 读取失败。')); image.src = url; });
+  if (epoch !== inpaintImageEpoch || revision !== maskRevision || appState.imageWorkflow?.maskImage?.id !== ref.id) return;
   const temp = document.createElement('canvas');
   temp.width = canvas.width; temp.height = canvas.height;
   const tctx = temp.getContext('2d', { willReadFrequently: true });
   tctx.drawImage(image, 0, 0, temp.width, temp.height);
   const pixels = tctx.getImageData(0, 0, temp.width, temp.height);
   for (let i = 0; i < pixels.data.length; i += 4) {
-    const lum = (pixels.data[i] + pixels.data[i + 1] + pixels.data[i + 2]) / 3;
+    // Preserve antialias coverage so restored Masks use the same outside-box
+    // threshold as the original drawing and the shared pixel pipeline.
+    const coverage = Math.max(pixels.data[i], pixels.data[i + 1], pixels.data[i + 2]) * pixels.data[i + 3] / 255;
     pixels.data[i] = 255; pixels.data[i + 1] = 255; pixels.data[i + 2] = 255;
-    pixels.data[i + 3] = lum > 80 ? 255 : 0;
+    pixels.data[i + 3] = Math.ceil(coverage);
   }
   canvas.getContext('2d').putImageData(pixels, 0, 0);
+  maskRevision += 1;
   maskDirty = false;
   maskHasPaint = maskCanvasHasSelection();
   maskHistory = [];
@@ -6376,27 +6497,56 @@ function syncInpaintBaseImage() {
   if (!els.inpaintBaseImage || !els.inpaintMaskCanvas) return;
   if (!url) {
     inpaintImageEpoch += 1;
+    inpaintCanvasReady = false;
+    inpaintImageLoading = false;
     els.inpaintBaseImage.removeAttribute('src');
+    delete els.inpaintBaseImage.dataset.assetId;
+    delete els.inpaintBaseImage.dataset.maskId;
+    els.inpaintCanvasStage?.setAttribute('aria-busy', 'false');
     return;
   }
   const maskId = String(appState.imageWorkflow?.maskImage?.id || '');
-  if (els.inpaintBaseImage.dataset.assetId === ref.id && els.inpaintBaseImage.dataset.maskId === maskId && els.inpaintBaseImage.src) return;
+  if (els.inpaintBaseImage.dataset.assetId === ref.id && els.inpaintBaseImage.dataset.maskId === maskId && els.inpaintBaseImage.src && (inpaintCanvasReady || inpaintImageLoading)) return;
   const epoch = ++inpaintImageEpoch;
+  inpaintCanvasReady = false;
+  inpaintImageLoading = true;
+  els.inpaintCanvasStage?.setAttribute('aria-busy', 'true');
+  if (els.maskStatus) els.maskStatus.textContent = '正在读取原图和 Mask…';
   els.inpaintBaseImage.dataset.assetId = ref.id;
   els.inpaintBaseImage.dataset.maskId = maskId;
-  els.inpaintBaseImage.onload = () => {
-    if (epoch !== inpaintImageEpoch || appState.imageWorkflow?.mode !== 'inpaint') return;
+  // Each request owns its Image: an older load event must never initialize a
+  // newer source's canvas or restore its Mask over a new drawing.
+  const image = new Image();
+  image.decoding = 'async';
+  image.onload = async () => {
+    if (epoch !== inpaintImageEpoch || appState.imageWorkflow?.mode !== 'inpaint' || appState.imageWorkflow?.baseImage?.id !== ref.id) return;
     const canvas = els.inpaintMaskCanvas;
-    canvas.width = els.inpaintBaseImage.naturalWidth || 1;
-    canvas.height = els.inpaintBaseImage.naturalHeight || 1;
+    canvas.width = image.naturalWidth || 1;
+    canvas.height = image.naturalHeight || 1;
     resetMaskCanvas();
-    if (appState.imageWorkflow?.maskImage) {
-      loadSavedMaskIntoCanvas(appState.imageWorkflow.maskImage).catch(error => { if (els.maskStatus) els.maskStatus.textContent = error.message; });
-    } else {
-      pushMaskHistory();
+    try {
+      if (appState.imageWorkflow?.maskImage) await loadSavedMaskIntoCanvas(appState.imageWorkflow.maskImage, epoch);
+      else pushMaskHistory();
+      if (epoch !== inpaintImageEpoch) return;
+      inpaintCanvasReady = true;
+    } catch (error) {
+      if (epoch !== inpaintImageEpoch) return;
+      if (els.maskStatus) els.maskStatus.textContent = error.message;
     }
+    inpaintImageLoading = false;
+    els.inpaintCanvasStage?.setAttribute('aria-busy', 'false');
+    renderFocusedInpaint();
+  };
+  image.onerror = () => {
+    if (epoch !== inpaintImageEpoch) return;
+    inpaintImageLoading = false;
+    delete els.inpaintBaseImage.dataset.assetId;
+    els.inpaintCanvasStage?.setAttribute('aria-busy', 'false');
+    if (els.maskStatus) els.maskStatus.textContent = '原图读取失败，请重新选择图片。';
+    renderFocusedInpaint();
   };
   els.inpaintBaseImage.src = url;
+  image.src = url;
 }
 
 function maskPoint(event) {
@@ -6409,6 +6559,7 @@ function maskPoint(event) {
 }
 
 function drawMaskSegment(from, to) {
+  maskRevision += 1;
   const canvas = els.inpaintMaskCanvas;
   const ctx = canvas.getContext('2d');
   const rect = canvas.getBoundingClientRect();
@@ -6432,7 +6583,8 @@ function drawMaskSegment(from, to) {
 
 function invertMask() {
   const canvas = els.inpaintMaskCanvas;
-  if (!canvas?.width) return;
+  if (!inpaintCanvasReady || !canvas?.width) return;
+  maskRevision += 1;
   const ctx = canvas.getContext('2d');
   const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
   for (let i = 0; i < image.data.length; i += 4) {
@@ -6445,6 +6597,7 @@ function invertMask() {
   markMaskUnsaved();
   pushMaskHistory();
   if (els.maskStatus) els.maskStatus.textContent = 'Mask 已反选。';
+  renderFocusedInpaint();
 }
 
 function maskCanvasHasSelection() {
@@ -6457,7 +6610,13 @@ function maskCanvasHasSelection() {
 
 async function uploadCurrentMask() {
   const canvas = els.inpaintMaskCanvas;
+  if (!inpaintCanvasReady) throw new Error('原图或 Mask 尚未读取完成，请稍候。');
   if (!canvas?.width || !canvas?.height || !maskCanvasHasSelection()) throw new Error('先在原图上画出需要局部重绘的区域。');
+  const epoch = inpaintImageEpoch, revision = maskRevision;
+  const sourceId = appState.imageWorkflow?.baseImage?.id;
+  const assertCurrent = () => {
+    if (epoch !== inpaintImageEpoch || revision !== maskRevision || sourceId !== appState.imageWorkflow?.baseImage?.id) throw new Error('原图或 Mask 已变化，请重新生成。');
+  };
   const exportCanvas = document.createElement('canvas');
   exportCanvas.width = canvas.width;
   exportCanvas.height = canvas.height;
@@ -6466,11 +6625,14 @@ async function uploadCurrentMask() {
   ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
   ctx.drawImage(canvas, 0, 0);
   const blob = await new Promise((resolve, reject) => exportCanvas.toBlob(value => value ? resolve(value) : reject(new Error('Mask 编码失败。')), 'image/png'));
+  assertCurrent();
   const asset = await api('/api/assets', {
     method: 'POST', headers: { 'Content-Type': 'image/png', 'x-file-name': encodeURIComponent('inpaint-mask.png') }, body: blob
   });
+  assertCurrent();
   workflowAssetMeta.set(asset.id, asset);
   appState.imageWorkflow.maskImage = structuredClone(asset.ref);
+  if (els.inpaintBaseImage) els.inpaintBaseImage.dataset.maskId = asset.ref.id;
   // Keep the recovery badge in sync with the actual canonical state.  An
   // imported Inpaint record may start as `missing`; once both source and Mask
   // exist it must no longer serialize that stale warning into a queue job or
@@ -6503,6 +6665,11 @@ async function uploadCurrentMask() {
 
 async function prepareGenerationState(rawState, useLiveMask = true) {
   const state = structuredClone(rawState);
+  if (useLiveMask && state.imageWorkflow?.mode === 'inpaint' && state.imageWorkflow?.baseImage?.id === appState.imageWorkflow?.baseImage?.id && focusedInpaintEnabled) {
+    if (inpaintRegionDrag || maskDrawing) throw new Error('请先结束框选或画笔操作，再生成。');
+    validateFocusedInpaint();
+    state.imageWorkflow.inpaintRegion = sanitizeInpaintRegion(appState.imageWorkflow.inpaintRegion);
+  }
   if (useLiveMask && state.imageWorkflow?.mode === 'inpaint' && maskDirty && state.imageWorkflow?.baseImage?.id === appState.imageWorkflow?.baseImage?.id) {
     const ref = await uploadCurrentMask();
     state.imageWorkflow.maskImage = structuredClone(ref);
@@ -6567,6 +6734,7 @@ async function createFromCurrentGalleryImage(mode) {
     appState.imageWorkflow.enhanceTargetHeight = null;
     appState.imageWorkflow.baseImage = structuredClone(asset.ref);
     appState.imageWorkflow.maskImage = null;
+    resetFocusedInpaint();
     resetMaskCanvas();
     setWorkflowDimensionsFromAsset(asset);
   } else if (mode === 'upscale' || ['lineart', 'sketch', 'bg-removal', 'declutter', 'colorize', 'emotion'].includes(mode)) {
@@ -6578,6 +6746,7 @@ async function createFromCurrentGalleryImage(mode) {
     appState.imageWorkflow.enhanceTargetHeight = null;
     appState.imageWorkflow.baseImage = structuredClone(asset.ref);
     appState.imageWorkflow.maskImage = null;
+    resetFocusedInpaint();
     appState.imageTool = mode === 'upscale'
       ? { type: 'upscale', scale: 4, reqType: '', prompt: '', defry: 0 }
       : { type: 'director', scale: 4, reqType: mode, prompt: '', defry: 0 };
@@ -6713,6 +6882,7 @@ function normalizeStoredImageWorkflow(raw, defaults, model) {
     mode,
     baseImage: normalizeStoredAssetRef(source.baseImage),
     maskImage: normalizeStoredAssetRef(source.maskImage),
+    inpaintRegion: mode === 'inpaint' ? sanitizeInpaintRegion(source.inpaintRegion) : null,
     strength: storedNumber(source.strength, defaults.strength, 0, 1),
     noise: storedNumber(source.noise, defaults.noise, 0, 1),
     colorCorrect: source.colorCorrect === true,
@@ -6917,6 +7087,13 @@ function normalizeStoredState(raw) {
 
 function hydrateState(raw) {
   appState = normalizeStoredState(raw);
+  focusedInpaintEnabled = Boolean(appState.imageWorkflow?.inpaintRegion);
+  focusedInpaintDraft = null;
+  inpaintRegionDrag = null;
+  setMaskTool('brush');
+  inpaintImageEpoch += 1;
+  inpaintCanvasReady = false;
+  if (els.inpaintBaseImage) delete els.inpaintBaseImage.dataset.assetId;
   openTagGroups.clear();
   openTagGroups.add('scene');
   for (const [key] of GROUP_DEFS) if (appState.groups[key]?.length) openTagGroups.add(key);
@@ -7830,7 +8007,7 @@ function syncRelayForm() {
     kind.hidden = Boolean(editingRelayId) || !customAllowed;
   }
   const custom = editingRelayId ? editingRelayId.startsWith('relay:') : kind?.value === 'custom';
-  for (const node of [name, url, hint]) if (node) node.hidden = !custom;
+  for (const node of [name, url, hint, $('#relayHttpField'), $('#relayExtraKey')]) if (node) node.hidden = !custom;
   if (els.rbqApiKey) els.rbqApiKey.placeholder = editingRelayId.startsWith('relay:') ? '新的 Key；留空则不改' : custom ? '粘贴中转 Key' : '粘贴 RBQ API Key';
   if (els.saveRbqKeyButton) els.saveRbqKeyButton.textContent = editingRelayId ? '保存修改' : '保存';
   $('#cancelRelayEdit')?.classList.toggle('hidden', !editingRelayId);
@@ -7839,6 +8016,8 @@ function resetRelayForm() {
   editingRelayId = '';
   for (const id of ['#relayName', '#relayApiUrl']) { const node = $(id); if (node) node.value = ''; }
   if (els.rbqApiKey) els.rbqApiKey.value = '';
+  if ($('#relayExtraKey')) $('#relayExtraKey').value = '';
+  if ($('#relayAllowHttp')) $('#relayAllowHttp').checked = false;
   syncRelayForm();
 }
 function beginRelayEdit(id) {
@@ -7848,8 +8027,10 @@ function beginRelayEdit(id) {
   if (relay.id.startsWith('relay:')) {
     $('#relayName').value = relay.name;
     $('#relayApiUrl').value = relay.endpoint || '';
+    $('#relayAllowHttp').checked = relay.allowInsecureHttp === true;
   }
   if (els.rbqApiKey) els.rbqApiKey.value = '';
+  if ($('#relayExtraKey')) $('#relayExtraKey').value = '';
   syncRelayForm();
   els.rbqApiKey?.focus();
 }
@@ -7864,8 +8045,12 @@ async function deleteRelay(id) {
   toast(`已删除：${relay.name}`, 'success');
 }
 async function saveCustomRelay() {
-  const key = String(els.rbqApiKey?.value || '').trim();
-  const body = { name: String($('#relayName')?.value || '').trim(), apiUrl: String($('#relayApiUrl')?.value || '').trim(), key };
+  const firstKey = String(els.rbqApiKey?.value || '').trim();
+  const extraKey = String($('#relayExtraKey')?.value || '').trim();
+  if (extraKey && !firstKey) throw new Error('填写内部 NAI Key 时也要填写前半段 Key，或直接粘贴完整 Token。');
+  const key = firstKey + extraKey;
+  const body = { name: String($('#relayName')?.value || '').trim(), apiUrl: String($('#relayApiUrl')?.value || '').trim(), key,
+    allowInsecureHttp: $('#relayAllowHttp')?.checked === true };
   if (!body.apiUrl) throw new Error('请填写中转的接口地址。');
   if (!editingRelayId && !key) throw new Error('请先粘贴中转 Key。');
   const editing = editingRelayId;
@@ -10797,6 +10982,7 @@ function initBindings() {
     const modeBeforeClear = workflowModeForState(appState);
     appState.imageWorkflow.baseImage = null;
     appState.imageWorkflow.maskImage = null;
+    resetFocusedInpaint();
     // Clearing the source must not silently switch an official Upscale or
     // Director request into Text mode. Keep the selected tool visible and let
     // the workflow panel report the missing input instead.
@@ -10939,41 +11125,89 @@ function initBindings() {
     }
   });
 
-  els.maskBrushButton?.addEventListener('click', () => { maskTool = 'brush'; els.maskBrushButton.classList.add('active'); els.maskEraserButton?.classList.remove('active'); });
-  els.maskEraserButton?.addEventListener('click', () => { maskTool = 'eraser'; els.maskEraserButton.classList.add('active'); els.maskBrushButton?.classList.remove('active'); });
+  els.maskBrushButton?.addEventListener('click', () => setMaskTool('brush'));
+  els.maskEraserButton?.addEventListener('click', () => setMaskTool('eraser'));
+  els.focusedInpaintToggle?.addEventListener('click', () => {
+    if (focusedInpaintEnabled) resetFocusedInpaint();
+    else {
+      focusedInpaintEnabled = true;
+      setMaskTool('region');
+      renderFocusedInpaint();
+    }
+  });
+  els.inpaintRegionButton?.addEventListener('click', () => { setMaskTool('region'); renderFocusedInpaint(); });
   els.maskClearButton?.addEventListener('click', () => {
+    if (!inpaintCanvasReady) return;
+    maskRevision += 1;
     const canvas = els.inpaintMaskCanvas;
     canvas?.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
     markMaskUnsaved('Mask 已清空，生成时会自动保存。');
     maskDirty = true; maskHasPaint = false; pushMaskHistory();
     if (els.maskStatus) els.maskStatus.textContent = 'Mask 已清空。';
+    renderFocusedInpaint();
   });
   els.maskInvertButton?.addEventListener('click', invertMask);
   els.maskUndoButton?.addEventListener('click', () => { if (maskHistoryIndex > 0) { maskHistoryIndex -= 1; restoreMaskSnapshot(maskHistoryIndex); } });
   els.maskRedoButton?.addEventListener('click', () => { if (maskHistoryIndex < maskHistory.length - 1) { maskHistoryIndex += 1; restoreMaskSnapshot(maskHistoryIndex); } });
   els.inpaintMaskCanvas?.addEventListener('pointerdown', event => {
-    if (!appState.imageWorkflow?.baseImage) return;
+    if (!appState.imageWorkflow?.baseImage || !inpaintCanvasReady || maskDrawing || inpaintRegionDrag || event.button > 0) return;
     event.preventDefault();
-    maskDrawing = true;
     els.inpaintMaskCanvas.setPointerCapture?.(event.pointerId);
+    if (focusedInpaintEnabled && maskTool === 'region') {
+      inpaintRegionDrag = { pointerId: event.pointerId, start: maskPoint(event), previousDraft: focusedInpaintDraft };
+      focusedInpaintDraft = regionFromPoints(inpaintRegionDrag.start, inpaintRegionDrag.start);
+      renderFocusedInpaint();
+      return;
+    }
+    maskDrawing = true;
+    maskPointerId = event.pointerId;
     maskLastPoint = maskPoint(event);
     drawMaskSegment(maskLastPoint, maskLastPoint);
   });
   els.inpaintMaskCanvas?.addEventListener('pointermove', event => {
-    if (!maskDrawing) return;
+    if (inpaintRegionDrag?.pointerId === event.pointerId) {
+      event.preventDefault();
+      focusedInpaintDraft = regionFromPoints(inpaintRegionDrag.start, maskPoint(event));
+      renderFocusedInpaint();
+      return;
+    }
+    if (!maskDrawing || maskPointerId !== event.pointerId) return;
     event.preventDefault();
     const point = maskPoint(event);
     drawMaskSegment(maskLastPoint, point);
     maskLastPoint = point;
   });
   const finishMaskStroke = event => {
-    if (!maskDrawing) return;
+    if (inpaintRegionDrag?.pointerId === event.pointerId) {
+      const drag = inpaintRegionDrag;
+      inpaintRegionDrag = null;
+      if (event.type !== 'pointerup') focusedInpaintDraft = drag.previousDraft;
+      else {
+        focusedInpaintDraft = regionFromPoints(drag.start, maskPoint(event));
+        try {
+          appState.imageWorkflow.inpaintRegion = sanitizeInpaintRegion(focusedInpaintDraft);
+          focusedInpaintDraft = null;
+          setMaskTool('brush');
+        } catch {
+          // Keep the invalid preview and its warning, but never persist it as
+          // a usable region or fall back to an older valid selection.
+          appState.imageWorkflow.inpaintRegion = null;
+        }
+      }
+      try { els.inpaintMaskCanvas?.releasePointerCapture?.(event.pointerId); } catch {}
+      renderFocusedInpaint();
+      return;
+    }
+    if (!maskDrawing || maskPointerId !== event.pointerId) return;
     maskDrawing = false;
+    maskPointerId = null;
     try { els.inpaintMaskCanvas?.releasePointerCapture?.(event.pointerId); } catch {}
     pushMaskHistory();
+    renderFocusedInpaint();
   };
   els.inpaintMaskCanvas?.addEventListener('pointerup', finishMaskStroke);
   els.inpaintMaskCanvas?.addEventListener('pointercancel', finishMaskStroke);
+  els.inpaintMaskCanvas?.addEventListener('lostpointercapture', finishMaskStroke);
   $('#closeNaiImportDialog')?.addEventListener('click', () => els.naiImportDialog?.close());
   els.naiImportDialog?.addEventListener('click', event => { if (event.target === els.naiImportDialog) els.naiImportDialog.close(); });
   els.naiImportReview?.addEventListener('click', event => {

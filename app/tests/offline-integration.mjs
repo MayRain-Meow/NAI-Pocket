@@ -277,6 +277,11 @@ try {
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   await page.waitForFunction(()=>globalThis.NAI_RUNTIME&& !document.querySelector('#appView').classList.contains('hidden'),{},{timeout:15000});
   assert.deepEqual(errors,[],'native app boots the real UI without missing imports/ports');
+  if (process.argv.includes('--relay-settings-only')) {
+    const { runRelaySettingsChecks } = await import('./relay-settings.test.mjs');
+    await runRelaySettingsChecks({ page, getVault: () => JSON.parse(vault), generationCalls, temporary });
+    assert.deepEqual(errors, [], 'relay settings UI has no uncaught browser errors');
+  } else {
   assert.equal(await page.locator('[data-tab="artists"]').count(),1);
   // Issue #1: exercise the built HTML, including a second public-export build.
   // These are WebView content sizes after native padding, not an Android inset emulator.
@@ -788,5 +793,6 @@ try {
   assert.deepEqual(errors,[]);
   console.log('Offline native wiring passed: UI token entry/rollback, dual-provider routing, Vibe consent/cache, gallery/export, public NAX preview, shared artist library (search/favourites/资料 notes/style filters/reload/Prompt insertion/backup import, no management), Settings resource packs (import/catalog/download/cancel/atomic commit), app update (12-hour throttle, check none/found, download/permission/install, skip, startup toast), native back through panels/detail/list and 360px layout. No upstream network used.');
   console.log(`Screenshot: ${path.join(temporary,'native-gallery.png')}`);
+  }
 } finally { if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));db.close(); }
 }

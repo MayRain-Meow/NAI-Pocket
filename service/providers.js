@@ -48,11 +48,14 @@ function relayError(message, status = 400) {
   return Object.assign(new Error(message), { status });
 }
 
-function validateRelayUrl(raw) {
+
+function validateRelayUrl(raw, allowInsecureHttp = false) {
   const text = String(raw || '').trim();
   let url;
-  try { url = new URL(text); } catch { throw relayError('中转接口地址无效，请填写完整的 https:// 地址。'); }
-  if (url.protocol !== 'https:') throw relayError('中转接口地址必须以 https:// 开头。');
+  try { url = new URL(text); } catch { throw relayError('中转接口地址无效，请填写完整的生图请求地址。'); }
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && allowInsecureHttp === true)) {
+    throw relayError(url.protocol === 'http:' ? '这个地址使用 HTTP，请勾选“允许此中转使用 HTTP”。' : '中转接口地址只支持 https:// 或明确允许的 http://。');
+  }
   if (url.username || url.password) throw relayError('中转接口地址不能包含用户名或密码。');
   if (url.href.length > 500) throw relayError('中转接口地址过长。');
   url.hash = '';
@@ -74,6 +77,7 @@ function storedRelays() {
     id: String(item.id),
     name: sanitizeAccountName(item.name, '第三方中转'),
     apiUrl: String(item.apiUrl || ''),
+    allowInsecureHttp: item.allowInsecureHttp === true,
     encryptedKey: String(item.encryptedKey || ''),
     createdAt: Math.max(0, Number(item.createdAt || 0)),
     updatedAt: Math.max(0, Number(item.updatedAt || 0))
@@ -88,10 +92,10 @@ function relayRecord(providerId) {
 }
 
 // Create (no id) or update a relay. On update an empty key keeps the stored one.
-function saveRelay({ id = '', name, apiUrl, key } = {}) {
+function saveRelay({ id = '', name, apiUrl, key, allowInsecureHttp = false } = {}) {
   if (!allowCustomRelays) throw relayError('此版本暂不支持自定义中转。', 403);
   const records = storedRelays();
-  const url = validateRelayUrl(apiUrl);
+  const url = validateRelayUrl(apiUrl, allowInsecureHttp);
   const now = clock.now();
   const existingId = String(id || '').replace(RELAY_PREFIX, '');
   if (existingId) {
@@ -99,13 +103,14 @@ function saveRelay({ id = '', name, apiUrl, key } = {}) {
     if (!record) throw relayError('这个第三方中转已不存在。', 404);
     record.name = sanitizeAccountName(name, record.name);
     record.apiUrl = url;
+    record.allowInsecureHttp = allowInsecureHttp === true;
     if (String(key || '').trim()) record.encryptedKey = encryptToken(validateRelayKey(key));
     record.updatedAt = now;
     setAppState(RELAYS_STATE_KEY, JSON.stringify(records));
     return { providerId: `${RELAY_PREFIX}${record.id}`, providers: providerStatus() };
   }
   if (records.length >= MAX_RELAYS) throw relayError(`最多保存 ${MAX_RELAYS} 个第三方中转。`);
-  const record = { id: ids.next(), name: sanitizeAccountName(name, `中转 ${records.length + 1}`), apiUrl: url, encryptedKey: encryptToken(validateRelayKey(key)), createdAt: now, updatedAt: now };
+  const record = { id: ids.next(), name: sanitizeAccountName(name, `中转 ${records.length + 1}`), apiUrl: url, allowInsecureHttp: allowInsecureHttp === true, encryptedKey: encryptToken(validateRelayKey(key)), createdAt: now, updatedAt: now };
   records.push(record);
   setAppState(RELAYS_STATE_KEY, JSON.stringify(records));
   return { providerId: `${RELAY_PREFIX}${record.id}`, providers: providerStatus() };
@@ -123,7 +128,7 @@ function publicRelay(record) {
   catch (cause) { error = String(cause?.message || cause); }
   let host = '';
   try { host = new URL(record.apiUrl).host; } catch {}
-  return { id: `${RELAY_PREFIX}${record.id}`, name: record.name, label: record.name, endpoint: record.apiUrl, host, configured: Boolean(hint), tokenHint: hint, error };
+  return { id: `${RELAY_PREFIX}${record.id}`, name: record.name, label: record.name, endpoint: record.apiUrl, allowInsecureHttp: record.allowInsecureHttp === true, host, configured: Boolean(hint), tokenHint: hint, error };
 }
 
 function validateOfficialToken(raw) {
@@ -489,7 +494,8 @@ function generationProvider(providerId, officialAccountId = '') {
     let token;
     try { token = validateRelayKey(decryptToken(record.encryptedKey, `中转「${record.name}」的 Key`)); }
     catch (cause) { cause.status = 400; throw cause; }
-    return { id: `${RELAY_PREFIX}${record.id}`, label: `中转 · ${record.name}`, apiUrl: validateRelayUrl(record.apiUrl), token };
+    return { id: `${RELAY_PREFIX}${record.id}`, label: `中转 · ${record.name}`, apiUrl: validateRelayUrl(record.apiUrl, record.allowInsecureHttp), token,
+      ...(record.allowInsecureHttp === true ? { allowInsecureHttp: true } : {}) };
   }
   const account = resolveOfficialAccount(officialAccountId);
   return {

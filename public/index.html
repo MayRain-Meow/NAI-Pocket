@@ -8,10 +8,10 @@
   
   <link rel="icon" href="/icons/icon-flow-192.png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="/styles.css?v=1.8.8">
+  <link rel="stylesheet" href="/styles.css?v=1.8.10">
   <link rel="stylesheet" href="/artist-library.css">
-  <link rel="stylesheet" href="/workspace.css?v=1.8.8">
-  <link rel="stylesheet" href="/tag-chips.css?v=1.8.8">
+  <link rel="stylesheet" href="/workspace.css?v=1.8.10">
+  <link rel="stylesheet" href="/tag-chips.css?v=1.8.10">
 <link rel="stylesheet" href="/native.css">
 <link rel="stylesheet" href="/artist-browser.css">
 </head>
@@ -59,7 +59,7 @@
       <header class="topbar workspace-topbar">
         <div class="workspace-crumb"><span>Workspace</span><strong id="pageCrumb">编辑工作台</strong></div>
         <div class="top-actions">
-          <span id="connectionText" class="connection-text">连接中 · v1.8.8</span>
+          <span id="connectionText" class="connection-text">连接中 · v1.8.10</span>
           
           <button id="openNaiImportButton" class="ghost compact-button" type="button" title="导入 NAI / JSON">导入</button>
           
@@ -216,16 +216,20 @@
                 <div id="inpaintCanvasStage" class="inpaint-canvas-stage">
                   <img id="inpaintBaseImage" alt="局部重绘原图">
                   <canvas id="inpaintMaskCanvas"></canvas>
+                  <svg id="inpaintRegionOverlay" class="inpaint-region-overlay hidden" aria-hidden="true" preserveAspectRatio="none"><rect class="inpaint-region-outline-back"></rect><rect class="inpaint-region-outline"></rect></svg>
                 </div>
                 <div class="mask-toolbar">
-                  <button id="maskBrushButton" class="ghost active" type="button">画笔</button>
-                  <button id="maskEraserButton" class="ghost" type="button">橡皮</button>
+                  <button id="maskBrushButton" class="ghost active" type="button" aria-pressed="true">画笔</button>
+                  <button id="maskEraserButton" class="ghost" type="button" aria-pressed="false">橡皮</button>
+                  <button id="focusedInpaintToggle" class="ghost focused-inpaint-toggle" type="button" aria-pressed="false" aria-controls="focusedInpaintStatus">框选高清修补</button>
+                  <button id="inpaintRegionButton" class="ghost hidden" type="button" aria-pressed="false">框选区域</button>
                   <label>大小 <input id="maskBrushSize" type="range" min="4" max="180" step="2" value="48"></label>
                   <button id="maskUndoButton" class="ghost" type="button">撤销</button>
                   <button id="maskRedoButton" class="ghost" type="button">重做</button>
                   <button id="maskInvertButton" class="ghost" type="button">反选</button>
                   <button id="maskClearButton" class="ghost danger" type="button">清空</button>
                 </div>
+                <p id="focusedInpaintStatus" class="hint focused-inpaint-status hidden" role="status" aria-live="polite"></p>
                 <p id="maskStatus" class="hint">尚未绘制 Mask。</p>
               </div>
             </div>
@@ -669,12 +673,14 @@
                 </select>
                 <input id="relayName" type="text" maxlength="60" autocomplete="off" placeholder="名称" hidden="">
                 <input id="relayApiUrl" type="url" maxlength="500" autocomplete="off" spellcheck="false" placeholder="https://…/generate-image" hidden="">
+                <label id="relayHttpField" class="check-label" hidden=""><input id="relayAllowHttp" type="checkbox">允许此中转使用 HTTP（明文传输）</label>
                 <input id="rbqApiKey" type="password" autocomplete="new-password" spellcheck="false" placeholder="粘贴 Key">
+                <input id="relayExtraKey" type="password" autocomplete="new-password" spellcheck="false" placeholder="内部 NAI Key（需拼接时填写；已填完整 Token 则留空）" hidden="">
                 <div class="official-token-form-actions">
                   <button id="saveRbqKeyButton" class="ghost" type="button">保存</button>
                   <button id="cancelRelayEdit" class="ghost hidden" type="button">取消</button>
                 </div>
-                <p id="relayCustomHint" class="hint" hidden="">接口需与 NovelAI 生图接口一致；Key 只会发往这个地址。</p>
+                <p id="relayCustomHint" class="hint" hidden="">填写完整生图请求地址，路径原样使用。Key 与内部 NAI Key 直接拼接、不加符号；保存配置不会发起生成。</p>
               </div>
             </details>
           </section>

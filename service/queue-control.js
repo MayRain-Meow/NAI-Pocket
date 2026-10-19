@@ -64,7 +64,7 @@ function retryable(error) {
   // A successful NovelAI response already billed the attempt. Local save bugs
   // (missing import, ImageMagick, SQLite) used to look like status 0 and pay again.
   
-  if (error?.imageReceived) return false;
+  if (error?.imageReceived || error?.generationResponseReceived) return false;
   if (error instanceof ReferenceError || error instanceof TypeError) return false;
   const status = Number(error.status || 0);
   if ([400, 401, 402, 403, 404, 409, 422].includes(status)) return false;

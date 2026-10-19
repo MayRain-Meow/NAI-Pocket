@@ -1,6 +1,6 @@
 {
   "name": "nai-pocket-android",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,9 +9,12 @@
     "android": "node scripts/android.mjs",
     "android:release": "node scripts/android.mjs release",
     "test:offline": "node tests/offline-integration.mjs",
+    "test:http": "node tests/http.test.mjs",
     "test:queue": "node --check src/queue-runner.js && node --check src/queue.js && node --check src/api.js && node tests/queue-runner.test.mjs && node tests/phone-gallery.test.mjs && node tests/updater.test.mjs",
     "test:artist-resources": "node scripts/test-artist-resources.mjs",
-    "preview:offline": "npm run build && node tests/offline-integration.mjs --preview"
+    "preview:offline": "npm run build && node tests/offline-integration.mjs --preview",
+    "test:focused-inpaint": "node tests/focused-inpaint-native.test.mjs",
+    "test:relay-settings": "node tests/relay-settings.test.mjs"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "8.1.1",

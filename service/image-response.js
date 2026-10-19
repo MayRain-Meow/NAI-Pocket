@@ -3,11 +3,50 @@
 // JSON, a JSON link or an event stream, and often label it wrongly. Sniffing the bytes lets any
 // NovelAI-compatible relay work without per-relay code. Portable: Uint8Array in, a byte-buffer
 // codec (`binary`, Buffer-compatible) only for base64 and ZIP output.
+import { Inflate } from '../public/vendor/pako-inflate.js';
 
 const MAX_JSON_DEPTH = 8;
 const MAX_JSON_NODES = 5000;
 const MIN_BASE64_IMAGE = 64;
 const IMAGE_URL_KEYS = new Set(['url', 'image_url', 'imageurl', 'image', 'images', 'output', 'result', 'src', 'href', 'download_url', 'downloadurl', 'file', 'file_url', 'fileurl']);
+export const MAX_IMAGE_RESPONSE_BYTES = 96 * 1024 * 1024;
+
+function isGzip(bytes) {
+  return bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
+}
+
+function gzipError(message) {
+  return Object.assign(new Error(message), { status: 502 });
+}
+
+// Some relays send gzip without a usable Content-Encoding. Decode one byte-identified layer
+// with the same bounded, CRC-checking codec on Node and Android; never probe/retry an endpoint.
+
+export function decodeGzipImageResponse(bytes, { maxOutputLength = MAX_IMAGE_RESPONSE_BYTES } = {}) {
+  if (!(bytes instanceof Uint8Array)) throw new TypeError('图片响应必须是字节数组。');
+  if (!Number.isSafeInteger(maxOutputLength) || maxOutputLength < 1 || maxOutputLength > MAX_IMAGE_RESPONSE_BYTES) {
+    throw new RangeError('图片响应解压上限无效。');
+  }
+  if (bytes.length > MAX_IMAGE_RESPONSE_BYTES) throw gzipError('中转返回的数据超过 96 MiB 上限。');
+  if (!isGzip(bytes)) return bytes;
+  const decoder = new Inflate({ windowBits: 31, chunkSize: 65_536 });
+  const chunks = [];
+  let length = 0;
+  decoder.onData = chunk => {
+    length += chunk.length;
+    if (length > maxOutputLength) throw gzipError('中转 gzip 响应解压超过大小上限。');
+    chunks.push(chunk);
+  };
+  // Do not trust gzip's ISIZE trailer for the limit: it can wrap or be forged. The running
+  // output count is authoritative, and pako validates both the actual size and CRC trailer.
+  decoder.push(bytes, true);
+  if (decoder.err || !decoder.ended) throw gzipError('中转 gzip 响应损坏或不完整，无法解压。');
+  const output = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) { output.set(chunk, offset); offset += chunk.length; }
+  if (isGzip(output)) throw gzipError('中转返回了多层 gzip 响应，已停止解压。');
+  return output;
+}
 
 export function imageMimeFromMagic(bytes) {
   if (!bytes || bytes.length < 3) return '';
@@ -26,8 +65,9 @@ function firstTextByte(bytes) {
   return index;
 }
 
-// 'png' | 'jpeg' | 'webp' | 'zip' | 'json' | 'sse' | 'unknown'
+// 'gzip' | 'png' | 'jpeg' | 'webp' | 'zip' | 'json' | 'sse' | 'unknown'
 export function sniffImageResponse(bytes) {
+  if (isGzip(bytes)) return 'gzip';
   const mime = imageMimeFromMagic(bytes);
   if (mime) return mime.slice(6);
   if (bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b) return 'zip';
@@ -43,7 +83,7 @@ function looksBase64(text) {
   return text.length >= MIN_BASE64_IMAGE && /^[A-Za-z0-9+/_-]+={0,2}$/.test(text.slice(0, 4096)) && /^[A-Za-z0-9+/_\-=\s]+$/.test(text);
 }
 
-function httpsImageUrl(text, key) {
+function imageUrl(text, key) {
   if (!/^https?:\/\//i.test(text) || text.length > 4096) return null;
   let url;
   try { url = new URL(text); } catch { return null; }
@@ -94,7 +134,7 @@ export function createImageResponseParser({ binary, extractZipImage }) {
       if (typeof value === 'string') {
         const buffer = embeddedImage(value);
         if (buffer) return { buffer, seed: Number.isInteger(owner?.seed) ? owner.seed : undefined };
-        if (!link) link = httpsImageUrl(value, key);
+        if (!link) link = imageUrl(value, key);
         return null;
       }
       if (!value || typeof value !== 'object') return null;
@@ -116,17 +156,17 @@ export function createImageResponseParser({ binary, extractZipImage }) {
     return { kind: 'image', source, buffer, mime, seed, ...extra };
   }
 
-  function fromJson(json, { defaultSeed, noImageMessage, allowUrl }) {
+  function fromJson(json, { defaultSeed, noImageMessage, allowUrl, allowInsecureHttp }) {
     // NovelAI's own shape first, exactly as before.
     const item = json?.images?.[0];
-    if (item?.image) {
+    if (item?.image && !/^https?:\/\//i.test(String(item.image))) {
       const buffer = decodeBase64(String(item.image).replace(/^data:image\/[^;]+;base64,/, ''));
       return imageResult(buffer, 'json', Number.isInteger(item.seed) ? item.seed : defaultSeed);
     }
     const found = findInJson(json);
     if (found?.buffer) return imageResult(found.buffer, 'json', found.seed ?? (Number.isInteger(json?.seed) ? json.seed : defaultSeed));
     if (found?.link) {
-      if (!found.link.secure) throw Object.assign(new Error('中转返回的图片链接不是 HTTPS，已拒绝下载。'), { status: 502 });
+      if (!found.link.secure && allowInsecureHttp !== true) throw Object.assign(new Error('中转返回的图片链接不是 HTTPS，已拒绝下载。'), { status: 502 });
       if (!allowUrl) throw Object.assign(new Error('中转返回的图片链接又指向了另一个链接，已停止。'), { status: 502 });
       return { kind: 'url', url: found.link.url, seed: Number.isInteger(json?.seed) ? json.seed : defaultSeed };
     }
@@ -162,21 +202,22 @@ export function createImageResponseParser({ binary, extractZipImage }) {
   }
 
   // bytes: Uint8Array/Buffer of the whole body. Returns { kind: 'image', source, buffer, mime, seed, filename? }
-  // or { kind: 'url', url, seed } (https only, at most when allowUrl). Throws with the upstream text when it has one.
-  function parse({ bytes, defaultSeed, noImageMessage = '中转返回中没有图片。', allowUrl = true }) {
-    const buffer = binary.isBuffer?.(bytes) ? bytes : binary.from(bytes);
+  // or { kind: 'url', url, seed } (HTTPS by default, at most when allowUrl). Throws with the upstream text when it has one.
+  function parse({ bytes, defaultSeed, noImageMessage = '中转返回中没有图片。', allowUrl = true, allowInsecureHttp = false }) {
+    const decoded = decodeGzipImageResponse(bytes instanceof Uint8Array ? bytes : binary.from(bytes));
+    const buffer = binary.isBuffer?.(decoded) ? decoded : binary.from(decoded);
     const kind = sniffImageResponse(buffer);
     if (kind === 'png' || kind === 'jpeg' || kind === 'webp') return imageResult(buffer, 'raw', defaultSeed);
     if (kind === 'zip') {
       const image = extractZipImage(buffer);
       return imageResult(image.buffer, 'zip', defaultSeed, { filename: image.filename });
     }
-    const options = { defaultSeed, noImageMessage, allowUrl };
+    const options = { defaultSeed, noImageMessage, allowUrl, allowInsecureHttp };
     const text = new TextDecoder().decode(buffer);
     if (kind === 'json') return fromJson(parseJsonText(text.replace(/^\uFEFF/, '')), options);
     if (kind === 'sse') return fromEventStream(text, options);
     const bare = text.trim();
-    const embedded = bare.length <= 96 * 1024 * 1024 ? embeddedImage(bare) : null;
+    const embedded = bare.length <= MAX_IMAGE_RESPONSE_BYTES ? embeddedImage(bare) : null;
     if (embedded) return imageResult(embedded, 'base64', defaultSeed);
     throw Object.assign(new Error('中转返回的内容不是图片。'), { status: 502 });
   }

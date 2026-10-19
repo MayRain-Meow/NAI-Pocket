@@ -12,7 +12,8 @@ export async function nativeFetch(input, init = {}) {
   const cancel = () => { PocketNative.cancelRequest({ id }).catch(() => {}); };
   request.signal.addEventListener('abort', cancel, { once: true });
   try {
-    const result = await PocketNative.request({ id, url: request.url, method: request.method, body, headers: Object.fromEntries(request.headers) });
+    
+    const result = await PocketNative.request({ id, url: request.url, method: request.method, body, headers: Object.fromEntries(request.headers), allowInsecureHttp: init.allowInsecureHttp === true });
     if (request.signal.aborted) throw abortError();
     if (result.status >= 300 && result.status < 400 && request.redirect === 'error') throw new TypeError('Redirect refused');
     return new Response(request.method === 'HEAD' || [204, 205, 304].includes(result.status) ? null : Buffer.from(result.body, 'base64'),

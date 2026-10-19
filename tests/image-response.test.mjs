@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import zlib from 'node:zlib';
-import { createImageResponseParser, imageMimeFromMagic, sniffImageResponse, upstreamErrorMessage } from '../service/image-response.js';
+import { createImageResponseParser, decodeGzipImageResponse, MAX_IMAGE_RESPONSE_BYTES, imageMimeFromMagic, sniffImageResponse, upstreamErrorMessage } from '../service/image-response.js';
 import { createGenerationClient } from '../service/generation.js';
 import { sanitizeGenerationState } from '../public/generation-payload.js';
 
@@ -71,6 +71,39 @@ check('NovelAI JSON with and without a data: prefix, with its seed', () => {
   assert.deepEqual(prefixed.buffer, webp); assert.equal(prefixed.mime, 'image/webp'); assert.equal(prefixed.seed, 7);
 });
 
+check('gzip magic restores a single bounded layer before parsing JSON, raw images or ZIP', () => {
+  const body = json({ images: [{ image: png.toString('base64'), seed: 123 }] });
+  const compressed = zlib.gzipSync(body);
+  assert.equal(sniffImageResponse(compressed), 'gzip');
+  assert.deepEqual(decodeGzipImageResponse(new Uint8Array(compressed)), new Uint8Array(body), 'the shared decoder needs neither Node Buffer nor zlib');
+  assert.equal(decodeGzipImageResponse(body), body, 'already decoded responses pass through without another layer');
+  const result = parse(new Uint8Array(compressed));
+  assert.equal(result.kind, 'image'); assert.equal(result.source, 'json'); assert.equal(result.seed, 123);
+  assert.deepEqual(result.buffer, png);
+  assert.deepEqual(parse(zlib.gzipSync(json({ images: [webp.toString('base64')] }))).buffer, webp);
+  assert.deepEqual(parse(zlib.gzipSync(jpeg)).buffer, jpeg);
+  assert.deepEqual(parse(zlib.gzipSync(syntheticZip('a.png', png))).buffer, png);
+  assert.throws(() => parse(zlib.gzipSync(zlib.gzipSync(body))), error => /多层 gzip/.test(error.message) && error.status === 502);
+});
+
+check('gzip truncation, CRC, length and output limits fail closed', () => {
+  const valid = zlib.gzipSync(json({ images: [{ image: png.toString('base64') }] }));
+  const corruptCrc = Buffer.from(valid); corruptCrc[corruptCrc.length - 8] ^= 1;
+  const corruptSize = Buffer.from(valid); corruptSize[corruptSize.length - 4] ^= 1;
+  for (const bad of [valid.subarray(0, 2), valid.subarray(0, 9), valid.subarray(0, Math.floor(valid.length / 2)), valid.subarray(0, -1), valid.subarray(0, -8), corruptCrc, corruptSize]) {
+    assert.throws(() => parse(bad), error => /gzip.*损坏|gzip.*不完整/.test(error.message) && error.status === 502);
+  }
+  const expanded = Buffer.alloc(262_144, 32), compressed = zlib.gzipSync(expanded);
+  assert.deepEqual(decodeGzipImageResponse(compressed, { maxOutputLength: expanded.length }), new Uint8Array(expanded));
+  assert.throws(() => decodeGzipImageResponse(compressed, { maxOutputLength: 131_072 }), /大小上限/, 'running output accounting stops inflation before materializing the entire response');
+  assert.equal(MAX_IMAGE_RESPONSE_BYTES, 96 * 1024 * 1024);
+  assert.throws(() => decodeGzipImageResponse(valid, { maxOutputLength: MAX_IMAGE_RESPONSE_BYTES + 1 }), /上限无效/, 'a caller cannot raise the hard limit');
+  // Concatenated gzip members are one compression layer. A small repeated member exceeds
+  // the production 96 MiB cap without allocating a 96 MiB uncompressed test input.
+  const member = zlib.gzipSync(Buffer.alloc(8 * 1024 * 1024, 32));
+  assert.throws(() => parse(Buffer.concat(Array(13).fill(member))), error => /大小上限/.test(error.message) && error.status === 502);
+});
+
 check('OpenAI-style and other JSON shapes', () => {
   assert.deepEqual(parse(json({ created: 1, data: [{ b64_json: png.toString('base64') }] })).buffer, png);
   assert.deepEqual(parse(json({ image: `data:image/jpeg;base64,${jpeg.toString('base64')}` })).buffer, jpeg);
@@ -82,12 +115,23 @@ check('OpenAI-style and other JSON shapes', () => {
   assert.deepEqual(parse(json({ data: [{ url: 'https://cdn.example/x' }], b: { image: png.toString('base64') } })).buffer, png, 'an embedded image wins over a link');
 });
 
-check('links: https only, one hop', () => {
+check('links: https by default, HTTP only with strict consent, one hop', () => {
   const link = parse(json({ data: [{ url: 'https://cdn.example/out/1' }], seed: 3 }));
   assert.deepEqual(link, { kind: 'url', url: 'https://cdn.example/out/1', seed: 3 });
   assert.equal(parse(json({ output: 'https://cdn.example/a.png?sig=1' })).kind, 'url', 'an image-looking path under any key');
   assert.equal(parse(json({ images: ['https://cdn.example/a'] })).kind, 'url');
   assert.throws(() => parse(json({ url: 'http://cdn.example/a.png' })), /不是 HTTPS/);
+  for (const allowInsecureHttp of [false, undefined, 'true', 1]) {
+    assert.throws(() => parse(json({ url: 'http://cdn.example/a.png' }), { allowInsecureHttp }), /不是 HTTPS/);
+  }
+  for (const body of [{ url: 'http://cdn.example/a.png?sig=1' }, { images: ['http://cdn.example/a.png?sig=1'] }, { images: [{ image: 'http://cdn.example/a.png?sig=1' }] }]) {
+    assert.deepEqual(parse(json(body), { allowInsecureHttp: true }), { kind: 'url', url: 'http://cdn.example/a.png?sig=1', seed: 7 });
+    assert.throws(() => parse(json(body), { allowInsecureHttp: true, allowUrl: false }), /另一个链接/);
+  }
+  const gzipLink = zlib.gzipSync(json({ images: ['http://cdn.example/a.png'] }));
+  assert.equal(parse(gzipLink, { allowInsecureHttp: true }).url, 'http://cdn.example/a.png');
+  assert.throws(() => parse(gzipLink), /不是 HTTPS/);
+  assert.equal(parse('data: {"url":"http://cdn.example/a.png"}\n\n', { allowInsecureHttp: true }).url, 'http://cdn.example/a.png');
   assert.throws(() => parse(json({ url: 'https://cdn.example/a.png' }), { allowUrl: false }), /另一个链接/);
   assert.throws(() => parse(json({ homepage: 'https://example.com/about' })), /NovelAI|没有图片/, 'an unrelated link is not an image');
 });
@@ -150,6 +194,9 @@ reply = () => new Response(webp, { headers: { 'content-type': 'application/octet
 assert.equal((await client.generateImage(state, 42)).mime, 'image/webp', 'a mislabelled raw image is identified by its bytes');
 reply = () => new Response(syntheticZip('image_0.png', png), { headers: { 'content-type': 'binary/octet-stream' } });
 { const zipped = await client.generateImage(state, 42); assert.deepEqual(zipped.buffer, png); assert.equal(zipped.filename, 'image_0.png'); }
+reply = () => new Response(zlib.gzipSync(json({ images: [{ image: png.toString('base64'), seed: 73 }] })), { headers: { 'content-type': 'application/json' } });
+requests.length = 0;
+{ const gzipped = await client.generateImage(state, 42); assert.deepEqual(gzipped.buffer, png); assert.equal(gzipped.seed, 73); assert.equal(requests.length, 1, 'gzip compatibility never probes or repeats the paid POST'); }
 reply = url => url.includes('relay.invalid') ? Response.json({ data: [{ url: 'https://cdn.invalid/1.png' }] }) : new Response(png, { headers: { 'content-type': 'image/png' } });
 requests.length = 0;
 const linked = await client.generateImage(state, 42);
