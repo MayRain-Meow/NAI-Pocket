@@ -1997,3 +1997,6 @@ button.prompt-group-order-move { width: 26px; height: 26px; min-height: 26px; pa
 button.prompt-group-order-move:active { background: color-mix(in srgb, var(--accent) 18%, transparent); }
 #galleryScopeTrash[hidden] { display: none !important; }
 #galleryTab .gallery-scope-row:has(> #galleryScopeTrash:not([hidden])) { column-gap: 6px; }
+.medium-uc-note { margin: 2px 0 10px; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--warning) 10%, transparent); color: var(--warning); font-size: 12px; line-height: 1.55; }
+.medium-uc-note[hidden] { display: none !important; }
+body.medium-effort [data-gen-stepper="steps"], body.medium-effort #genUcSlot, body.medium-effort [data-gen-stepper="cfgRescale"], body.medium-effort #genSamplerSlot { opacity: .6; }

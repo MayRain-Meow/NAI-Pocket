@@ -228,7 +228,7 @@ public class PocketNativePlugin extends Plugin {
             HttpURLConnection connection = null;
             try {
                 URL url = new URL(call.getString("url", ""));
-                // Note: shared relay policy owns user consent; see .agents/notes/implemented/feature/2026-10-19-relay-http-is-explicit-and-generation-is-not-probed.md
+                // Note: shared relay policy owns user consent (explicit HTTP permission, no generation probes).
                 boolean allowedScheme = url.getProtocol().equals("https")
                     || (url.getProtocol().equals("http") && Boolean.TRUE.equals(call.getBoolean("allowInsecureHttp", false)));
                 if (!allowedScheme || url.getUserInfo() != null || url.getHost().isEmpty()) throw new IllegalArgumentException("HTTPS required unless this relay explicitly allows HTTP");

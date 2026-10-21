@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.4 — Preview
+
+- Quality Tags and UC presets now really apply: NovelAI's servers expand neither switch, its own client writes the text, and the app now does the same (quality tags at the end of the prompt, before any Text: block; the preset text in front of your UC; on Full models nsfw in the UC unless the prompt asks for it). Before, only the switches were sent and had no effect, so new pictures look closer to the official site.
+- UC preset is a named dropdown: Heavy, Light, Furry Focus, Human Focus, None (NovelAI's order).
+- V5 Full · Medium in the model list: NovelAI's cheaper Medium effort (a distilled checkpoint, 14 steps, Euler Ancestral, Heavy UC only, about 42% less). The bar shows the pinned values; your own UC and character UCs are not sent.
+- fur dataset is an ordinary tag that is moved to the front of the prompt on V4 and later, as NovelAI requires.
+- Restoring parameters gives back what really took effect: the automatic text comes out of the editor and its switch turns on; pictures that only recorded the switches (Pocket before this version) restore with them off, so a regeneration matches. Newer official images that carry only tag hints restore the right preset.
+
 ## 0.6.3 — Preview
 
 - Third-party relays: a saved relay can explicitly allow HTTP; HTTPS remains the default. Optional site/internal Key fields are concatenated without separators. Saving settings does not send a generation request.

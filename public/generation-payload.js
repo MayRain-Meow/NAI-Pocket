@@ -3,19 +3,23 @@
 // Environment-specific values (API model names and tool endpoints) are set once by the
 // host through configureGenerationPayload(); the defaults are NovelAI's public ones.
 
-import { formatTag } from './prompt-utils.js?v=1.8.10';
-import { sanitizeInpaintRegion } from './focused-inpaint.js?v=1.8.10';
-import { normalizeProviderId } from './provider-route.js?v=1.8.10';
-import { extractQuotedText, prepareV5Prompt } from './v5-utils.js?v=1.8.10';
-import { DIRECTOR_TOOL_TYPES, filterAdvancedOverrides } from './parameter-semantics.js?v=1.8.10';
-import { DEFAULT_GENERATION_MODEL, DEFAULT_GENERATION_PARAMS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.8.10';
-import { characterLimitForModel, isV5GenerationModel, supportsPreciseReference, supportsVibeTransfer, supportsCharacterPrompt, V5_CHARACTER_LIMIT } from './model-utils.js?v=1.8.10';
+import { formatTag } from './prompt-utils.js?v=1.9.1';
+import { sanitizeInpaintRegion } from './focused-inpaint.js?v=1.9.1';
+import { normalizeProviderId } from './provider-route.js?v=1.9.1';
+import { extractQuotedText, prepareV5Prompt } from './v5-utils.js?v=1.9.1';
+import { DIRECTOR_TOOL_TYPES, filterAdvancedOverrides } from './parameter-semantics.js?v=1.9.1';
+import { DEFAULT_GENERATION_MODEL, DEFAULT_GENERATION_PARAMS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.1';
+import { characterLimitForModel, isV5GenerationModel, supportsPreciseReference, supportsVibeTransfer, supportsCharacterPrompt, V5_CHARACTER_LIMIT } from './model-utils.js?v=1.9.1';
+import { composeNegative, composePrompt, MEDIUM_EFFORT, normalizeUcPreset, usesMediumEffort } from './nai-presets.js?v=1.9.1';
 
 const settings = {
   v5FullModel: 'nai-diffusion-5-full',
   v5CuratedModel: 'nai-diffusion-5-curated',
   v5FullInpaintModel: 'nai-diffusion-5-full-inpainting',
   v5CuratedInpaintModel: 'nai-diffusion-4-5-curated-inpainting',
+  // V5 Full's Medium effort is a distilled checkpoint with its own ids (NovelAI client, 2026-10-08).
+  v5FullMediumModel: 'nai-diffusion-5-full-medium',
+  v5FullMediumInpaintModel: 'nai-diffusion-5-full-medium-inpainting',
   upscaleApi: 'https://image.novelai.net/ai/upscale',
   augmentApi: 'https://image.novelai.net/ai/augment-image'
 };
@@ -531,7 +535,9 @@ export function sanitizeGenerationState(raw, { allowMissingMedia = false } = {})
       sampler: String(params.sampler || DEFAULT_GENERATION_PARAMS.sampler).slice(0, 80),
       noiseSchedule: String(params.noiseSchedule || DEFAULT_GENERATION_PARAMS.noiseSchedule).slice(0, 80),
       qualityToggle: bool(params.qualityToggle, DEFAULT_GENERATION_PARAMS.qualityToggle),
-      ucPreset: integer(params.ucPreset, DEFAULT_GENERATION_PARAMS.ucPreset, 0, 9),
+      ucPreset: normalizeUcPreset(params.ucPreset ?? DEFAULT_GENERATION_PARAMS.ucPreset),
+      furryMode: bool(params.furryMode, DEFAULT_GENERATION_PARAMS.furryMode),
+      effort: params.effort === 'medium' ? 'medium' : 'high',
       cfgRescale: number(params.cfgRescale, DEFAULT_GENERATION_PARAMS.cfgRescale, 0, 1),
       sm: bool(params.sm, DEFAULT_GENERATION_PARAMS.sm),
       smDyn: bool(params.smDyn, DEFAULT_GENERATION_PARAMS.smDyn),
@@ -610,9 +616,19 @@ export function buildPayload(state, seed, media = {}) {
   if (enhanceIsMax && !isV5Model(state.model)) {
     throw new Error('NovelAI Enhance Max✨ 仅支持 V5 Full / V5 Curated。');
   }
-  const effectivePrompt = workflow.enhance === true && !enhanceIsMax
+  const enhancedPrompt = workflow.enhance === true && !enhanceIsMax
     ? officialEnhancePrompt(preparedPrompt.prompt)
     : preparedPrompt.prompt;
+  // NovelAI's backend expands neither Quality Tags nor the UC preset; its client writes them into
+  // the prompt and UC (with Furry mode's `fur dataset`) and only hints them. Medium effort pins
+  // 14 steps, Euler Ancestral, the Heavy preset alone (no custom or per-character UC) and no rescale.
+  
+  const medium = usesMediumEffort(state.model, p.effort);
+  const composedPrompt = composePrompt(enhancedPrompt, { model: state.model, qualityToggle: p.qualityToggle, furryMode: p.furryMode });
+  const effectivePrompt = composedPrompt.prompt;
+  const composedNegative = composeNegative(medium ? '' : state.negativePrompt, {
+    model: state.model, ucPreset: medium ? MEDIUM_EFFORT.ucPreset : p.ucPreset, prompt: effectivePrompt
+  });
   const parameters = {
     // NovelAI's V5 API uses the v4 prompt envelope with params_version 4;
     // older models remain on the long-established version 3 envelope.
@@ -620,16 +636,18 @@ export function buildPayload(state, seed, media = {}) {
     width: effectiveWidth,
     height: effectiveHeight,
     scale: p.scale,
-    sampler: p.sampler,
-    steps: p.steps,
+    sampler: medium ? MEDIUM_EFFORT.sampler : p.sampler,
+    steps: medium ? MEDIUM_EFFORT.steps : p.steps,
     n_samples: 1,
-    ucPreset: p.ucPreset,
+    ucPreset: composedNegative.ucPreset,
     qualityToggle: p.qualityToggle,
+    tag_hint_qt: composedPrompt.qualityHint,
+    tag_hint_uc_preset: composedNegative.ucHint,
     noise_schedule: p.noiseSchedule,
-    cfg_rescale: p.cfgRescale,
+    cfg_rescale: medium ? MEDIUM_EFFORT.cfgRescale : p.cfgRescale,
     seed,
     extra_noise_seed: seed,
-    negative_prompt: state.negativePrompt,
+    negative_prompt: composedNegative.negative,
     prompt: effectivePrompt,
     sm: p.sm,
     sm_dyn: p.smDyn,
@@ -656,7 +674,7 @@ export function buildPayload(state, seed, media = {}) {
     parameters.sm_dyn = false;
   }
   let action = 'generate';
-  let requestModel = apiModelFor(state.model);
+  let requestModel = medium ? settings.v5FullMediumModel : apiModelFor(state.model);
   if (workflow.mode === 'img2img') {
     action = 'img2img';
     if (media.baseImage) parameters.image = media.baseImage;
@@ -666,7 +684,7 @@ export function buildPayload(state, seed, media = {}) {
     if (enhanceIsMax) parameters.upscaled_enhance = true;
   } else if (workflow.mode === 'inpaint') {
     action = 'infill';
-    requestModel = inpaintModelFor(state.model);
+    requestModel = medium ? settings.v5FullMediumInpaintModel : inpaintModelFor(state.model);
     if (media.baseImage) parameters.image = media.baseImage;
     if (media.maskImage) parameters.mask = media.maskImage;
     parameters.add_original_image = false;
@@ -700,7 +718,7 @@ export function buildPayload(state, seed, media = {}) {
       centers: sanitizeCenters(item.centers)
     }));
     const charNegativeCaptions = enabledCharacters.map(item => ({
-      char_caption: compileTags(item.ucTags),
+      char_caption: medium ? '' : compileTags(item.ucTags),
       centers: sanitizeCenters(item.centers)
     }));
     const v4 = state.v4Options || {};
@@ -710,7 +728,7 @@ export function buildPayload(state, seed, media = {}) {
       use_order: v4.useOrder !== false
     };
     parameters.v4_negative_prompt = {
-      caption: { base_caption: state.negativePrompt, char_captions: charNegativeCaptions },
+      caption: { base_caption: composedNegative.negative, char_captions: charNegativeCaptions },
       legacy_uc: v4.legacyUc === true,
       use_coords: v4.useCoords === true,
       use_order: v4.negativeUseOrder === true
@@ -718,7 +736,8 @@ export function buildPayload(state, seed, media = {}) {
   }
 
   return {
-    input: state.prompt,
+    // The prompt as sent (V3 has no v4_prompt and generates from this).
+    input: effectivePrompt,
     model: requestModel,
     action,
     parameters

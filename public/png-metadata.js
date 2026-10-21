@@ -1,16 +1,17 @@
 
-import { Inflate } from './vendor/pako-inflate.js?v=1.8.10';
-import { inferNovelAiModel } from './model-utils.js?v=1.8.10';
-import { DEFAULT_GENERATION_PARAMS } from './generation-state.js?v=1.8.10'; 
-import { repairJsonSyntax } from './import-repair.js?v=1.8.10';
-import { normalizeSampler, normalizeSchedule } from './nai-import.js?v=1.8.10';
+import { Inflate } from './vendor/pako-inflate.js?v=1.9.1';
+import { inferNovelAiModel } from './model-utils.js?v=1.9.1';
+import { DEFAULT_GENERATION_PARAMS } from './generation-state.js?v=1.9.1'; 
+import { repairJsonSyntax } from './import-repair.js?v=1.9.1';
+import { normalizeSampler, normalizeSchedule } from './nai-import.js?v=1.9.1';
+import { recordedMediumEffort, separateAutoText, ucPresetFromHint } from './nai-presets.js?v=1.9.1';
 import {
   classifyNaiParameters,
   canonicalAdvancedParameterKey,
   filterAdvancedOverrides,
   KNOWN_ADVANCED_PARAMETER_KEYS,
   isNonAdvancedParameterKey
-} from './parameter-semantics.js?v=1.8.10';
+} from './parameter-semantics.js?v=1.9.1';
 
 const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 const STEALTH_MAGIC = new TextEncoder().encode('stealth_pngcomp');
@@ -614,6 +615,15 @@ export function normalizeNovelAiMetadata(metadata, dimensions = {}) {
   if (semantics.imageRecovery.status !== 'none' && semantics.imageRecovery.status !== 'ready') {
     warnings.push(semantics.imageRecovery.reason);
   }
+  // What really took effect: switches whose text is not in the sent prompt / UC are off, and the
+  // automatic text is taken out so the editor shows the user's own words.
+  const auto = separateAutoText({
+    model: modelInfo.model, prompt: basePrompt, negative: negativePrompt,
+    qualityToggle: typeof qualityValue === 'boolean' ? qualityValue : (tagHintQuality ?? false),
+    ucPreset: Number.isFinite(Number(comment?.ucPreset ?? comment?.uc_preset)) ? Number(comment.ucPreset ?? comment.uc_preset) : ucPresetFromHint(tagHintUcPreset)
+  });
+  if (auto.notes.includes('quality')) warnings.push('图片记录 Quality 开，但发送的 Prompt 里没有质量词（Pocket 1.9.0 之前或其他只发开关的客户端，当时实际没生效）；恢复为关，重新生成才一致。');
+  if (auto.notes.includes('ucPreset')) warnings.push('图片记录了 UC 预设，但发送的 UC 里没有预设文字（当时实际没生效）；恢复为 None，重新生成才一致。');
 
   return {
     title: asString(metadata?.Title),
@@ -623,8 +633,8 @@ export function normalizeNovelAiMetadata(metadata, dimensions = {}) {
     requestType: asString(metadataValue(metadata, 'Request Type') || comment?.request_type),
     signaturePresent: Boolean(comment?.signed_hash),
     signatureVerified: null,
-    prompt: basePrompt,
-    negativePrompt,
+    prompt: auto.prompt,
+    negativePrompt: auto.negative,
     characters,
     model: modelInfo.model,
     modelDetected: modelInfo.detected,
@@ -638,11 +648,12 @@ export function normalizeNovelAiMetadata(metadata, dimensions = {}) {
       scale: Number.isFinite(Number(comment?.scale)) ? Number(comment.scale) : DEFAULT_GENERATION_PARAMS.scale,
       sampler: normalizeSampler(comment?.sampler),
       noiseSchedule: normalizeSchedule(comment?.noise_schedule ?? comment?.noiseSchedule),
-      ucPreset: Number.isFinite(Number(comment?.ucPreset ?? comment?.uc_preset))
-        ? Number(comment.ucPreset ?? comment.uc_preset)
-        : (tagHintUcPreset ?? 0),
+      // What the text shows took effect, not the recorded switch (see separateAutoText).
+      ucPreset: auto.ucPreset,
+      furryMode: auto.furryMode,
+      effort: recordedMediumEffort(source, comment?.model, comment?.model_name, metadataValue(metadata, 'Model', 'model')) ? 'medium' : 'high',
       cfgRescale: Number.isFinite(Number(comment?.cfg_rescale)) ? Number(comment.cfg_rescale) : 0,
-      qualityToggle: typeof qualityValue === 'boolean' ? qualityValue : (tagHintQuality ?? false),
+      qualityToggle: auto.qualityToggle,
       preferBrownian: typeof comment?.prefer_brownian === 'boolean' ? comment.prefer_brownian : true,
       sm: comment?.sm === true,
       smDyn: comment?.sm_dyn === true,

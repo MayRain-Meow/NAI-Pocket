@@ -1572,9 +1572,9 @@ body.editor-focus-mode .settings-column .generation-panel { display: block; }
 .inpaint-canvas-stage[aria-busy="true"] { opacity: .55; }
 .inpaint-region-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
 .inpaint-region-overlay rect { fill: none; vector-effect: non-scaling-stroke; }
-.inpaint-region-outline-back { stroke: #07121e; stroke-width: 5px; }
-.inpaint-region-outline { stroke: #7be7ff; stroke-width: 2px; stroke-dasharray: 7 4; }
-.inpaint-region-overlay[data-invalid="true"] .inpaint-region-outline { stroke: #ffb77c; }
+.inpaint-region-outline-back { stroke: #150f07; stroke-width: 5px; }
+.inpaint-region-outline { stroke: #ffd98a; stroke-width: 2px; stroke-dasharray: 7 4; }
+.inpaint-region-overlay[data-invalid="true"] .inpaint-region-outline { stroke: #ff6f61; }
 .focused-inpaint-status { margin: 0; line-height: 1.6; overflow-wrap: anywhere; }
 .mask-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
 .mask-toolbar > label { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }

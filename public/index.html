@@ -8,10 +8,10 @@
   
   <link rel="icon" href="/icons/icon-flow-192.png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="/styles.css?v=1.8.10">
+  <link rel="stylesheet" href="/styles.css?v=1.9.1">
   <link rel="stylesheet" href="/artist-library.css">
-  <link rel="stylesheet" href="/workspace.css?v=1.8.10">
-  <link rel="stylesheet" href="/tag-chips.css?v=1.8.10">
+  <link rel="stylesheet" href="/workspace.css?v=1.9.1">
+  <link rel="stylesheet" href="/tag-chips.css?v=1.9.1">
 <link rel="stylesheet" href="/native.css">
 <link rel="stylesheet" href="/artist-browser.css">
 </head>
@@ -59,7 +59,7 @@
       <header class="topbar workspace-topbar">
         <div class="workspace-crumb"><span>Workspace</span><strong id="pageCrumb">编辑工作台</strong></div>
         <div class="top-actions">
-          <span id="connectionText" class="connection-text">连接中 · v1.8.10</span>
+          <span id="connectionText" class="connection-text">连接中 · v1.9.1</span>
           
           <button id="openNaiImportButton" class="ghost compact-button" type="button" title="导入 NAI / JSON">导入</button>
           
@@ -312,6 +312,7 @@
 
           <div class="panel negative-panel" data-editor-module="uc">
             <div class="panel-title-row"><h2>Undesired Content</h2><div class="compact-header-actions" data-collapse-actions=""><button id="clearNegativeButton" class="ghost danger compact-button">清空</button></div></div>
+            <p id="mediumUcNote" class="medium-uc-note" hidden="">Medium Effort 不发送这里的 Undesired Content（角色 UC 也不发送），只用 Heavy 预设；想避开某元素，可在 Prompt 里写负权重，如 -3::hat::。</p>
             <div class="uc-chip-head" data-new-layout-only=""><strong>负面 Tag</strong><button id="ucClearButton" class="tag-section-clear" type="button" title="清空负面（可撤销）">清空</button></div>
             <div id="ucChipList" class="tag-list uc-chip-list" data-new-layout-only="" aria-label="全局 UC Tag"></div>
             <div class="tag-add uc-chip-add" data-new-layout-only="">
@@ -335,6 +336,7 @@
               <label data-onboarding-target="model">模型
                 <select id="model">
                   <option value="nai-diffusion-5-full">V5 Full</option>
+                  <option value="nai-diffusion-5-full" data-effort="medium" title="官网 Effort: Medium — 固定 14 步、Euler A、Heavy UC，约省 42%">V5 Full · Medium</option>
                   <option value="nai-diffusion-5-curated">V5 Curated</option>
                   <option value="nai-diffusion-4-5-full">V4.5 Full</option>
                   <option value="nai-diffusion-4-5-curated">V4.5 Curated</option>
@@ -387,7 +389,7 @@
                   <option value="polyexponential">Polyexponential</option>
                 </select>
               </label>
-              <label>UC Preset<input id="ucPreset" type="number" min="0" max="9"></label>
+              <label>UC Preset<select id="ucPreset"><option value="0">Heavy</option><option value="1">Light</option><option value="2">Furry Focus</option><option value="3">Human Focus</option><option value="4">None</option></select></label>
               <label title="在较高 Guidance 时重新缩放 CFG，缓解过饱和和“炸色”；0 表示关闭。">Prompt Guidance Rescale<input id="cfgRescale" type="number" min="0" max="1" step="0.01"></label>
               <div class="parameter-choice quality-choice"><label><input id="qualityToggle" type="checkbox"><span>Quality Tags</span></label><button class="parameter-help-button" type="button" data-parameter-help="qualityToggle" aria-label="Quality Tags 说明">?</button></div>
               <div class="parameter-choice"><label><input id="preferBrownian" type="checkbox"><span>Brownian Noise</span></label><button class="parameter-help-button" type="button" data-parameter-help="preferBrownian" aria-label="Brownian Noise 说明">?</button></div>
@@ -581,12 +583,7 @@
         <div class="gen-deck" data-new-layout-only="">
           <label id="genModelSlot" class="gen-cell gen-slot-select"><small>模型</small></label>
           <label id="genSamplerSlot" class="gen-cell gen-slot-select"><small>采样</small></label>
-          <div id="genUcSlot" class="gen-cell gen-stepper gen-num" data-gen-stepper="ucPreset" title="UC Preset">
-            <small>UC</small>
-            <b id="genUcValue"></b>
-            <button type="button" data-gen-step="-1" aria-label="UC Preset 减一">−</button>
-            <button type="button" data-gen-step="1" aria-label="UC Preset 加一">＋</button>
-          </div>
+          <label id="genUcSlot" class="gen-cell gen-slot-select" title="UC Preset"><small>UC</small></label>
           <div class="gen-cell gen-stepper gen-num gen-rescale" data-gen-stepper="cfgRescale" title="Prompt Guidance Rescale">
             <small>Rescale</small>
             <b id="genRescaleValue"></b>

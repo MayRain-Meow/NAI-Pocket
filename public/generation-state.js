@@ -13,7 +13,7 @@
 // and the Node server already import prompt/parameter helpers from here, so both runtimes read
 // the same object. Nothing here may touch `db.js`, `node:*` or the network — the browser loads
 // this file directly.
-import { DEFAULT_NAI_MODEL } from './model-utils.js?v=1.8.10';
+import { DEFAULT_NAI_MODEL } from './model-utils.js?v=1.9.1';
 
 
 export const DEFAULT_GENERATION_MODEL = DEFAULT_NAI_MODEL;
@@ -37,7 +37,9 @@ export const DEFAULT_GENERATION_PARAMS = Object.freeze({
   smDyn: false,
   deliberateEulerAncestralBug: false,
   varietyBoost: 0,
-  nativeAlpha: false
+  nativeAlpha: false,
+  furryMode: false,
+  effort: 'high'
 });
 
 export function createDefaultGenerationState() {

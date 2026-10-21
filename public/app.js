@@ -7,27 +7,28 @@ import {
   unwrapLegacyBrackets,
   parseStructuredPrompt as parseStructuredPromptUtil,
   cloneTagForStorage
-} from './prompt-utils.js?v=1.8.10';
-import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.8.10';
-import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.8.10';
-import { repairImportedPrompt } from './import-repair.js?v=1.8.10';
-import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.8.10';
-import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity } from './artist-index-v5.js?v=1.8.10';
-import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.8.10';
-import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.8.10';
-import { buildArtistStormPlan } from './storm-utils.js?v=1.8.10';
-import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.8.10';
-import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.8.10';
-import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.8.10';
-import { focusedInpaintPlan, sanitizeInpaintRegion } from './focused-inpaint.js?v=1.8.10';
-import { observeToastClearance } from './toast-layout.js?v=1.8.10';
-import { installSelectSheets } from './select-sheet.js?v=1.8.10';
-import { attachWeightHighlight } from './weight-highlight.js?v=1.8.10';
-import { confirmAction, promptText } from './confirm-sheet.js?v=1.8.10';
-import { createTaggerPanel } from './tagger-panel.js?v=1.8.10';
-import { createCodexPanel } from './codex-panel.js?v=1.8.10';
-import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.8.10';
-import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.8.10';
+} from './prompt-utils.js?v=1.9.1';
+import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.9.1';
+import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.9.1';
+import { repairImportedPrompt } from './import-repair.js?v=1.9.1';
+import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.9.1';
+import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity } from './artist-index-v5.js?v=1.9.1';
+import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.9.1';
+import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.9.1';
+import { buildArtistStormPlan } from './storm-utils.js?v=1.9.1';
+import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.9.1';
+import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.9.1';
+import { MEDIUM_EFFORT, normalizeUcPreset, supportsMediumEffort, UC_PRESET_LABELS, ucPresetFromHint, usesMediumEffort } from './nai-presets.js?v=1.9.1';
+import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.9.1';
+import { focusedInpaintPlan, sanitizeInpaintRegion } from './focused-inpaint.js?v=1.9.1';
+import { observeToastClearance } from './toast-layout.js?v=1.9.1';
+import { installSelectSheets } from './select-sheet.js?v=1.9.1';
+import { attachWeightHighlight } from './weight-highlight.js?v=1.9.1';
+import { confirmAction, promptText } from './confirm-sheet.js?v=1.9.1';
+import { createTaggerPanel } from './tagger-panel.js?v=1.9.1';
+import { createCodexPanel } from './codex-panel.js?v=1.9.1';
+import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.1';
+import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.9.1';
 
 const GROUP_LABELS_BY_KEY = {
   scene: '场景',
@@ -1579,7 +1580,7 @@ function watchForUpdates() {
     if (!controlled) { controlled = true; return; } // first install, not an update
     showUpdateBanner();
   });
-  navigator.serviceWorker.register('/sw.js?v=1.8.10').then(registration => {
+  navigator.serviceWorker.register('/sw.js?v=1.9.1').then(registration => {
     let checkedAt = Date.now();
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible' || Date.now() - checkedAt < 10 * 60 * 1000) return;
@@ -4141,7 +4142,7 @@ const GEN_STEPPERS = Object.freeze({
   steps: { step: 1, min: 1, max: 50, digits: 0 },
   scale: { step: 0.1, min: 0, max: 20, digits: 1 },
   cfgRescale: { step: 0.05, min: 0, max: 1, digits: 2 },
-  ucPreset: { step: 1, min: 0, max: 9, digits: 0 }
+  ucPreset: { step: 1, min: 0, max: 4, digits: 0 }
 });
 
 function stepParamField(id, direction) {
@@ -4188,13 +4189,14 @@ function toggleSeedMode() {
 function updateGenerateBar() {
   if (!$('#genSeedMode')) return;
   const steps = $('#steps')?.value || '?', scale = Number($('#scale')?.value);
-  if ($('#paramStepsReadout')) $('#paramStepsReadout').textContent = `${steps} 步`;
+  const medium = usesMediumEffort($('#model')?.value, currentEffort());
+  if ($('#paramStepsReadout')) $('#paramStepsReadout').textContent = `${medium ? MEDIUM_EFFORT.steps : steps} 步`;
   if ($('#genScaleValue')) $('#genScaleValue').textContent = Number.isFinite(scale) ? String(Math.round(scale * 10) / 10) : '?';
   const rescale = Number($('#cfgRescale')?.value);
   // Rescale always shows two decimals; 0 means off and reads dimmed.
   const rescaleNode = $('#genRescaleValue');
-  if (rescaleNode) { rescaleNode.textContent = Number.isFinite(rescale) ? rescale.toFixed(2) : '?'; rescaleNode.classList.toggle('is-off', !(rescale > 0)); }
-  if ($('#genUcValue')) $('#genUcValue').textContent = $('#ucPreset')?.value || '0';
+  if (rescaleNode) { rescaleNode.textContent = medium ? '—' : Number.isFinite(rescale) ? rescale.toFixed(2) : '?'; rescaleNode.classList.toggle('is-off', medium || !(rescale > 0)); }
+  syncEffortLock(medium);
   if ($('#paramSizeReadout')) $('#paramSizeReadout').textContent = `${$('#width')?.value || '?'}×${$('#height')?.value || '?'}`;
   const mode = $('#seedMode')?.value || 'random';
   const seedButton = $('#genSeedMode');
@@ -4205,13 +4207,41 @@ function updateGenerateBar() {
   paintLatestCanvas();
 }
 
+// Medium effort (V5 Full) pins steps, sampler, UC preset and rescale in the request; the controls show
+// that and cannot be changed while it is on, and the UC panel says the own UC is not sent.
+function syncEffortLock(medium) {
+  document.body.classList.toggle('medium-effort', medium);
+  for (const id of ['steps', 'sampler', 'ucPreset', 'cfgRescale']) { const node = $(`#${id}`); if (node) node.disabled = medium; }
+  document.querySelectorAll('[data-gen-stepper="steps"] [data-gen-step], [data-gen-stepper="cfgRescale"] [data-gen-step]').forEach(button => { button.disabled = medium; });
+  // The dropdowns show what is sent; the user's own choice comes back when Medium is turned off.
+  for (const [id, pinned, title] of [['sampler', MEDIUM_EFFORT.sampler, 'Medium Effort 固定 Euler Ancestral'], ['ucPreset', String(MEDIUM_EFFORT.ucPreset), 'Medium Effort 固定 Heavy']]) {
+    const select = $(`#${id}`); if (!select) continue;
+    if (medium) { select.dataset.beforeMedium ??= select.value; select.value = pinned; select.title = title; }
+    else if (select.dataset.beforeMedium != null) { select.value = select.dataset.beforeMedium; delete select.dataset.beforeMedium; select.title = ''; }
+  }
+  const note = $('#mediumUcNote'); if (note) note.hidden = !medium;
+}
+
+// Medium is the "V5 Full · Medium" option of the model dropdown: same model id, data-effort="medium".
+function currentEffort() {
+  return $('#model')?.selectedOptions?.[0]?.dataset.effort === 'medium' ? 'medium' : 'high';
+}
+
+function selectModelOption(model, effort) {
+  const select = $('#model'); if (!select) return;
+  const medium = usesMediumEffort(model, effort);
+  const option = [...select.options].find(item => item.value === model && (item.dataset.effort === 'medium') === medium)
+    || [...select.options].find(item => item.value === model);
+  if (option) option.selected = true;
+}
+
 function bindGenerateBar() {
   document.querySelectorAll('[data-gen-step]').forEach(button => {
     bindHoldRepeat(button, () => stepParamField(button.closest('[data-gen-stepper]').dataset.genStepper, Number(button.dataset.genStep)));
   });
   document.querySelectorAll('[data-gen-count]').forEach(button => bindHoldRepeat(button, () => stepBatchCount(Number(button.dataset.genCount))));
   $('#genSeedMode')?.addEventListener('click', toggleSeedMode);
-  ['#steps', '#scale', '#cfgRescale', '#ucPreset', '#seedMode', '#seed', '#batchCount', '#customCount', '#width', '#height'].forEach(selector => {
+  ['#steps', '#scale', '#cfgRescale', '#ucPreset', '#seedMode', '#seed', '#batchCount', '#customCount', '#width', '#height', '#model'].forEach(selector => {
     $(selector)?.addEventListener('change', updateGenerateBar);
     $(selector)?.addEventListener('input', updateGenerateBar);
   });
@@ -4254,18 +4284,19 @@ function placeParameterControls() {
 // names come back in legacy. Runs again whenever sampler options are rebuilt
 // for a model change.
 var DECK_SHORT = Object.freeze({
-  model: { 'nai-diffusion-5-full': 'V5 Full', 'nai-diffusion-5-curated': 'V5 Cur', 'nai-diffusion-4-5-full': 'V4.5 Full', 'nai-diffusion-4-5-curated': 'V4.5 Cur',
+  model: { 'nai-diffusion-5-full': 'V5 Full', 'nai-diffusion-5-full:medium': 'V5 Medium', 'nai-diffusion-5-curated': 'V5 Cur', 'nai-diffusion-4-5-full': 'V4.5 Full', 'nai-diffusion-4-5-curated': 'V4.5 Cur',
     'nai-diffusion-4-full': 'V4 Full', 'nai-diffusion-4-curated-preview': 'V4 Cur', 'nai-diffusion-3': 'V3' },
+  ucPreset: { 0: 'Heavy', 1: 'Light', 2: 'Furry', 3: 'Human', 4: 'None' },
   sampler: { k_euler_ancestral: 'Euler A', k_euler: 'Euler', k_dpmpp_2s_ancestral: 'DPM 2S A', k_dpmpp_2m_sde: '2M SDE', k_dpmpp_2m: 'DPM 2M', k_dpmpp_sde: 'DPM SDE' },
   choice: { qualityToggle: 'Quality', preferBrownian: 'Brownian', varietyBoost: 'Variety+', nativeAlpha: '原生透明' }
 });
 
 function labelDeckSampler() {
   const legacy = tagLayout() === 'legacy';
-  for (const [id, names] of [['model', DECK_SHORT?.model], ['sampler', DECK_SHORT?.sampler]]) {
+  for (const [id, names] of [['model', DECK_SHORT?.model], ['sampler', DECK_SHORT?.sampler], ['ucPreset', DECK_SHORT?.ucPreset]]) {
     for (const option of $(`#${id}`)?.options || []) {
       option.dataset.fullLabel ??= option.textContent;
-      option.textContent = legacy ? option.dataset.fullLabel : names?.[option.value] || option.dataset.fullLabel;
+      option.textContent = legacy ? option.dataset.fullLabel : names?.[option.dataset.effort ? `${option.value}:${option.dataset.effort}` : option.value] || option.dataset.fullLabel;
     }
   }
   for (const [id, short] of Object.entries(DECK_SHORT?.choice || {})) {
@@ -6841,6 +6872,7 @@ function serializeState() {
       deliberateEulerAncestralBug: appState.params.deliberateEulerAncestralBug === true,
       varietyBoost: $('#varietyBoost').checked ? (Number(appState.params.varietyBoost) > 0 ? Number(appState.params.varietyBoost) : 19) : 0,
       nativeAlpha: $('#nativeAlpha')?.checked === true,
+      effort: currentEffort(),
     advancedOverrides: filterAdvancedOverrides(advancedOverrides),
       importedExtras: structuredClone(appState.params.importedExtras || {})
     },
@@ -6998,7 +7030,7 @@ function normalizeStoredState(raw) {
   const storedParamKeys = new Set([
     'width', 'height', 'steps', 'scale', 'sampler', 'noiseSchedule', 'ucPreset', 'cfgRescale',
     'qualityToggle', 'preferBrownian', 'sm', 'smDyn', 'deliberateEulerAncestralBug',
-    'varietyBoost', 'nativeAlpha', 'imageFormat'
+    'varietyBoost', 'nativeAlpha', 'imageFormat', 'effort'
   ]);
   const rawParams = rawObject.params && typeof rawObject.params === 'object' && !Array.isArray(rawObject.params)
     ? rawObject.params
@@ -7112,7 +7144,7 @@ function hydrateState(raw) {
   directPromptEdited = appState.directMode === true;
   updatePromptModeHint();
   autoGrowTextarea(els.promptPreview);
-  $('#model').value = appState.model;
+  selectModelOption(appState.model, appState.params.effort);
   appState.provider = normalizeProviderId(appState.provider);
   syncProviderUi();
   const sampling = syncSamplingOptions(appState.model, { sampler: appState.params.sampler, noiseSchedule: appState.params.noiseSchedule });
@@ -7122,7 +7154,7 @@ function hydrateState(raw) {
   $('#height').value = appState.params.height;
   $('#steps').value = appState.params.steps;
   $('#scale').value = appState.params.scale;
-  $('#ucPreset').value = appState.params.ucPreset;
+  $('#ucPreset').value = String(normalizeUcPreset(appState.params.ucPreset));
   $('#cfgRescale').value = appState.params.cfgRescale;
   $('#qualityToggle').checked = appState.params.qualityToggle !== false;
   $('#preferBrownian').checked = appState.params.preferBrownian !== false;
@@ -8905,8 +8937,13 @@ const INSPECT_PARAMETERS = [
   [['sampler'], 'Sampler', '采样器', value => INSPECT_SAMPLER_LABELS.get(value) || value],
   [['noise_schedule'], 'Noise Schedule', '噪声调度', value => INSPECT_SCHEDULE_LABELS.get(value) || value],
   [['skip_cfg_above_sigma'], 'Variety+', '多样性增强', value => (Number(value) > 0 ? '开' : '关')],
-  [['qualityToggle', 'quality_toggle'], 'Add Quality Tags', '自动加质量词', INSPECT_ON_OFF],
-  [['ucPreset', 'uc_preset'], 'UC Preset', '负面预设'],
+  [['qualityToggle', 'quality_toggle', 'tag_hint_qt'], 'Add Quality Tags', '自动加质量词', value => INSPECT_ON_OFF(value === true || Number(value) > 0)],
+  // Newer images carry only tag_hint_uc_preset, in NovelAI's hint numbering.
+  [['ucPreset', 'uc_preset', 'tag_hint_uc_preset'], 'UC Preset', '负面预设', (value, raw) => {
+    const recorded = raw.ucPreset ?? raw.uc_preset;
+    const index = recorded != null ? normalizeUcPreset(recorded) : ucPresetFromHint(raw.tag_hint_uc_preset);
+    return index == null ? String(value) : UC_PRESET_LABELS[index];
+  }],
   // V3-only switches: shown for V3 images, or when a record has one switched on.
   [['sm'], 'SMEA', '仅 V3', INSPECT_ON_OFF, (data, value) => /diffusion-3/.test(String(data?.model || '')) || value === true],
   [['sm_dyn'], 'DYN', '仅 V3', INSPECT_ON_OFF, (data, value) => /diffusion-3/.test(String(data?.model || '')) || value === true],
@@ -9029,7 +9066,7 @@ function showInspection(data, file) {
   // with an apparently absent input image.
   const inspectedOperationLabel = inspectionOperationLabel(data);
   const inspectedInput = inspectionInputStatus(data);
-  const modelName = data.modelDetected === false ? '未识别' : ($("#model")?.querySelector(`option[value="${CSS.escape(String(data.model || ''))}"]`)?.textContent || data.model || '未识别');
+  const modelName = data.modelDetected === false ? '未识别' : `${$("#model")?.querySelector(`option[value="${CSS.escape(String(data.model || ''))}"]`)?.textContent || data.model || '未识别'}${data.params?.effort === 'medium' ? ' · Medium' : ''}`;
   const facts = [
     ['模型', modelName, data.modelDetected === false ? '恢复时保持当前模型' : ''],
     ['工作流', inspectedOperationLabel, inspectedInput.status === 'none' ? '' : inspectedInput.text],

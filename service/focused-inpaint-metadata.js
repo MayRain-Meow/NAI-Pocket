@@ -125,7 +125,8 @@ export function attachFocusedInpaintMetadata(pngBytes, { state, payload, seed, p
     // outside the crop; the actual request's local coordinates are a different record.
     ...(original.v4_prompt ? {
       v4_prompt: { ...original.v4_prompt, caption: { ...original.v4_prompt.caption, base_caption: state.prompt } },
-      v4_negative_prompt: original.v4_negative_prompt
+      // The editor's own UC, like the prompt above; the sent UC also carries the preset text (1.9.0).
+      v4_negative_prompt: { ...original.v4_negative_prompt, caption: { ...original.v4_negative_prompt.caption, base_caption: state.negativePrompt } }
     } : {}),
     focused_inpaint: {
       version: 1,

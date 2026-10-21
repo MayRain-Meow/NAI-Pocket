@@ -1,3 +1,4 @@
+import { effectiveSavedState } from '../public/nai-presets.js';
 
 export class GalleryServiceError extends Error {
   constructor(status, message) {
@@ -106,7 +107,9 @@ export function createGalleryService({ store, cursors, effects = {}, clock = { n
       return {
         ...row,
         favorite: Boolean(row.favorite),
-        params,
+        // 复用 / 再来一张 / 存为方案 get the switches that really took effect (1.9.1): before 1.9.0
+        // Quality and the UC preset were recorded but never sent.
+        params: effectiveSavedState(params),
         thumbUrl: `/api/images/${row.id}/thumbnail`,
         previewUrl: `/api/images/${row.id}/preview`,
         originalUrl: `/api/images/${row.id}/original`

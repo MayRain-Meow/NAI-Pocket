@@ -1,5 +1,5 @@
-import { repairJsonSyntax } from './import-repair.js?v=1.8.10';
-import { inferNovelAiModel } from './model-utils.js?v=1.8.10';
+import { repairJsonSyntax } from './import-repair.js?v=1.9.1';
+import { inferNovelAiModel } from './model-utils.js?v=1.9.1';
 import {
   classifyNaiParameters,
   canonicalAdvancedParameterKey,
@@ -7,8 +7,9 @@ import {
   KNOWN_ADVANCED_PARAMETER_KEYS,
   isNonAdvancedParameterKey,
   isReferenceMetadataKey
-} from './parameter-semantics.js?v=1.8.10';
-import { DEFAULT_GENERATION_MODEL, DEFAULT_GENERATION_PARAMS } from './generation-state.js?v=1.8.10';
+} from './parameter-semantics.js?v=1.9.1';
+import { DEFAULT_GENERATION_MODEL, DEFAULT_GENERATION_PARAMS } from './generation-state.js?v=1.9.1';
+import { recordedMediumEffort, separateAutoText, ucPresetFromHint } from './nai-presets.js?v=1.9.1';
 
 const SAMPLER_ALIASES = new Map([
   ['euler a', 'k_euler_ancestral'], ['euler ancestral', 'k_euler_ancestral'], ['k_euler_ancestral', 'k_euler_ancestral'],
@@ -264,9 +265,17 @@ function canonicalFromJson(rawObject) {
   }
   const tagHintUcPreset = finite(parameters.tag_hint_uc_preset);
   const tagHintQuality = parameters.tag_hint_qt == null ? undefined : boolish(parameters.tag_hint_qt, undefined);
+  // What really took effect (see separateAutoText); the editor gets the user's own words.
+  const auto = separateAutoText({
+    model, prompt, negative: negativePrompt,
+    qualityToggle: boolish(quality, tagHintQuality ?? false),
+    ucPreset: finite(parameters.ucPreset ?? parameters.uc_preset, ucPresetFromHint(tagHintUcPreset) ?? null)
+  });
+  if (auto.notes.includes('quality')) warnings.push('图片记录 Quality 开，但发送的 Prompt 里没有质量词（Pocket 1.9.0 之前或其他只发开关的客户端，当时实际没生效）；恢复为关，重新生成才一致。');
+  if (auto.notes.includes('ucPreset')) warnings.push('图片记录了 UC 预设，但发送的 UC 里没有预设文字（当时实际没生效）；恢复为 None，重新生成才一致。');
   return {
     sourceFormat: 'json', rawObject,
-    prompt, negativePrompt, characters, model,
+    prompt: auto.prompt, negativePrompt: auto.negative, characters, model,
     modelDetected: modelInfo.detected,
     modelEvidence: modelInfo.evidence,
     modelSource: modelInfo.source,
@@ -278,8 +287,10 @@ function canonicalFromJson(rawObject) {
       cfgRescale: finite(parameters.cfg_rescale ?? parameters.cfgRescale, 0),
       // NovelAI's image metadata does not record the UC preset; null means unknown, and
       // overlayImportOntoEditor then keeps the editor's own value instead of forcing 0.
-      ucPreset: finite(parameters.ucPreset ?? parameters.uc_preset, tagHintUcPreset ?? null),
-      qualityToggle: boolish(quality, tagHintQuality ?? DEFAULT_GENERATION_PARAMS.qualityToggle), preferBrownian: boolish(parameters.prefer_brownian, DEFAULT_GENERATION_PARAMS.preferBrownian),
+      ucPreset: auto.ucPreset,
+      furryMode: auto.furryMode,
+      effort: recordedMediumEffort(request?.model, object?.model, parameters.model) ? 'medium' : 'high',
+      qualityToggle: auto.qualityToggle, preferBrownian: boolish(parameters.prefer_brownian, DEFAULT_GENERATION_PARAMS.preferBrownian),
       sm: boolish(parameters.sm, DEFAULT_GENERATION_PARAMS.sm), smDyn: boolish(parameters.sm_dyn, DEFAULT_GENERATION_PARAMS.smDyn),
       deliberateEulerAncestralBug: boolish(parameters.deliberate_euler_ancestral_bug, DEFAULT_GENERATION_PARAMS.deliberateEulerAncestralBug),
       varietyBoost: finite(parameters.skip_cfg_above_sigma, DEFAULT_GENERATION_PARAMS.varietyBoost),

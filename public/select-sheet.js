@@ -51,9 +51,10 @@ export function installSelectSheets({ doc = document, isEnabled = () => true } =
     item.setAttribute('role', 'option');
     item.textContent = option.textContent;
     item.disabled = option.disabled;
-    const selected = option.value === select.value && option.selected;
+    const selected = option.selected;
     item.setAttribute('aria-selected', String(selected));
-    item.addEventListener('click', () => choose(option.value));
+    // By option, not value: two options may share a value (V5 Full and V5 Full · Medium, 1.9.1).
+    item.addEventListener('click', () => choose(option));
     return item;
   }
 
@@ -102,10 +103,10 @@ export function installSelectSheets({ doc = document, isEnabled = () => true } =
     current?.focus({ preventScroll: true });
   }
 
-  function choose(value) {
+  function choose(option) {
     const select = active;
-    if (select && select.value !== value) {
-      select.value = value;
+    if (select && !option.selected) {
+      option.selected = true;
       select.dispatchEvent(new Event('input', { bubbles: true }));
       select.dispatchEvent(new Event('change', { bubbles: true }));
     }
