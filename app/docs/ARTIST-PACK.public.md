@@ -186,6 +186,36 @@ Not yet verified: Danbooru rate limits under heavy scrolling, whether the WebVie
 keeps the custom User-Agent, and reachability of `cdn.donmai.us` from mainland
 China on a phone.
 
+## Examples packs
+
+An examples pack (0.6.5) attaches generated example pictures to artists by name. It
+is the same container with `"kind": "examples"` in the manifest and the catalog:
+- every example has `sourceType: "generated"`, a `model` (`v3`, `v4`, `v4.5` or `v5`),
+  local `thumb` and `preview` files and no annotations; `metadata` carries the
+  generation record (`prompt`, `negativePrompt`, `seed`, `model`, `params`), shown under
+  「查看生成依据」;
+- the pack owns no artist. Any artist pack, or none, may describe the same artist, and
+  installing, replacing or removing either kind never touches the other. A pack ID
+  belongs to one kind; an example ID belongs to one examples pack;
+- the pictures are stored apart from the artist packs (`artist_resource_generated`) and
+  are served from the examples pack's own directory. In the artist page they form the
+  「生成」 group and become the cover only for an artist with no original;
+- Settings → V5 例图 reads the fixed catalog, shows the size, downloads the pending
+  shards and offers one 删除 for all examples packs. The removed directories are swept
+  at the next start, like a replaced pack's.
+
+Older apps refuse an examples pack at the `sourceType` check, so the kind needs no new
+format version. Build shards with:
+
+```sh
+node scripts/build-artist-example-packs.mjs prepared-examples.json image-directory new-output-directory
+```
+
+The input is `{ format: "nai-pocket-example-collection", formatVersion: 1, id, version,
+title, artists: [{ artist, examples: [{ id, model, width, height, metadata, images: { thumb:
+{ name, ext }, preview: { name, ext } } }] }] }`. Sharding, limits, the private-data scan and
+the catalog-last write are the same as for the artist packs.
+
 ## GitHub download
 
 Paste the Release download URL of `catalog.json`, then choose **读取资料目录**.

@@ -141,7 +141,7 @@ export async function writeArtistPackOutput({source,packs,imageRoot,outputDirect
   // an explicitly incomplete staging output for diagnosis, never a ready catalog.
   await fs.mkdir(output);
   const marker=path.join(output,'INCOMPLETE.json');await fs.writeFile(marker,JSON.stringify({complete:false,id:source.id,version:source.version}));
-  const catalog={format:'nai-pocket-artist-catalog',formatVersion:1,id:source.id,version:source.version,title:source.title,synthetic:source.synthetic===true,
+  const catalog={format:'nai-pocket-artist-catalog',formatVersion:1,id:source.id,...(source.kind?{kind:source.kind}:{}),version:source.version,title:source.title,synthetic:source.synthetic===true,
     partition:'sha256-normalized-name-byte0-and63-v1',...coverage(packs.flatMap(pack=>pack.manifest.artists)),shards:[]};
   for(const pack of packs) {
     const file=pack.manifest.id+'.zip',info=await writeZip(path.join(output,file),pack.bytes,pack.files,imageRoot);

@@ -30,3 +30,19 @@ export function remotePackFixture({version='remote-one',directory='remote-stage'
   example.remoteImages={thumb:`https://cdn.donmai.us/360x360/ed/f8/${REMOTE_MD5}.jpg`,preview:`https://cdn.donmai.us/720x720/ed/f8/${REMOTE_MD5}.webp`};
   return {...staged,files:[]};
 }
+
+// V5 例图 (0.6.5): an examples pack attaching one generated picture to an artist by name.
+export const EXAMPLE_RECORD=Object.freeze({prompt:'1.3::cowboy shot::, artist:fixture_artist, street',negativePrompt:'nsfw, lowres',seed:42,model:'nai-diffusion-5-full',
+  params:{width:1024,height:1024,steps:28,scale:5,sampler:'k_dpmpp_2m_sde',noiseSchedule:'karras'}});
+export function examplesPackFixture({id='v5-examples-1a',version='v5-one',directory='v5-stage-one',artist='Fixture_Artist',exampleId='v5-example'}={}) {
+  const staged=packFixture({version,directory});
+  const files=staged.files.map(file=>({...file,name:file.name.replace('pack-example',exampleId)}));
+  return {directory,buffer:staged.buffer,files,manifest:{format:'nai-pocket-artist-pack',formatVersion:1,kind:'examples',id,version,title:'V5 例图',synthetic:false,
+    artists:[{artist,examples:[{id:exampleId,sourceType:'generated',model:'v5',width:1024,height:1024,metadata:structuredClone(EXAMPLE_RECORD),
+      images:{thumb:{...files[0]},preview:{...files[1]}}}]}]}};
+}
+export function examplesCatalogFixture() {
+  const coverage={artists:1,examples:1,annotatedExamples:0,manualReviewedExamples:0,aiInitialObservations:0,artistsByExampleCount:{0:0,1:1,2:0,3:0,4:0}};
+  return {format:'nai-pocket-artist-catalog',formatVersion:1,id:'v5-examples',kind:'examples',version:'v5-one',title:'NovelAI V5 画师例图',synthetic:false,
+    partition:'sha256-normalized-name-byte0-and63-v1',...coverage,shards:[{id:'v5-examples-1a',file:'v5-examples-1a.zip',version:'v5-one',bytes:9437184,sha256:'b'.repeat(64),artistNames:['Fixture_Artist'],...coverage}]};
+}

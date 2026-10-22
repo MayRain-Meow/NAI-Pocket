@@ -11893,6 +11893,63 @@ export function identifyArtistTag(value, overrides = null) {
   };
 }
 
+// Artist name check (1.9.2, owner 2026-10-22): tags from elsewhere often carry misspelled
+// artist names, which NovelAI silently ignores. A name is known when the NAX V5 index, the
+// library roster or a unique alias has it; for an unknown name, the closest known names are
+// offered (edit distance, plus the bare form of "name (alias)" entries).
+
+export function isKnownArtistName(value) {
+  const key = normalizeArtistIdentity(value);
+  return Boolean(key && (NAX_V5_ARTIST_SET.has(key) || rosterCanonicalByKey.has(key) || uniqueAliasCanonicalByKey.has(key)));
+}
+
+// Optimal string alignment distance with an early exit once every cell exceeds `limit`.
+function artistNameDistance(a, b, limit) {
+  if (Math.abs(a.length - b.length) > limit) return limit + 1;
+  let previous2 = null, previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i];
+    let best = current[0];
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      let value = Math.min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + cost);
+      if (previous2 && i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) value = Math.min(value, previous2[j - 2] + 1);
+      current[j] = value;
+      if (value < best) best = value;
+    }
+    if (best > limit) return limit + 1;
+    previous2 = previous; previous = current;
+  }
+  return previous[b.length];
+}
+
+const compactArtistKey = key => key.replace(/[^\p{L}\p{N}]+/gu, '');
+
+export function suggestArtistNames(value, limit = 3) {
+  const key = normalizeArtistIdentity(value);
+  if (key.length < 3) return [];
+  const allowed = key.length <= 5 ? 1 : key.length <= 10 ? 2 : 3;
+  const compact = compactArtistKey(key);
+  const candidates = new Map();
+  for (const name of NAX_V5_ARTISTS) candidates.set(normalizeArtistIdentity(name), name);
+  for (const [candidateKey, name] of rosterCanonicalByKey) candidates.set(candidateKey, name);
+  for (const [candidateKey, name] of uniqueAliasCanonicalByKey) if (!candidates.has(candidateKey)) candidates.set(candidateKey, name);
+  const found = new Map();
+  for (const [candidateKey, name] of candidates) {
+    if (candidateKey === key) continue;
+    // "hitenkei" for "hiten (hitenkei)", or the same letters without spaces / punctuation.
+    const parts = /^(.*?)\s*\(([^()]+)\)\s*$/.exec(candidateKey);
+    const base = parts?.[1]?.trim(), parenthesized = parts?.[2]?.trim();
+    let distance = compactArtistKey(candidateKey) === compact || parenthesized === key || base === key ? 0 : artistNameDistance(key, candidateKey, allowed);
+    for (const part of [base, parenthesized]) if (distance > allowed && part && part.length >= 3) distance = Math.min(distance, artistNameDistance(key, part, allowed));
+    if (distance > allowed) continue;
+    const display = String(name);
+    const previous = found.get(normalizeArtistIdentity(display));
+    if (!previous || distance < previous.distance) found.set(normalizeArtistIdentity(display), { name: display, distance });
+  }
+  return [...found.values()].sort((left, right) => left.distance - right.distance || left.name.length - right.name.length || left.name.localeCompare(right.name)).slice(0, limit);
+}
+
 // 画师库「加入画风」按人去重，不按权重。`1.2::artist:anmi::` 和裸 `artist:anmi` 是同一个人。
 
 export function sameArtistIdentity(left, right, overrides = null) {

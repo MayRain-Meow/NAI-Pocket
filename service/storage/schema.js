@@ -191,4 +191,21 @@ CREATE TABLE IF NOT EXISTS artist_resource_observations (
       updated_at INTEGER
     );
 CREATE INDEX IF NOT EXISTS idx_artist_resources_observations ON artist_resource_observations(example_id);
+-- Generated example pictures from 'examples' packs (0.6.5): attached to an artist by name and owned
+-- by their own set, so installing, updating or removing them never touches an artist pack.
+CREATE TABLE IF NOT EXISTS artist_resource_generated (
+      id TEXT PRIMARY KEY,
+      set_id TEXT NOT NULL REFERENCES artist_resource_sets(id) ON DELETE CASCADE,
+      artist TEXT NOT NULL,
+      display_name TEXT NOT NULL,
+      position INTEGER NOT NULL,
+      model TEXT NOT NULL,
+      width INTEGER,
+      height INTEGER,
+      metadata_json TEXT NOT NULL DEFAULT '{}',
+      thumb_ext TEXT NOT NULL DEFAULT 'webp',
+      preview_ext TEXT NOT NULL DEFAULT 'webp'
+    );
+CREATE INDEX IF NOT EXISTS idx_artist_resource_generated_artist ON artist_resource_generated(artist, position, id);
+CREATE INDEX IF NOT EXISTS idx_artist_resource_generated_set ON artist_resource_generated(set_id);
 `;

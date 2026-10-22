@@ -28,7 +28,8 @@ export function validateArtistPackCatalog(input,sourceUrl) {
   requireValue(typeof input.id==='string'&&/^[A-Za-z0-9_-]{1,90}$/.test(input.id)
     &&label(input.version,100)&&label(input.title,200)&&typeof input.synthetic==='boolean','资料目录身份无效。');
   requireValue(Array.isArray(input.shards)&&input.shards.length>0&&input.shards.length<=64,'目录分包数量无效。');
-  const catalog={id:input.id,version:input.version,title:input.title,synthetic:input.synthetic,url,
+  requireValue(input.kind===undefined||['artists','examples'].includes(input.kind),'不支持的资料目录类型。');
+  const catalog={id:input.id,kind:input.kind??'artists',version:input.version,title:input.title,synthetic:input.synthetic,url,
     ...coverage(input,64*ARTIST_PACK_LIMITS.artists),shards:[]};
   const ids=new Set(),artists=new Set();
   for(const row of input.shards) {

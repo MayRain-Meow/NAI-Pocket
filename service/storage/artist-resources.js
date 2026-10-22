@@ -11,7 +11,9 @@ export function createArtistResourceStore(db, transaction) {
       return rows.map(row=>row.directory);
     }),
     catalog: flow(function* () {
-      const sets = yield db.prepare('SELECT id,version,title,synthetic FROM artist_resource_sets ORDER BY id').all();
+      // kind 'examples': a set that only attaches generated pictures (see install below).
+      const sets = yield db.prepare(`SELECT id,version,title,synthetic,CASE WHEN EXISTS (SELECT 1 FROM artist_resource_generated g WHERE g.set_id=artist_resource_sets.id)
+        THEN 'examples' ELSE 'artists' END AS kind FROM artist_resource_sets ORDER BY id`).all();
       const profiles = yield db.prepare(`SELECT p.*, COALESCE(s.directory,p.set_id) AS storage_id, COUNT(DISTINCT e.id) AS example_count,
         COUNT(DISTINCT o.example_id) AS annotated_count,
         COUNT(DISTINCT CASE WHEN o.reviewed=1 THEN o.example_id END) AS reviewed_count,
@@ -20,6 +22,10 @@ export function createArtistResourceStore(db, transaction) {
         LEFT JOIN artist_resource_examples e ON e.artist=p.artist
         LEFT JOIN artist_resource_observations o ON o.example_id=e.id GROUP BY p.artist`).all();
       return { sets, profiles };
+    }),
+    generatedCount: flow(function* () {
+      const row=yield db.prepare('SELECT COUNT(DISTINCT artist) AS artists,COUNT(*) AS examples FROM artist_resource_generated').get();
+      return {artists:row?.artists||0,examples:row?.examples||0};
     }),
     profile: flow(function* (artist) {
       const profile = yield db.prepare(`SELECT p.*,s.version,s.title,s.synthetic,COALESCE(d.directory,p.set_id) AS storage_id FROM artist_resource_profiles p
@@ -48,13 +54,47 @@ export function createArtistResourceStore(db, transaction) {
       }
     }),
     image: flow(function* (id) {
-      return yield db.prepare(`SELECT e.id,e.thumb_ext,e.preview_ext,e.metadata_json,p.set_id,COALESCE(s.directory,p.set_id) AS storage_id
+      return (yield db.prepare(`SELECT e.id,e.thumb_ext,e.preview_ext,e.metadata_json,p.set_id,COALESCE(s.directory,p.set_id) AS storage_id
         FROM artist_resource_examples e JOIN artist_resource_profiles p ON p.artist=e.artist
-        LEFT JOIN artist_resource_storage s ON s.set_id=p.set_id WHERE e.id=?`).get(id);
+        LEFT JOIN artist_resource_storage s ON s.set_id=p.set_id WHERE e.id=?`).get(id))
+        || (yield db.prepare(`SELECT g.id,g.thumb_ext,g.preview_ext,'{}' AS metadata_json,g.set_id,s.directory AS storage_id
+        FROM artist_resource_generated g JOIN artist_resource_storage s ON s.set_id=g.set_id WHERE g.id=?`).get(id));
+    }),
+    // Removes every examples set at once (the settings section offers one 删除). The files go
+    // with the next start's sweep, like a replaced pack's, so an open image never loses its file.
+    removeExamples: flow(function* () {
+      return yield transaction(function* () {
+        const sets=(yield db.prepare('SELECT DISTINCT set_id FROM artist_resource_generated').all()).map(row=>row.set_id);
+        for(const id of sets) {
+          yield db.prepare('DELETE FROM artist_resource_generated WHERE set_id=?').run(id);
+          yield db.prepare('DELETE FROM artist_resource_storage WHERE set_id=?').run(id);
+          yield db.prepare('DELETE FROM artist_resource_sets WHERE id=?').run(id);
+        }
+        return {removed:sets.length};
+      });
     }),
     install: flow(function* (pack,directory) {
       return yield transaction(function* () {
         if(yield db.prepare('SELECT set_id FROM artist_resource_storage WHERE directory=?').get(directory))throw Object.assign(new Error('安装目录已被使用，未覆盖现有资料。'),{status:409});
+        const owned=yield db.prepare('SELECT 1 AS ok FROM artist_resource_profiles WHERE set_id=? LIMIT 1').get(pack.id);
+        const attached=yield db.prepare('SELECT 1 AS ok FROM artist_resource_generated WHERE set_id=? LIMIT 1').get(pack.id);
+        if(pack.kind==='examples'?owned:attached)throw Object.assign(new Error('资料包 ID 已被另一类资料包使用，未覆盖现有资料。'),{status:409});
+        if(pack.kind==='examples') {
+          // Attaches pictures only: no artist ownership check, and an artist pack is never touched.
+          const old=yield db.prepare('SELECT directory FROM artist_resource_storage WHERE set_id=?').get(pack.id);
+          yield db.prepare('DELETE FROM artist_resource_generated WHERE set_id=?').run(pack.id);
+          yield db.prepare('DELETE FROM artist_resource_storage WHERE set_id=?').run(pack.id);
+          yield db.prepare(`INSERT INTO artist_resource_sets(id,version,title,synthetic) VALUES (?,?,?,?)
+            ON CONFLICT(id) DO UPDATE SET version=excluded.version,title=excluded.title,synthetic=excluded.synthetic`).run(pack.id,pack.version,pack.title,pack.synthetic?1:0);
+          yield db.prepare('INSERT INTO artist_resource_storage(set_id,directory) VALUES (?,?)').run(pack.id,directory);
+          for(const artist of pack.artists)for(const [position,example] of artist.examples.entries()) {
+            if(yield db.prepare('SELECT 1 AS ok FROM artist_resource_generated WHERE id=?').get(example.id))throw Object.assign(new Error('例图 ID 已属于另一例图包，未覆盖现有资料。'),{status:409});
+            yield db.prepare(`INSERT INTO artist_resource_generated(id,set_id,artist,display_name,position,model,width,height,metadata_json,thumb_ext,preview_ext)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(example.id,pack.id,artist.artist,artist.displayName,position,example.model,example.width,example.height,
+              JSON.stringify(example.metadata),example.images.thumb.ext,example.images.preview.ext);
+          }
+          return {previousDirectory:old?.directory||null};
+        }
         for(const artist of pack.artists) {
           const owner=yield db.prepare('SELECT set_id FROM artist_resource_profiles WHERE artist=?').get(artist.artist);
           if(owner&&owner.set_id!==pack.id)throw Object.assign(new Error('画师已属于另一资料包，未覆盖现有资料。'),{status:409});

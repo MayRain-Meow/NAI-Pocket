@@ -23,6 +23,11 @@ export function createArtistLibraryViewStore(db) {
     examplesPage: flow(function* (after, limit) {
       return yield db.prepare('SELECT id,artist,position FROM artist_resource_examples WHERE id>? ORDER BY id LIMIT ?').all(after, limit);
     }),
+    // Generated pictures from examples packs, with the directory of their own set.
+    generatedPage: flow(function* (after, limit) {
+      return yield db.prepare(`SELECT g.id,g.artist,g.display_name,g.position,g.model,s.directory AS storage_id FROM artist_resource_generated g
+        JOIN artist_resource_storage s ON s.set_id=g.set_id WHERE g.id>? ORDER BY g.id LIMIT ?`).all(after, limit);
+    }),
     // Attributes only: legacy facets are read only where no typed attributes exist, and the
     // description text is fetched separately, on demand (text search).
     observationsPage: flow(function* (after, limit) {
@@ -47,8 +52,10 @@ export function createArtistLibraryViewStore(db) {
       const examples = profile ? yield db.prepare('SELECT * FROM artist_resource_examples WHERE artist=? ORDER BY position,id').all(artist) : [];
       const observations = profile ? yield db.prepare(`SELECT o.* FROM artist_resource_observations o
         JOIN artist_resource_examples e ON e.id=o.example_id WHERE e.artist=? ORDER BY e.position,o.id`).all(artist) : [];
+      const generated = yield db.prepare(`SELECT g.*,s.directory AS storage_id FROM artist_resource_generated g
+        JOIN artist_resource_storage s ON s.set_id=g.set_id WHERE g.artist=? ORDER BY g.position,g.id`).all(artist);
       const preference = yield db.prepare('SELECT artist,favorite,note,updated_at FROM artist_preferences WHERE artist=?').get(artist);
-      return { profile: profile || null, examples, observations, preference: preference || null };
+      return { profile: profile || null, examples, observations, generated, preference: preference || null };
     })
   };
 }

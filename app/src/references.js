@@ -10,6 +10,7 @@ import { createTranslationRefresh } from '../../service/translation-refresh.js';
 import { createPngInspector } from '../../service/inspect-png.js';
 import { createNaxPreviewClient } from '../../service/nax-preview.js';
 import { createArtistBrowserService } from '../../service/artist-browser.js';
+import { createArtistNameVerifier } from '../../service/artist-verify.js';
 import { createArtistBrowserStore } from '../../service/storage/artist-browser.js';
 import { createArtistResourceService, artistResourceImageUrl } from '../../service/artist-resources.js';
 import { createArtistLibraryView } from '../../service/artist-library-view.js';
@@ -76,6 +77,8 @@ export function openReferences(database, settings, http) {
     naxPreview: createNaxPreviewClient({ binary: Buffer, http }),
     artistResources, artistPacks:openArtistPacks(database), stylePack, styleImages,
     artistDanbooru,
+    // 画师名核实: Danbooru answers 403 to browser-like agents, so name the app plainly.
+    artistVerifier: createArtistNameVerifier({ http: { fetch: (target, options = {}) => http.fetch(target, { ...options, headers: { ...options.headers, 'User-Agent': 'NAI-Pocket (artist name check)' } }) } }),
     artistLibrary: createArtistLibraryView({ store: database.store(createArtistLibraryViewStore(database.db)), danbooru: artistDanbooru,
       preferences: database.store(createArtistBrowserStore(database.db)), roster: artistRoster.artists, imageUrl: artistResourceImageUrl, styleIndex: stylePack.index, styleImages }),
     artists: withArtistCatalogSource(createArtistBrowserService({ store: database.store(createArtistBrowserStore(database.db)), resources:artistResources,

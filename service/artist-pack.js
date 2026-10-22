@@ -50,11 +50,17 @@ function sourceUrl(value) {
 }
 
 
+const GENERATED_MODELS=['v3','v4','v4.5','v5'];
 export function validateArtistPack(input) {
   check(object(input)&&input.format==='nai-pocket-artist-pack'&&input.formatVersion===1,'不支持的画师资料包版本。');
   check(id(input.id),'资料包 ID 无效。');
   check(input.synthetic===undefined||typeof input.synthetic==='boolean','演示资料标记无效。');
-  const pack={id:input.id,version:string(input.version,100,'资料版本'),title:string(input.title,200,'资料标题'),synthetic:input.synthetic===true,artists:[],files:[]};
+  // 'examples' packs (0.6.5): generated example pictures attached to artists by name. They own no
+  // artist (any pack, or none, may describe the artist) and carry no annotations. Older apps refuse
+  // them at the sourceType check below, so a mixed-up download never half-installs.
+  check(input.kind===undefined||['artists','examples'].includes(input.kind),'不支持的资料包类型。');
+  const kind=input.kind??'artists',generated=kind==='examples';
+  const pack={id:input.id,kind,version:string(input.version,100,'资料版本'),title:string(input.title,200,'资料标题'),synthetic:input.synthetic===true,artists:[],files:[]};
   check(pack.version.trim()&&pack.title.trim(),'资料版本和标题不能为空。');
   check(Array.isArray(input.artists)&&input.artists.length>0&&input.artists.length<=ARTIST_PACK_LIMITS.artists,'资料包画师数量无效。');
   const names=new Set(),examples=new Set(),observations=new Set();let total=0;
@@ -63,13 +69,14 @@ export function validateArtistPack(input) {
     check(key&&key.length<=160&&!/[\u0000-\u001f]|:\/\//.test(name)&&!names.has(key),'画师名称无效或重复。');names.add(key);
     const aliases=row.aliases??[];check(Array.isArray(aliases)&&aliases.length<=40,'画师别名无效。');
     const artist={artist:key,displayName:name,aliases:aliases.map(alias=>string(alias,180,'画师别名')),examples:[]};
-    check(Array.isArray(row.examples)&&row.examples.length<=4,'每位画师最多四张原作例图。');
+    check(Array.isArray(row.examples)&&row.examples.length<=4&&(!generated||row.examples.length>0),'每位画师最多四张原作例图。');
     for(const sample of row.examples) {
       check(object(sample)&&id(sample.id)&&!examples.has(sample.id),'例图 ID 无效或重复。');examples.add(sample.id);
       check(examples.size<=ARTIST_PACK_LIMITS.examples,'资料包例图过多。');
-      check(sample.sourceType==='original','资料包只能包含原作例图。');
+      if(generated)check(sample.sourceType==='generated'&&GENERATED_MODELS.includes(sample.model)&&sample.remoteImages===undefined&&!sample.observations?.length,'例图包只能包含生成图。');
+      else check(sample.sourceType==='original','资料包只能包含原作例图。');
       check(Number.isSafeInteger(sample.width)&&sample.width>0&&Number.isSafeInteger(sample.height)&&sample.height>0,'例图尺寸无效。');
-      const example={id:sample.id,sourceUrl:sourceUrl(sample.sourceUrl),width:sample.width,height:sample.height,note:string(sample.note??'',4000,'例图备注'),metadata:jsonObject(sample.metadata??{},16000,'例图来源数据'),observations:[]};
+      const example={id:sample.id,...(generated?{model:sample.model}:{}),sourceUrl:sourceUrl(sample.sourceUrl),width:sample.width,height:sample.height,note:string(sample.note??'',4000,'例图备注'),metadata:jsonObject(sample.metadata??{},16000,'例图来源数据'),observations:[]};
       const remote=sample.remoteImages!==undefined;
       check(remote!==(sample.images!==undefined),'例图必须且只能包含本地图片或在线图片地址之一。');
       if(remote) {

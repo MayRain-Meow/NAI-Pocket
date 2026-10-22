@@ -1,12 +1,12 @@
-import { EXACT_CHIPS, VIBE_GROUP_ORDER, chipForWord, attributesForChips } from './artist-vibe-chips.js?v=1.9.1';
-import { STYLE_FACETS, queryHasStyleTerms } from './artist-catalog.js?v=1.9.1';
-import { createArtistResultViewer } from './artist-result.js?v=1.9.1';
-import { observeFittedChips } from './artist-chip-layout.js?v=1.9.1';
-import { buildNaxV5ArtistSearchUrl } from './artist-index-v5.js?v=1.9.1';
-import { modelDisplayName } from './model-utils.js?v=1.9.1';
-import { normalizeProviderId } from './provider-route.js?v=1.9.1';
-import { confirmAction } from './confirm-sheet.js?v=1.9.1';
-import { STYLE_ATTRIBUTES, STYLE_SCHEMA_VERSION, validateStyleAttributes, attributesFromLegacy, legacyFromAttributes, summarizeStyleEvidence } from './artist-style-schema.js?v=1.9.1';
+import { EXACT_CHIPS, VIBE_GROUP_ORDER, chipForWord, attributesForChips } from './artist-vibe-chips.js?v=1.9.3';
+import { STYLE_FACETS, queryHasStyleTerms } from './artist-catalog.js?v=1.9.3';
+import { createArtistResultViewer } from './artist-result.js?v=1.9.3';
+import { observeFittedChips } from './artist-chip-layout.js?v=1.9.3';
+import { buildNaxV5ArtistSearchUrl } from './artist-index-v5.js?v=1.9.3';
+import { modelDisplayName } from './model-utils.js?v=1.9.3';
+import { normalizeProviderId } from './provider-route.js?v=1.9.3';
+import { confirmAction } from './confirm-sheet.js?v=1.9.3';
+import { STYLE_ATTRIBUTES, STYLE_SCHEMA_VERSION, validateStyleAttributes, attributesFromLegacy, legacyFromAttributes, summarizeStyleEvidence } from './artist-style-schema.js?v=1.9.3';
 
 const PAGE_SIZE = 40;
 const MAX_COMPARE = 3;
@@ -1902,10 +1902,11 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
       for (const item of style.similar) {
         const card = button('', 'artist-overview-artist', { 'data-overview-artist': item.artist, 'aria-label': `查看 ${item.artist}` });
         const picture = el('span', { className: 'artist-overview-artist-cover' });
+        // Through imageNode: in the app an <img src="/api/..."> cannot reach the in-process API
+        // (the 画风相近 covers were blank on phones, 2026-10-22); imageNode uses the app's loader.
         if (item.thumbUrl) {
-          const img = el('img', { attrs: { src: item.thumbUrl, alt: '', loading: 'lazy', decoding: 'async' } });
-          img.addEventListener('error', () => img.remove());
-          picture.append(img);
+          const img = imageNode(item.thumbUrl, '', '');
+          if (img.tagName === 'IMG') { img.addEventListener('error', () => img.remove()); picture.append(img); }
         }
         card.append(picture, el('span', { className: 'artist-overview-artist-name', text: item.artist }));
         card.addEventListener('click', () => { closeDetailPanels(); loadDetail(item.artist); });

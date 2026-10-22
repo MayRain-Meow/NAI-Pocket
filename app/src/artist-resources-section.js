@@ -34,8 +34,10 @@ export function artistResourcesSection({ request, defaultCatalogUrl = '', notice
     let summary;
     try {
       const result = await request('/api/artists/resources/sets');
-      installed = new Map(result.sets.map(row => [row.id, row.version]));
-      summary = result.sets.length ? `本机已安装 ${result.sets.length} 个资料包，共 ${result.artists.toLocaleString()} 位画师。` : '本机还没有画师标注资料。';
+      // V5 例图 sets have their own section; this one counts the artist packs only.
+      const sets = result.sets.filter(row => row.kind !== 'examples');
+      installed = new Map(sets.map(row => [row.id, row.version]));
+      summary = sets.length ? `本机已安装 ${sets.length} 个资料包，共 ${result.artists.toLocaleString()} 位画师。` : '本机还没有画师标注资料。';
     } catch (error) { summary = `读取本机资料失败：${error.message}`; }
     status.textContent = outcome ? `${outcome} ${summary}` : summary;
     sync();
@@ -89,6 +91,81 @@ export function artistResourcesSection({ request, defaultCatalogUrl = '', notice
   section.begin = () => { if (!catalog && !busy) read.click(); };
   refresh();
   return section;
+}
+
+// V5 例图 (0.6.5): an optional examples pack — one V5 picture per artist, shown in the artist page's
+// 生成 group with its generation record. The first press reads the catalog and names the size; the
+// second downloads. Installed shards stay usable when a later one fails or is stopped.
+export function exampleImagesSection({ request, catalogUrl, notice = () => {} }) {
+  const block = el('section', '', 'settings-dialog-section native-example-images');
+  const title = el('div', '', 'settings-section-heading');
+  title.append(el('span', 'Examples', 'workspace-eyebrow'), el('h2', 'V5 例图'));
+  const status = el('p', '正在读取…', 'hint'); status.setAttribute('role', 'status');
+  const get = el('button', '', 'primary'), cancel = el('button', '取消', 'ghost'), remove = el('button', '删除', 'ghost');
+  cancel.hidden = true; remove.hidden = true;
+  const progress = el('progress'); progress.max = 1; progress.hidden = true;
+  const actions = el('div', '', 'native-artist-resources-actions'); actions.append(get, cancel, remove);
+  block.append(title, status, actions, progress,
+    el('p', '每位画师一张 NovelAI V5 生成的例图（512 px），同一基准 Prompt 只换画师 Tag，便于横向比较画风；点开例图可看 Prompt、UC 和参数。和标注资料互不影响，可随时删除。', 'hint'));
+  let catalog = null, installed = new Map(), count = { artists: 0, examples: 0 }, busy = false, stop = false;
+  const pending = () => catalog ? catalog.shards.filter(row => installed.get(row.id) !== row.version) : [];
+  function sync() {
+    const rows = pending();
+    get.disabled = busy || Boolean(catalog && !rows.length); cancel.hidden = !busy; progress.hidden = !busy; remove.hidden = busy || !installed.size;
+    get.textContent = !catalog ? (installed.size ? '检查更新' : '读取例图目录') : rows.length ? `下载 ${rows.length} 个例图包（约 ${mib(rows.reduce((sum, row) => sum + row.bytes, 0))}）` : '已是最新版本';
+  }
+  async function refresh(outcome = '') {
+    let summary;
+    try {
+      const result = await request('/api/artists/resources/sets');
+      installed = new Map(result.sets.filter(row => row.kind === 'examples').map(row => [row.id, row.version]));
+      count = result.generated || count;
+      summary = installed.size ? `已安装 ${count.artists.toLocaleString()} 位画师的 ${count.examples.toLocaleString()} 张 V5 例图。` : '还没有 V5 例图。';
+    } catch (error) { summary = `读取本机资料失败：${error.message}`; }
+    status.textContent = outcome ? `${outcome} ${summary}` : summary;
+    sync();
+  }
+  async function run(work, failure) {
+    if (busy) return;
+    busy = true; stop = false; sync();
+    let outcome = '', changed = false;
+    try { outcome = (await work(() => { changed = true; })) || ''; }
+    catch (error) { outcome = failure; notice(error.message); }
+    finally {
+      busy = false;
+      if (changed) window.dispatchEvent(new Event('nai-artist-resources-changed'));
+      await refresh(outcome);
+    }
+  }
+  get.addEventListener('click', () => run(async installedOne => {
+    if (!catalog) {
+      status.textContent = '正在读取例图目录…';
+      catalog = (await request('/api/artists/resources/catalog', { method: 'POST', body: { url: catalogUrl } })).catalog;
+      if (catalog.kind !== 'examples') { catalog = null; throw new Error('这个目录不是例图包目录。'); }
+      const rows = pending();
+      return rows.length ? `共 ${catalog.artists.toLocaleString()} 位画师、${catalog.examples.toLocaleString()} 张例图。` : '已是最新版本。';
+    }
+    const rows = pending();
+    for (const [index, row] of rows.entries()) {
+      if (stop) return `已停止，完成 ${index} / ${rows.length} 个例图包；已安装的保持可用。`;
+      status.textContent = `正在下载第 ${index + 1} / ${rows.length} 个例图包…`;
+      progress.value = index / rows.length;
+      const result = await request('/api/artists/resources/download', { method: 'POST', body: { url: row.url, sha256: row.sha256, expectedId: row.id, expectedVersion: row.version } });
+      if (result.cancelled) return '已取消，已安装的例图包保持可用。';
+      installed.set(row.id, row.version); installedOne();
+    }
+    return `已安装 ${rows.length} 个例图包。`;
+  }, '例图包未安装，已安装的例图保持可用。'));
+  cancel.addEventListener('click', async () => {
+    stop = true;
+    try { await request('/api/artists/resources/cancel', { method: 'POST' }); } catch { /* the running request reports its own outcome */ }
+  });
+  remove.addEventListener('click', () => run(async removedOne => {
+    await request('/api/artists/resources/examples', { method: 'DELETE' }); removedOne(); catalog = null;
+    return '已删除 V5 例图。';
+  }, 'V5 例图未删除。'));
+  refresh();
+  return block;
 }
 
 // 画风数据 (0.5.0): the style index behind 按感觉找 / 找相似. One press checks the Release and, when it
@@ -231,7 +308,7 @@ export function artistResourceNotice({ request, section, styleSection = null }) 
     } else banner.hidden = true;
   }
   async function refresh() {
-    try { installed = (await request('/api/artists/resources/sets')).sets.length; } catch { installed = null; }
+    try { installed = (await request('/api/artists/resources/sets')).sets.filter(row => row.kind !== 'examples').length; } catch { installed = null; }
     try { style = Boolean((await request('/api/artists/style-pack')).installed); } catch { style = true; }
     if (installed) failures = 0;
     render();

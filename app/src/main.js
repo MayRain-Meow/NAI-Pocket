@@ -15,9 +15,9 @@ import { openQueue } from './queue.js';
 import { openReferences } from './references.js';
 import { createLocalApi } from './api.js';
 import { settings } from './settings.js';
-import { artistResourcesSection, artistResourceNotice, stylePackSection, styleModelSection } from './artist-resources-section.js';
+import { artistResourcesSection, artistResourceNotice, stylePackSection, styleModelSection, exampleImagesSection } from './artist-resources-section.js';
 import { createImageLoader } from './image-loader.js';
-import { DEFAULT_ARTIST_CATALOG_URL } from './artist-resource-source.js';
+import { DEFAULT_ARTIST_CATALOG_URL, V5_EXAMPLES_CATALOG_URL } from './artist-resource-source.js';
 import { createUpdater } from './updater.js';
 import { appUpdateSection } from './update-section.js';
 
@@ -137,7 +137,7 @@ try {
   const styleSection = stylePackSection({ request, notice });
   const updateSection = appUpdateSection({ updater: createUpdater({ fetch: http.fetch, state: queue.state, currentVersion: appVersion }),
     native: registerPlugin('AppUpdate'), currentVersion: appVersion });
-  settingsBody?.append(await phoneAlbumSection(queue), resourcesSection, styleSection, styleModelSection({ request, notice }), updateSection, aboutSection(appVersion, licenseButton));
+  settingsBody?.append(await phoneAlbumSection(queue), resourcesSection, exampleImagesSection({ request, catalogUrl: V5_EXAMPLES_CATALOG_URL, notice }), styleSection, styleModelSection({ request, notice }), updateSection, aboutSection(appVersion, licenseButton));
   document.getElementById('artistLibraryMount')?.before(artistResourceNotice({ request, section: resourcesSection, styleSection }));
   await media.registerAll();
   await import('../../public/app.js');

@@ -4,13 +4,14 @@
 
 用你自己的 NovelAI Token，或你选择的第三方中转，在手机本地运行，不需要服务器。
 
-[![下载 APK](https://img.shields.io/badge/下载-Android%20APK-d6a774)](https://github.com/MayRain-Meow/NAI-Pocket/releases/tag/v0.6.4-preview) ![Android](https://img.shields.io/badge/Android-7.0%2B-7fbf95) ![Status](https://img.shields.io/badge/status-0.6.4%20preview-ab9cf0) [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-8a8a8a)](LICENSE)
+[![下载 APK](https://img.shields.io/badge/下载-Android%20APK-d6a774)](https://github.com/MayRain-Meow/NAI-Pocket/releases/tag/v0.6.5-preview) ![Android](https://img.shields.io/badge/Android-7.0%2B-7fbf95) ![Status](https://img.shields.io/badge/status-0.6.5%20preview-ab9cf0) [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-8a8a8a)](LICENSE)
 
 ## 不知道该用哪个画师？
 
 NovelAI 认得上万个画师名，可光看名字，谁也不知道他画成什么样；例图散在各个网站，一个个去翻太慢。NAI Pocket 把这件事做成了手机上的一个页面：
 
 - **1.2 万+ 位画师的资料库**：其中约 1.1 万位有原作例图和逐图画风标注（线条、上色、色调……），可收藏、写笔记，一键加入画风。
+- **V5 例图**：1.2 万+ 位画师每人一张 NovelAI V5 生成图，同一个 Prompt 只换画师名，画风一眼对比；点开可看完整生成参数。
 - **按感觉找**：点「水彩」「梦幻」「厚涂」「赛璐璐」等 51 个感觉词，画师按画风接近程度排出来。
 - **以图找画师**：选一张喜欢的图，找出画风最接近的画师。
 - **画风概览 / 找相似**：每位画师的画风指纹，以及画风最像的几位画师。
@@ -26,7 +27,7 @@ NovelAI 认得上万个画师名，可光看名字，谁也不知道他画成什
 
 画风比较用的是 CLIP 图像模型算出的画风向量（约 1.1 万位画师、2.9 万张全年龄原作），比的是画面本身而不是标签，并尽量排除题材和角色设计的干扰，同一个角色的图，大大减少把「只是画过这个角色」的画师排到前面。全部在手机上离线计算，你选的图片不会上传。
 
-画风数据和以图找画师模型都是可选下载：设置 → 画风数据（约 27 MB）、设置 → 以图找画师（约 293 MB，一次）。
+V5 例图、画风数据和以图找画师模型都是可选下载：设置 → V5 例图（约 540 MB）、设置 → 画风数据（约 27 MB）、设置 → 以图找画师（约 293 MB，一次）。
 
 ## 还能做什么
 
@@ -56,9 +57,9 @@ Quality 质量词、UC 预设（Heavy / Light / Furry Focus / Human Focus）按�
 
 ## 开始使用
 
-1. 从 [Releases](https://github.com/MayRain-Meow/NAI-Pocket/releases/tag/v0.6.4-preview) 下载 APK 安装。
+1. 从 [Releases](https://github.com/MayRain-Meow/NAI-Pocket/releases/tag/v0.6.5-preview) 下载 APK 安装。
 2. 打开设置添加账号：NovelAI 官方 Token，或在「管理第三方中转」里添加中转。
-3. 想找画师：在「设置 → 画师标注资料」下载资料包，在「设置 → 画风数据」下载画风数据，然后打开「画师」页。
+3. 想找画师：在「设置 → 画师标注资料」下载资料包，在「设置 → 画风数据」下载画风数据（想直接对比 V5 画风，再下载「V5 例图」），然后打开「画师」页。
 4. 写好 Prompt，点生成。
 
 有新版本时，应用会自己提示更新。
@@ -69,7 +70,7 @@ Quality 质量词、UC 预设（Heavy / Light / Furry Focus / Human Focus）按�
 
 **隐私呢？** Token 加密保存在手机上，图库和方案也都在本机；生成请求直接发往你选择的渠道，应用本身不设服务器。以图找画师只在手机上运行，图片不上传。
 
-**例图从哪来？** 资料包只含 Danbooru 上全年龄原作的链接和标注，例图打开时从 Danbooru 读取；版权归原作者所有。
+**例图从哪来？** 资料包只含 Danbooru 上全年龄原作的链接和标注，例图打开时从 Danbooru 读取；版权归原作者所有。V5 例图是用 NovelAI V5 Full 生成的图，每张都附生成参数。
 
 **遇到问题？** 欢迎提 [Issue](https://github.com/MayRain-Meow/NAI-Pocket/issues)。
 

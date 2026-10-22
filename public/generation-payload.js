@@ -3,14 +3,14 @@
 // Environment-specific values (API model names and tool endpoints) are set once by the
 // host through configureGenerationPayload(); the defaults are NovelAI's public ones.
 
-import { formatTag } from './prompt-utils.js?v=1.9.1';
-import { sanitizeInpaintRegion } from './focused-inpaint.js?v=1.9.1';
-import { normalizeProviderId } from './provider-route.js?v=1.9.1';
-import { extractQuotedText, prepareV5Prompt } from './v5-utils.js?v=1.9.1';
-import { DIRECTOR_TOOL_TYPES, filterAdvancedOverrides } from './parameter-semantics.js?v=1.9.1';
-import { DEFAULT_GENERATION_MODEL, DEFAULT_GENERATION_PARAMS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.1';
-import { characterLimitForModel, isV5GenerationModel, supportsPreciseReference, supportsVibeTransfer, supportsCharacterPrompt, V5_CHARACTER_LIMIT } from './model-utils.js?v=1.9.1';
-import { composeNegative, composePrompt, MEDIUM_EFFORT, normalizeUcPreset, usesMediumEffort } from './nai-presets.js?v=1.9.1';
+import { formatTag } from './prompt-utils.js?v=1.9.3';
+import { sanitizeInpaintRegion } from './focused-inpaint.js?v=1.9.3';
+import { normalizeProviderId } from './provider-route.js?v=1.9.3';
+import { extractQuotedText, prepareV5Prompt } from './v5-utils.js?v=1.9.3';
+import { DIRECTOR_TOOL_TYPES, filterAdvancedOverrides } from './parameter-semantics.js?v=1.9.3';
+import { DEFAULT_GENERATION_MODEL, DEFAULT_GENERATION_PARAMS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.3';
+import { characterLimitForModel, isV5GenerationModel, supportsPreciseReference, supportsVibeTransfer, supportsCharacterPrompt, V5_CHARACTER_LIMIT } from './model-utils.js?v=1.9.3';
+import { composeNegative, composePrompt, MEDIUM_EFFORT, normalizeUcPreset, usesMediumEffort } from './nai-presets.js?v=1.9.3';
 
 const settings = {
   v5FullModel: 'nai-diffusion-5-full',

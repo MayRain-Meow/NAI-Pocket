@@ -53,6 +53,7 @@ export function createArtistLibraryView({ store, preferences, roster = [], names
     const profiles = await store.profiles(), saved = await store.preferences();
     const facts = new Map((store.danbooruPage ? await pages(async (after, limit) => (await store.danbooruPage(after, limit)).map(row => ({ ...row, id: row.artist }))) : []).map(row => [row.artist, publicDanbooruStats(row)]));
     const examples = await pages(store.examplesPage), observations = await pages(store.observationsPage);
+    const generated = store.generatedPage ? await pages(store.generatedPage) : [];
     const prepared = new Map(profiles.map(row => [row.artist, row]));
     const prefs = new Map(saved.map(row => [row.artist, row]));
     const exampleMap = new Map();
@@ -62,6 +63,15 @@ export function createArtistLibraryView({ store, preferences, roster = [], names
       if (!exampleMap.has(row.artist)) exampleMap.set(row.artist, []);
       exampleMap.get(row.artist).push({ id: row.id, model: 'original', source_type: 'original', rotation_sample: 0, storage });
     }
+    // Examples packs: generated pictures follow the originals and, like the server's rotation
+    // samples, become a cover only for an artist with no original.
+    const generatedNames = new Map();
+    generated.sort((a, b) => a.position - b.position || (a.id < b.id ? -1 : 1));
+    for (const row of generated) {
+      if (!exampleMap.has(row.artist)) exampleMap.set(row.artist, []);
+      exampleMap.get(row.artist).push({ id: row.id, model: row.model, source_type: 'generated', rotation_sample: 1, storage: row.storage_id });
+      if (!generatedNames.has(row.artist)) generatedNames.set(row.artist, row.display_name);
+    }
     const evidence = new Map(), byId = new Map();
     for (const row of observations) {
       const item = observation(row);
@@ -69,17 +79,18 @@ export function createArtistLibraryView({ store, preferences, roster = [], names
       if (!evidence.has(row.artist)) evidence.set(row.artist, []);
       evidence.get(row.artist).push(item);
     }
-    const keys = new Set([...builtIn.keys(), ...prepared.keys(), ...prefs.keys()]);
+    const keys = new Set([...builtIn.keys(), ...prepared.keys(), ...prefs.keys(), ...generatedNames.keys()]);
     const entries = [];
     for (const key of keys) {
       const pack = prepared.get(key), pref = prefs.get(key), known = builtIn.get(key);
       const images = exampleMap.get(key) || [];
       const cover = coverExample(images, '');
-      entries.push({ artist: key, name: pack?.display_name || known?.name || key, indexed: isNaxV5Artist(key),
+      const models = [...new Set(images.map(image => image.model))];
+      entries.push({ artist: key, name: pack?.display_name || known?.name || generatedNames.get(key) || key, indexed: isNaxV5Artist(key),
         aliases: pack ? json(pack.aliases_json, []) : known?.aliases || [], favorite: Boolean(pref?.favorite), note: pref?.note || '',
         danbooru: facts.get(key) || null, danbooruStatus: EMPTY_STATUS, observations: evidence.get(key) || [], exampleCount: images.length,
-        coverUrl: cover ? imageUrl(cover.id, 'thumb', cover.storage) : '', coverModel: cover ? 'original' : '', coverSourceType: cover ? 'original' : '',
-        coverExampleId: '', exampleModels: images.length ? ['original'] : [] });
+        coverUrl: cover ? imageUrl(cover.id, 'thumb', cover.storage) : '', coverModel: cover?.model || '', coverSourceType: cover?.source_type || '',
+        coverExampleId: '', exampleModels: models });
     }
     return { revision, entries, examples: exampleMap, byId, notes: false };
   }
@@ -102,11 +113,16 @@ export function createArtistLibraryView({ store, preferences, roster = [], names
   async function profile(value) {
     const key = normalizeArtistIdentity(String(value || '')).slice(0, 160);
     if (!key) throw fail('画师名称无效。');
-    const { profile: pack, examples: rows, observations: notes, preference } = await store.artist(key);
+    const { profile: pack, examples: rows, observations: notes, generated = [], preference } = await store.artist(key);
     const known = builtIn.get(key), storage = pack?.storage_id || '';
     const examples = rows.map(row => ({ id: row.id, artist: key, sourceType: 'original', sourceUrl: link(row.source_url), model: 'original', note: row.note || '',
       metadata: json(row.metadata_json, {}), width: row.width, height: row.height, createdAt: null, rotationSample: false, naxPreview: false,
       thumbUrl: imageUrl(row.id, 'thumb', storage), previewUrl: imageUrl(row.id, 'preview', storage) }));
+    // Generated pictures carry their generation record (Prompt / UC / params) as metadata.
+    for (const row of generated) examples.push({ id: row.id, artist: key, sourceType: 'generated', sourceUrl: '', model: row.model, note: '',
+      metadata: json(row.metadata_json, {}), width: row.width, height: row.height, createdAt: null, rotationSample: true, naxPreview: false,
+      thumbUrl: imageUrl(row.id, 'thumb', row.storage_id), previewUrl: imageUrl(row.id, 'preview', row.storage_id) });
+    const originals = examples.filter(item => item.sourceType === 'original');
     const observations = notes.map(row => observation(row, true));
     const cover = coverExample(examples, '');
     const style = styleIndex ? await styleIndex.ready() : null;
@@ -119,12 +135,12 @@ export function createArtistLibraryView({ store, preferences, roster = [], names
         return { ...item, thumbUrl: row ? imageUrl(row.id, 'thumb', row.storage) : '' };
       }) };
     }
-    return { artist: key, ...(style ? { vibeTags: vibeTagsOf(style)(key) } : {}), ...(styleProfile ? { styleProfile } : {}), name: pack?.display_name || known?.name || key, indexed: isNaxV5Artist(key),
+    return { artist: key, ...(style ? { vibeTags: vibeTagsOf(style)(key) } : {}), ...(styleProfile ? { styleProfile } : {}), name: pack?.display_name || known?.name || generated[0]?.display_name || key, indexed: isNaxV5Artist(key),
       aliases: pack ? json(pack.aliases_json, []) : known?.aliases || [], favorite: Boolean(preference?.favorite), note: preference?.note || '',
       danbooru: danbooru ? await danbooru.get(key) : null, danbooruStatus: EMPTY_STATUS, examples, observations, naxPreviews: [], naxExample: null,
-      evidenceSummary: { ...summarizeStyleEvidence(examples, observations, examples.length ? 'original' : ''), model: examples.length ? 'original' : '' },
-      exampleCount: examples.length, naxPreviewCount: 0, coverUrl: cover?.thumbUrl || '', coverModel: cover ? 'original' : '', coverSourceType: cover ? 'original' : '',
-      coverExampleId: cover ? cover.id : '', coverIsChosen: false, exampleModels: examples.length ? ['original'] : [],
+      evidenceSummary: { ...summarizeStyleEvidence(originals, observations, originals.length ? 'original' : ''), model: originals.length ? 'original' : '' },
+      exampleCount: examples.length, naxPreviewCount: 0, coverUrl: cover?.thumbUrl || '', coverModel: cover?.model || '', coverSourceType: cover?.sourceType || '',
+      coverExampleId: cover ? cover.id : '', coverIsChosen: false, exampleModels: [...new Set(examples.map(item => item.model))],
       resourceSet: pack ? { id: pack.set_id, revision: storage } : null };
   }
 
@@ -170,10 +186,12 @@ export function createArtistLibraryView({ store, preferences, roster = [], names
     },
     async summary() {
       const { entries } = await catalog();
-      let withExamples = 0, totalExamples = 0, annotated = 0, tagged = 0;
+      const { examples: byArtist } = await catalog();
+      let withExamples = 0, totalExamples = 0, sampleExamples = 0, annotated = 0, tagged = 0;
       for (const entry of entries) {
         if (!entry.exampleCount) continue;
-        withExamples++; totalExamples += entry.exampleCount;
+        const samples = (byArtist.get(entry.artist) || []).filter(item => item.rotation_sample).length;
+        withExamples++; totalExamples += entry.exampleCount - samples; sampleExamples += samples;
         const byExample = new Set(entry.observations.map(item => item.exampleId));
         annotated += byExample.size;
         const isTagged = item => { const values = { ...attributesFromLegacy(item.facets || {}), ...item.attributes };
@@ -181,7 +199,7 @@ export function createArtistLibraryView({ store, preferences, roster = [], names
         tagged += new Set(entry.observations.filter(isTagged).map(item => item.exampleId)).size;
       }
       return { totalArtists: entries.length, artistsWithExamples: withExamples, artistsWithoutExamples: entries.length - withExamples,
-        totalExamples, examplesWithTags: tagged, examplesWithoutTags: totalExamples - tagged, allExamples: totalExamples, sampleExamples: 0,
+        totalExamples, examplesWithTags: tagged, examplesWithoutTags: totalExamples - tagged, allExamples: totalExamples + sampleExamples, sampleExamples,
         unannotatedExamples: totalExamples - annotated, unjudgedExamples: annotated - tagged,
         // No upstream statistics or availability checks run on the phone: report them as unknown.
         danbooruStats: { total: 0, withPosts: 0, withoutPosts: 0, unsynced: 0, lastSyncedAt: 0 },

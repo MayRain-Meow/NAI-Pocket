@@ -31,6 +31,7 @@ export function createLocalApi({ database, settings, providers, client, assets, 
     if (pathname === '/api/auth/visitor-password' && method === 'GET') return { enabled: false };
     if (pathname === '/api/artists/identities' && method === 'GET') return { identities: await references.artists.identities() };
     if (pathname === '/api/artists/resources/import' && method === 'POST') return references.artistPacks.importPack();
+    if (pathname === '/api/artists/resources/examples' && method === 'DELETE') return references.artistPacks.removeExamples();
     if (pathname === '/api/artists/resources/download' && method === 'POST') return references.artistPacks.downloadPack(await body());
     if (pathname === '/api/artists/resources/catalog' && method === 'POST') return references.artistPacks.readCatalog(await body());
     if (pathname === '/api/artists/resources/status' && method === 'GET') return references.artistPacks.status();
@@ -55,11 +56,12 @@ export function createLocalApi({ database, settings, providers, client, assets, 
     if (pathname === '/api/artists/style-model/download' && method === 'POST') return references.styleImages.download(await body());
     if (pathname === '/api/artists/style-model/status' && method === 'GET') return references.styleImages.status();
     if (pathname === '/api/artists/style-model/cancel' && method === 'POST') return references.styleImages.cancel();
-    if (pathname === '/api/artists/resources/sets' && method === 'GET') { const { sets, profiles } = await references.artistResources.catalog(); return { sets, artists: profiles.length }; }
+    if (pathname === '/api/artists/resources/sets' && method === 'GET') { const { sets, profiles } = await references.artistResources.catalog(); return { sets, artists: profiles.length, generated: await references.artistResources.generatedCount() }; }
     // The artist page is the shared artist-library UI; these follow the server's response shapes.
     if (pathname === '/api/artists' && method === 'GET') return references.artistLibrary.list(Object.fromEntries(query));
     if (pathname === '/api/artists/summary' && method === 'GET') return { summary: await references.artistLibrary.summary() };
     if (pathname === '/api/artists/stats' && method === 'POST') { const data = await body(); return { stats: await references.artistDanbooru.sync({ artist: typeof data?.artist === 'string' ? data.artist : '' }, { signal: request.signal }) }; }
+    if (pathname === '/api/artists/verify' && method === 'GET') return { result: await references.artistVerifier.verify(query.get('name'), { signal: request.signal }) };
     if (pathname === '/api/artists/profile') {
       if (method === 'GET') return { artist: await references.artistLibrary.profile(query.get('artist')) };
       if (method === 'PUT') return { artist: await references.artistLibrary.save(await body()) };

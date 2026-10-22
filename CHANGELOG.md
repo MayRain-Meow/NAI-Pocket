@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.5 — Preview
+
+- V5 例图 (new, optional download, about 540 MB): one NovelAI V5 Full picture for each of 12,703 artists, all from one base prompt with only the artist tag changed, so styles compare side by side. Settings → V5 例图 reads the catalog and shows the size, then downloads; 删除 removes only these pictures. They appear in the artist page's 生成 group (and as the cover for an artist without an original), and 查看生成依据 shows each picture's Prompt, UC and parameters (16 or 28 steps). Independent of the annotation packs: updating either never touches the other.
+- Artist name check: an artist: tag whose name is in neither the artist library, the NAX index nor the aliases gets an orange 「?」. Opening it suggests the closest real names (hitten → hiten (hitenkei)) with a one-tap 改成, and checks Danbooru: the artist exists (with post count), is another name of an artist, is an ordinary tag rather than an artist, is banned, or does not exist. Checked artists are remembered; 确认是画师 marks one by hand. Prompts from elsewhere often carry misspelled names, which NovelAI silently ignores.
+- Fixed: the 画风相近 covers in 画风概览 were blank.
+
 ## 0.6.4 — Preview
 
 - Quality Tags and UC presets now really apply: NovelAI's servers expand neither switch, its own client writes the text, and the app now does the same (quality tags at the end of the prompt, before any Text: block; the preset text in front of your UC; on Full models nsfw in the UC unless the prompt asks for it). Before, only the switches were sent and had no effect, so new pictures look closer to the official site.

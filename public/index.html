@@ -8,10 +8,10 @@
   
   <link rel="icon" href="/icons/icon-flow-192.png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="/styles.css?v=1.9.1">
+  <link rel="stylesheet" href="/styles.css?v=1.9.3">
   <link rel="stylesheet" href="/artist-library.css">
-  <link rel="stylesheet" href="/workspace.css?v=1.9.1">
-  <link rel="stylesheet" href="/tag-chips.css?v=1.9.1">
+  <link rel="stylesheet" href="/workspace.css?v=1.9.3">
+  <link rel="stylesheet" href="/tag-chips.css?v=1.9.3">
 <link rel="stylesheet" href="/native.css">
 <link rel="stylesheet" href="/artist-browser.css">
 </head>
@@ -59,7 +59,7 @@
       <header class="topbar workspace-topbar">
         <div class="workspace-crumb"><span>Workspace</span><strong id="pageCrumb">编辑工作台</strong></div>
         <div class="top-actions">
-          <span id="connectionText" class="connection-text">连接中 · v1.9.1</span>
+          <span id="connectionText" class="connection-text">连接中 · v1.9.3</span>
           
           <button id="openNaiImportButton" class="ghost compact-button" type="button" title="导入 NAI / JSON">导入</button>
           
@@ -1186,6 +1186,15 @@
       </div>
       <p class="artist-preview-caption">NAX V5 参考样图，不含 Prompt、Seed 与生成参数；单张图不代表画师的全部表现。</p>
       <div><button id="artistPreviewRetry" class="artist-preview-chip artist-preview-retry hidden" type="button">重新载入预览</button></div>
+      <div id="artistPreviewVerify" class="artist-preview-verify" hidden="">
+        <p id="artistPreviewVerifyText" class="artist-preview-verify-text"></p>
+        <p id="artistPreviewDanbooruResult" class="artist-preview-verify-result" hidden=""></p>
+        <div id="artistPreviewSuggestions" class="artist-preview-suggestions"></div>
+        <div class="artist-preview-verify-actions">
+          <button id="artistPreviewCheck" class="artist-preview-chip" type="button">在 Danbooru 核实</button>
+          <button id="artistPreviewConfirm" class="artist-preview-chip" type="button" hidden="">确认是画师</button>
+        </div>
+      </div>
       <div class="artist-preview-links">
         <span class="artist-preview-links-label">外部参考</span>
         <a id="artistPreviewDanbooru" class="artist-preview-chip" target="_blank" rel="noopener noreferrer">Danbooru 作品<span aria-hidden="true">↗</span></a>

@@ -7,28 +7,28 @@ import {
   unwrapLegacyBrackets,
   parseStructuredPrompt as parseStructuredPromptUtil,
   cloneTagForStorage
-} from './prompt-utils.js?v=1.9.1';
-import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.9.1';
-import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.9.1';
-import { repairImportedPrompt } from './import-repair.js?v=1.9.1';
-import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.9.1';
-import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity } from './artist-index-v5.js?v=1.9.1';
-import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.9.1';
-import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.9.1';
-import { buildArtistStormPlan } from './storm-utils.js?v=1.9.1';
-import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.9.1';
-import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.9.1';
-import { MEDIUM_EFFORT, normalizeUcPreset, supportsMediumEffort, UC_PRESET_LABELS, ucPresetFromHint, usesMediumEffort } from './nai-presets.js?v=1.9.1';
-import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.9.1';
-import { focusedInpaintPlan, sanitizeInpaintRegion } from './focused-inpaint.js?v=1.9.1';
-import { observeToastClearance } from './toast-layout.js?v=1.9.1';
-import { installSelectSheets } from './select-sheet.js?v=1.9.1';
-import { attachWeightHighlight } from './weight-highlight.js?v=1.9.1';
-import { confirmAction, promptText } from './confirm-sheet.js?v=1.9.1';
-import { createTaggerPanel } from './tagger-panel.js?v=1.9.1';
-import { createCodexPanel } from './codex-panel.js?v=1.9.1';
-import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.1';
-import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.9.1';
+} from './prompt-utils.js?v=1.9.3';
+import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.9.3';
+import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.9.3';
+import { repairImportedPrompt } from './import-repair.js?v=1.9.3';
+import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.9.3';
+import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, isKnownArtistName, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity, suggestArtistNames } from './artist-index-v5.js?v=1.9.3';
+import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.9.3';
+import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.9.3';
+import { buildArtistStormPlan } from './storm-utils.js?v=1.9.3';
+import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.9.3';
+import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.9.3';
+import { MEDIUM_EFFORT, normalizeUcPreset, supportsMediumEffort, UC_PRESET_LABELS, ucPresetFromHint, usesMediumEffort } from './nai-presets.js?v=1.9.3';
+import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.9.3';
+import { focusedInpaintPlan, sanitizeInpaintRegion } from './focused-inpaint.js?v=1.9.3';
+import { observeToastClearance } from './toast-layout.js?v=1.9.3';
+import { installSelectSheets } from './select-sheet.js?v=1.9.3';
+import { attachWeightHighlight } from './weight-highlight.js?v=1.9.3';
+import { confirmAction, promptText } from './confirm-sheet.js?v=1.9.3';
+import { createTaggerPanel } from './tagger-panel.js?v=1.9.3';
+import { createCodexPanel } from './codex-panel.js?v=1.9.3';
+import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.3';
+import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.9.3';
 
 const GROUP_LABELS_BY_KEY = {
   scene: '场景',
@@ -497,13 +497,40 @@ function artistJumpLinkHtml(value, className = 'tag-artist-jump', target = null)
     ['data-artist-scope', target.scope], ['data-artist-group', target.groupKey], ['data-artist-character', target.characterId],
     ['data-artist-kind', target.kind], ['data-artist-tag-id', target.tagId]
   ].filter(([, item]) => item).map(([name, item]) => `${name}="${escapeHtml(item)}"`).join(' ') : '';
-  const detectedClass = artist.explicit ? '' : ' detected';
-  const title = artist.explicit ? '预览画师作品'
+  const unverified = artistUnverified(artist);
+  const detectedClass = (artist.explicit ? '' : ' detected') + (unverified ? ' unverified' : '');
+  const title = unverified ? '未核实：画师库和 NAX 索引里都没有这个名字，可能拼错；点击核实'
+    : artist.explicit ? '预览画师作品'
     : artist.source === 'nax-v5' ? '已从 NAX V5 画师索引识别；点击审核'
     : '已从画师库识别；点击审核';
   // New-layout chips show a palette badge; legacy cards keep the ◈ mark.
   const mark = className === 'chip-artist-jump' ? ARTIST_PALETTE_ICON : '◈';
   return `<button type="button" class="${className}${detectedClass}" data-artist-preview="${escapeHtml(artist.literal)}" ${targetAttrs} aria-label="预览画师 ${escapeHtml(artist.name)}" title="${title}">${mark}</button>`;
+}
+
+// 画师名核实 (1.9.2): an artist: tag whose name no list knows (NAX index, library roster, unique
+// alias) and that nobody has confirmed is "unverified" — often a misspelling from elsewhere, which
+
+function artistUnverified(artist) {
+  if (!artist?.recognized || !artist.explicit) return false;
+  if (artistOverrides[artist.normalized] === true) return false;
+  return !isKnownArtistName(artist.name);
+}
+
+function unverifiedArtistTags() {
+  const texts = [...GROUP_DEFS.flatMap(([key]) => appState.groups[key] || []), ...(appState.characters || []).flatMap(character => character.promptTags || [])]
+    .filter(tag => tag.enabled !== false).map(tag => tag.text);
+  const names = new Set();
+  for (const text of texts) { const artist = identifyArtistTag(text, artistOverrides); if (artistUnverified(artist)) names.add(artist.name); }
+  return [...names];
+}
+
+// Appended to an import / restore message (one message, one place).
+function withArtistCheckNote(message) {
+  const names = unverifiedArtistTags();
+  if (!names.length) return message;
+  const list = names.slice(0, 3).join('、') + (names.length > 3 ? ' 等' : '');
+  return `${String(message).replace(/[。.]\s*$/, '')}；${names.length} 个画师 Tag 未核实（${list}），点橙色标记查看建议。`;
 }
 
 function saveArtistOverride(name, value) {
@@ -588,11 +615,15 @@ function openArtistPreview(button) {
   const requestId = ++artistPreviewRequestId;
   activeArtistPreview = { artist, ref: artistRefFromButton(button), sourceButton: button, requestId };
   els.artistPreviewName.textContent = artist.canonical || artist.name;
-  els.artistPreviewStatus.textContent = artist.explicit
+  const unverified = artistUnverified(artist);
+  els.artistPreviewStatus.textContent = unverified
+    ? '未核实 · 画师库和 NAX 索引里都没有这个名字'
+    : artist.explicit
     ? '已由 artist: 前缀确认'
     : artist.indexed
       ? '已按 NAX V5 精确名单识别 · 请审核'
       : '已按画师库精确名单识别 · 请审核';
+  renderArtistVerification(activeArtistPreview, unverified);
   els.artistPreviewDanbooru.href = danbooruArtistPostsUrl(artist.canonical || artist.name);
   els.artistPreviewNax.href = buildNaxV5ArtistSearchUrl(artist.canonical || artist.name);
   els.artistPreviewNax.textContent = 'NAX V5 作者搜索 ↗';
@@ -769,6 +800,92 @@ function openArtistLibrary(artist = '') {
 window.addEventListener('nai-navigation-back', event => {
   if ($('#artistsTab')?.classList.contains('active') && artistLibrary?.back?.()) event.preventDefault();
 });
+
+function renderArtistVerification(active, unverified) {
+  const box = $('#artistPreviewVerify'); if (!box) return;
+  const name = active.artist.canonical || active.artist.name;
+  box.hidden = false;
+  box.dataset.state = unverified ? 'unverified' : 'known';
+  $('#artistPreviewVerifyText').textContent = unverified
+    ? `「${name}」不在画师库和 NAX 索引里：可能拼错了，也可能是没收录的画师。NovelAI 不认识的名字会被直接忽略。`
+    : '这个名字在画师库或 NAX 索引中。';
+  $('#artistPreviewDanbooruResult').hidden = true;
+  $('#artistPreviewConfirm').hidden = !unverified;
+  renderArtistSuggestions(active, unverified ? suggestArtistNames(name) : []);
+  // An unverified name is checked right away; a known one only when asked (to catch a misidentified word).
+  if (unverified) checkArtistOnDanbooru(active);
+}
+
+function renderArtistSuggestions(active, suggestions) {
+  const host = $('#artistPreviewSuggestions'); if (!host) return;
+  host.replaceChildren(...suggestions.map(item => {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'artist-preview-chip artist-preview-suggestion';
+    button.textContent = `改成 ${item.name}`;
+    button.disabled = !active.ref;
+    button.title = active.ref ? `把这个 Tag 改成 artist:${item.name}` : '只能在编辑器里的 Tag 上修改';
+    button.addEventListener('click', () => replaceArtistFromPreview(item.name));
+    return button;
+  }));
+}
+
+const DANBOORU_CHECK_TEXT = {
+  artist: result => `Danbooru：有这位画师（${result.postCount} 张作品）。`,
+  'no-posts': () => 'Danbooru：有这个画师 Tag，但没有可见作品，NovelAI 很可能学不到这个画风。',
+  alias: result => `Danbooru：这是「${result.name}」的另一个名字；NovelAI 认的是正式名。`,
+  'not-artist': result => `Danbooru：「${result.name}」是普通 Tag（${result.postCount} 张），不是画师。`,
+  banned: result => `Danbooru：「${result.name}」已被封禁，作品不可见。`,
+  absent: () => 'Danbooru：没有这个名字，很可能拼错了。'
+};
+
+async function checkArtistOnDanbooru(active = activeArtistPreview) {
+  if (!active) return;
+  const line = $('#artistPreviewDanbooruResult');
+  const button = $('#artistPreviewCheck');
+  line.hidden = false; line.dataset.status = 'checking'; line.textContent = 'Danbooru 核实中…';
+  if (button) button.disabled = true;
+  try {
+    const { result } = await api(`/api/artists/verify?name=${encodeURIComponent(active.artist.canonical || active.artist.name)}`);
+    if (activeArtistPreview !== active) return;
+    line.dataset.status = result.status;
+    line.textContent = (DANBOORU_CHECK_TEXT[result.status] || (() => 'Danbooru 核实完成。'))(result);
+    if (result.status === 'artist') {
+      // Confirmed real: remember it, so the chip is no longer marked.
+      saveArtistOverride(active.artist.name, true);
+      $('#artistPreviewConfirm').hidden = true;
+      $('#artistPreviewVerify').dataset.state = 'confirmed';
+      renderTagGroups(); renderCharacters();
+    } else if (result.status === 'alias' && result.name) {
+      renderArtistSuggestions(active, [{ name: result.name }, ...suggestArtistNames(active.artist.name).filter(item => normalizeArtistIdentity(item.name) !== normalizeArtistIdentity(result.name))].slice(0, 3));
+    }
+  } catch (error) {
+    if (activeArtistPreview !== active) return;
+    line.dataset.status = 'error';
+    line.textContent = `Danbooru 核实失败：${error.message}`;
+  } finally { if (button) button.disabled = false; }
+}
+
+function replaceArtistFromPreview(name) {
+  const active = activeArtistPreview;
+  const found = getScopedTag(active?.ref);
+  if (!active || !found) return;
+  const nextText = `artist:${name}`;
+  Object.assign(found.tag, { text: nextText, exactText: nextText, preserveRaw: false, raw: '', originalText: nextText, originalExactText: nextText, originalWeight: found.tag.weight });
+  closeArtistPreview();
+  if (active.ref.scope === 'character') renderCharacters();
+  else renderTagGroups();
+  compilePromptToPreview();
+  toast(`已改成 ${nextText}。`, 'success');
+}
+
+function confirmArtistFromPreview() {
+  const active = activeArtistPreview;
+  if (!active) return;
+  saveArtistOverride(active.artist.name, true);
+  closeArtistPreview();
+  renderTagGroups(); renderCharacters();
+  toast(`已确认「${active.artist.name}」是画师。`);
+}
 
 function rejectArtistPreview() {
   const active = activeArtistPreview;
@@ -1580,7 +1697,7 @@ function watchForUpdates() {
     if (!controlled) { controlled = true; return; } // first install, not an update
     showUpdateBanner();
   });
-  navigator.serviceWorker.register('/sw.js?v=1.9.1').then(registration => {
+  navigator.serviceWorker.register('/sw.js?v=1.9.3').then(registration => {
     let checkedAt = Date.now();
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible' || Date.now() - checkedAt < 10 * 60 * 1000) return;
@@ -3142,9 +3259,9 @@ function tagChipWeightClass(weight) {
 function createTagChip(ref, tag) {
   const card = document.createElement('div');
   const selected = tagSelection.has(tagRefKey({ ...ref, id: tag.id }));
-  const artist = identifyArtistTag(tag.text, artistOverrides).recognized;
+  const artistIdentity = identifyArtistTag(tag.text, artistOverrides), artist = artistIdentity.recognized;
   card.className = ['tag-card', 'tag-chip', ref.scope === 'character' ? 'character-tag-card' : '', tag.enabled === false ? 'disabled' : '',
-    tagChipWeightClass(tag.weight), selected ? 'selected' : '', artist ? 'is-artist' : ''].filter(Boolean).join(' ');
+    tagChipWeightClass(tag.weight), selected ? 'selected' : '', artist ? 'is-artist' : '', artistUnverified(artistIdentity) ? 'is-unverified-artist' : ''].filter(Boolean).join(' ');
   card.dataset.tagId = tag.id;
   if (ref.scope === 'character') { card.dataset.characterId = ref.characterId; card.dataset.characterKind = ref.kind; }
   else if (ref.scope === 'uc') card.dataset.ucChip = '1';
@@ -5287,7 +5404,7 @@ async function importPromptToCards(smart = true) {
   renderTagGroups();
   compilePromptToPreview(true);
   const extra = appState.characters.length ? `，识别 ${appState.characters.length} 个角色` : '';
-  toast(smart ? `已智能拆分 ${tokens.length} 个全局 Tag${extra}。` : `已拆分 ${tokens.length} 个全局 Tag 到其他${extra}。`, 'success');
+  toast(withArtistCheckNote(smart ? `已智能拆分 ${tokens.length} 个全局 Tag${extra}。` : `已拆分 ${tokens.length} 个全局 Tag 到其他${extra}。`), 'success');
 }
 
 let currentNaiImport = null;
@@ -5697,7 +5814,7 @@ async function applyNaiImport({ structured = false, generate = false } = {}) {
     els.naiImportDialog?.close();
     switchTabTo('editor');
     if (structured) {
-      toast(`已解析到 Tag 编辑器并保留 Global Tag 原始顺序：${analyzeImportedPrompt(data).tagCount} 个 Tag，${data.characters?.length || 0} 个角色。`, 'success');
+      toast(withArtistCheckNote(`已解析到 Tag 编辑器并保留 Global Tag 原始顺序：${analyzeImportedPrompt(data).tagCount} 个 Tag，${data.characters?.length || 0} 个角色。`), 'success');
     } else {
       toast('已按原始 Prompt 结构载入；不会为了整齐重写复制内容。', 'success');
     }
@@ -9179,7 +9296,7 @@ async function restoreInspection(restoreAll) {
     switchTabTo('editor');
     if (workflowWarnings.length) toast(workflowWarnings.join(' '), 'error');
     else if (restoreAll && state.imageRecovery?.status === 'missing') toast(state.imageRecovery.reason, 'error');
-    else toast(restoreAll ? '已从 PNG 恢复 Prompt、角色、UC、Seed、生成参数与工作流意图。' : '已从 PNG 恢复 Prompt、角色与 UC。', 'success');
+    else toast(withArtistCheckNote(restoreAll ? '已从 PNG 恢复 Prompt、角色、UC、Seed、生成参数与工作流意图。' : '已从 PNG 恢复 Prompt、角色与 UC。'), 'success');
     succeeded = true;
   } catch (error) {
     if (status) {
@@ -10732,7 +10849,7 @@ function restoreImageState() {
   }
   els.imageDialog.close();
   switchTabTo('editor');
-  toast('已恢复该图片的创作参数；当前通道与 Token 保持不变。', 'success');
+  toast(withArtistCheckNote('已恢复该图片的创作参数；当前通道与 Token 保持不变。'), 'success');
 }
 
 async function switchFavorite() {
@@ -11292,6 +11409,8 @@ function initBindings() {
   els.artistPreviewDialog?.addEventListener('click', event => { if (event.target === els.artistPreviewDialog) closeArtistPreview(); });
   els.artistPreviewReject?.addEventListener('click', rejectArtistPreview);
   els.artistPreviewAddPrefix?.addEventListener('click', addArtistPrefixFromPreview);
+  $('#artistPreviewCheck')?.addEventListener('click', () => checkArtistOnDanbooru());
+  $('#artistPreviewConfirm')?.addEventListener('click', confirmArtistFromPreview);
   els.artistPreviewImage?.addEventListener('load', () => {
     if (!activeArtistPreview || activeArtistPreview.timedOut || activeArtistPreview.requestId !== Number(els.artistPreviewImage.dataset.previewRequestId)) return;
     clearArtistPreviewLoadTimer();

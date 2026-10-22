@@ -11,7 +11,7 @@ import { build } from 'esbuild';
 import { makePngFixture } from '../../tests/png-metadata-fixtures.mjs';
 import { APP_SCHEMA } from '../../service/storage/schema.js';
 import { seedArtistResources } from '../../tests/artist-resources-fixtures.mjs';
-import { packFixture,catalogFixture } from '../../tests/artist-pack-fixtures.mjs';
+import { packFixture,catalogFixture,examplesPackFixture,examplesCatalogFixture } from '../../tests/artist-pack-fixtures.mjs';
 import { previewHtml, previewHtmlForResources, previewScript, previewSeedScript, previewImage } from './offline-preview.mjs';
 import { seedPreparedArtists } from './seed-prepared-artists.mjs';
 import { stylePackFixture } from '../../tests/style-pack-fixtures.mjs';
@@ -116,6 +116,10 @@ async function rpc(name,args) {
     await fs.writeFile(target,styleMode==='corrupt'?styleFixture.bytes.subarray(0,40):styleFixture.bytes);
     return {path:`style-index/${args.sha256}.bin`,bytes:styleFixture.bytes.length};
   }
+  if(name==='ArtistResources.readCatalog'&&String(args.url).endsWith('/artist-v5-examples-2026-10-22/catalog.json')) {
+    if(preview)throw new Error('真实例图目录需在安卓手机上验证。');
+    return {catalog:examplesCatalogFixture()};
+  }
   if(name==='ArtistResources.readCatalog') {
     if(preview)throw new Error('真实目录下载需在安卓手机上验证；本预览只读取已载入的本地资料。');
     assert.deepEqual(Object.keys(args).sort(),['operationId','url']);return {catalog:catalogFixture().catalog};
@@ -137,7 +141,7 @@ async function rpc(name,args) {
       }
     }
     packStatus={phase:'verify',receivedBytes:100,totalBytes:0,cancellable:true};
-    packSequence++;const staged=args.expectedId?catalogFixture().staged:packFixture({version:String(packSequence)});staged.directory=`mock-pack-${packSequence}`;
+    packSequence++;const staged=args.expectedId?.startsWith('v5-examples')?examplesPackFixture():args.expectedId?catalogFixture().staged:packFixture({version:String(packSequence)});staged.directory=`mock-pack-${packSequence}`;
     if(packMode==='catalog-mismatch')staged.manifest.version='unexpected';
     for(const file of staged.files){const target=local(`artist-resources/${staged.directory}/${file.name}`);await fs.mkdir(path.dirname(target),{recursive:true});await fs.writeFile(target,staged.buffer);}
     delete staged.buffer;packStages.add(staged.directory);
@@ -649,6 +653,28 @@ try {
   assert.equal((await call('/api/artists/profile?artist=catalog_artist')).data.artist.resourceSet.id,'catalog-test-10');
   assert.equal(packDownloads.length,3);for(const download of packDownloads)assert.ok(!JSON.stringify(download).includes(token)&&!JSON.stringify(download).includes(rbqToken));
   assert.equal(packDownloads.at(-1).sha256,'a'.repeat(64));assert.equal(packDownloads.at(-1).expectedVersion,'catalog-v1');
+  // V5 例图 (0.6.5): its own section — read the catalog, see the size, download; the artist page
+  // shows the picture in the 生成 group with its generation record; 删除 removes only these.
+  const examples=page.locator('.native-example-images'),exampleButton=name=>examples.getByRole('button',{name,exact:true});
+  const exampleStarts=async prefix=>{await page.waitForFunction(({prefix})=>document.querySelector('.native-example-images p[role="status"]')?.textContent.startsWith(prefix),{prefix});};
+  await exampleStarts('还没有 V5 例图。');
+  assert.equal(await exampleButton('删除').isVisible(),false);
+  await exampleButton('读取例图目录').click();
+  await exampleStarts('共 1 位画师、1 张例图。');
+  await exampleButton('下载 1 个例图包（约 9.0 MB）').click();
+  await exampleStarts('已安装 1 个例图包。 已安装 1 位画师的 1 张 V5 例图。');
+  assert.equal(await exampleButton('已是最新版本').isDisabled(),true);
+  const kinds=(await call('/api/artists/resources/sets')).data.sets.map(row=>row.kind);
+  assert.deepEqual([kinds.filter(kind=>kind==='examples').length,kinds.filter(kind=>kind==='artists').length],[1,3],'the sets route tells the examples pack apart for the annotation section');
+  const withV5=(await call('/api/artists/profile?artist=fixture_artist')).data.artist;
+  assert.equal(withV5.resourceSet.id,'pack-a','the artist pack still owns the artist');
+  const v5=withV5.examples.find(item=>item.sourceType==='generated');
+  assert.equal(v5.model,'v5');assert.equal(v5.metadata.params.steps,28);assert.match(v5.previewUrl,/revision=mock-pack-[0-9]+/);
+  await page.screenshot({path:path.join(temporary,'native-v5-examples.png'),fullPage:false});
+  await exampleButton('删除').click();
+  await exampleStarts('已删除 V5 例图。 还没有 V5 例图。');
+  assert.equal((await call('/api/artists/profile?artist=fixture_artist')).data.artist.examples.some(item=>item.sourceType==='generated'),false);
+  assert.equal((await packSets())['pack-a'],'3','removing the examples leaves the artist packs');
   // 画风数据 (0.5.0): one press reads the manifest and installs the verified file; a file that does not
   // decode is removed and never replaces the installed data.
   const style=page.locator('.native-style-pack'),styleButton=name=>style.getByRole('button',{name,exact:true});

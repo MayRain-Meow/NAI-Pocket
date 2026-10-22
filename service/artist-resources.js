@@ -105,6 +105,8 @@ export function createArtistResourceService({ store, files, http = { fetch: (...
         coverUrl: row.cover_id ? artistResourceImageUrl(row.cover_id,'thumb',row.storage_id) : null
       })) };
     },
+    // Pictures attached by examples packs (V5 例图), for the settings summary.
+    async generatedCount() { return store.generatedCount ? store.generatedCount() : { artists: 0, examples: 0 }; },
     async get(value) {
       const result = await store.profile(normalizeArtistIdentity(value));
       if (!result) return null;

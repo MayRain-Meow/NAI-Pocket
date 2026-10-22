@@ -33,6 +33,11 @@ export function openArtistPacks(database) {
     // an earlier reader can still hold an image path; native also gates reloads.
     recover:async()=>native.recover({activeDirectories:await store.activeDirectories()}),
     importPack:()=>run('importPack'),
+    // V5 例图: one 删除 for every examples set; never while a pack is being installed.
+    async removeExamples() {
+      if(importing)throw Object.assign(new Error('已有资料包正在导入。'),{status:409});
+      return store.removeExamples();
+    },
     downloadPack:input=>run('downloadPack',validateArtistPackDownload(input)),
     readCatalog:input=>run('readCatalog',{url:validateArtistResourceUrl(input?.url,'json')}),
     async status() {
