@@ -78,6 +78,11 @@ Quality 质量词、UC 预设（Heavy / Light / Furry Focus / Human Focus）按�
 
 构建、源码结构与测试见 [BUILD.md](BUILD.md)；手机调试见 [体验与调试说明](app/docs/REVIEW.public.md)；资料包格式见 [资料包说明](app/docs/ARTIST-PACK.public.md)。
 
+## 致谢
+
+- **[DanbooruSearch](https://huggingface.co/spaces/SAkizuki/DanbooruSearch)**（SAkizuki）：用中文或一句描述就能搜到 Danbooru Tag，编辑器里的语义搜索由它提供。同一位作者的 **[问秋月](https://huggingface.co/spaces/SAkizuki/WenQiuYue)** 可以问写法，也能让 Agent 帮你把想法写成提示词。
+- **[法典 · QuickTagCloud](https://novelai.quicktagcloud.com/)** 以及各部法典的整理者与投稿者：「法典」页读取的就是这些社区配方，条目保留原作者署名。
+
 ## 许可
 
 [AGPL-3.0-only](LICENSE) 开源。本项目与 NovelAI 官方无隶属关系；第三方服务与数据的署名见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。
