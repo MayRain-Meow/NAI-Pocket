@@ -7,7 +7,7 @@
 - Run `npm ci` inside `app`, then `npm run android`.
 - Generated web assets, Gradle caches, APKs, SDK paths and signing files are ignored by Git.
 
-This source targets Android **0.6.5 preview**, versionCode **22**, application ID
+This source targets Android **0.7.0 preview**, versionCode **23**, application ID
 `app.naipocket.local`. It remains a preview: real-device behavior and paid
 generation have not been verified. Use the same release signing identity when
 updating a 0.1.0 installation; keep the original 0.1.0 APK/source pair intact.

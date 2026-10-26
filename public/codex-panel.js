@@ -43,7 +43,8 @@ const selectedCodexTags = block => block.tags.filter(item => item.selected).map(
 export function createCodexPanel({ api, toast, isActive, tags: tagTools, editor, storage = { get: readStore, set: writeStore } }) {
   const codexTags = tagTools.parse;
   const codexTagKey = tagTools.key;
-  const codexState = { site: '', list: null, id: '', meta: null, path: [], q: '', tree: [], entries: [], total: 0, token: 0, loading: false, nsfw: false };
+  // `base`: the position of entries[0] in the section — non-zero after a jump with the rail.
+  const codexState = { site: '', list: null, id: '', meta: null, path: [], q: '', tree: [], entries: [], base: 0, total: 0, token: 0, loading: false, nsfw: false };
   // Copying Tags from an entry: each prompt block is shown as chips. Tags that
   // are already in the prompt are marked 「已有」 and start deselected; a tap
   // toggles a chip, and the block's action appends only the selected ones.
@@ -126,7 +127,8 @@ export function createCodexPanel({ api, toast, isActive, tags: tagTools, editor,
     if (open) $('#codexBooks [aria-pressed="true"]')?.scrollIntoView({ block: 'nearest' });
   }
 
-  async function loadCodexPage(reset) {
+  // reset: start the section at `start` (0 = the top; the rail jumps elsewhere). Otherwise the next page.
+  async function loadCodexPage(reset, start = 0) {
     if (!codexState.id) {
       $('#codexGrid').replaceChildren(el('p', 'codex-empty', '没有可显示的法典。'));
       return;
@@ -134,8 +136,9 @@ export function createCodexPanel({ api, toast, isActive, tags: tagTools, editor,
     if (codexState.loading && !reset) return;
     const token = ++codexState.token;
     codexState.loading = true;
-    const offset = reset ? 0 : codexState.entries.length;
-    if (reset) { $('#codexGrid').replaceChildren(el('p', 'codex-empty', '正在载入…首次打开一部法典需要几秒。')); scrollCodexTop(); }
+    const loaded = codexState.entries.length;
+    const offset = reset ? start : codexState.base + loaded;
+    if (reset) { $('#codexGrid').replaceChildren(el('p', 'codex-empty', start ? `正在跳到第 ${start + 1} 条…` : '正在载入…首次打开一部法典需要几秒。')); scrollCodexTop(); }
     $('#codexMore').hidden = true;
     const params = new URLSearchParams({ path: codexState.path.join('/'), q: codexState.q, offset: String(offset), limit: String(CODEX_PAGE) });
     try {
@@ -144,15 +147,134 @@ export function createCodexPanel({ api, toast, isActive, tags: tagTools, editor,
       codexState.meta = page.meta;
       codexState.tree = page.tree;
       codexState.total = page.total;
+      if (reset) codexState.base = offset;
       codexState.entries = reset ? page.entries : codexState.entries.concat(page.entries);
       renderCodexPath();
-      renderCodexGrid(reset ? 0 : offset);
+      renderCodexGrid(reset ? 0 : loaded);
       renderCodexCredit();
     } catch (error) {
       if (token === codexState.token) $('#codexGrid').replaceChildren(el('p', 'codex-empty', `读取失败：${error.message}`));
     } finally {
-      if (token === codexState.token) codexState.loading = false;
+      if (token === codexState.token) { codexState.loading = false; syncCodexRail(); }
     }
+  }
+
+  // 载入前面: the page before entries[0]. The grid is laid out again and the card that was first stays
+  // where it was on screen.
+  async function loadCodexBefore() {
+    if (!codexState.base || codexState.loading) return;
+    const token = ++codexState.token;
+    codexState.loading = true;
+    const offset = Math.max(0, codexState.base - CODEX_PAGE), count = codexState.base - offset;
+    const params = new URLSearchParams({ path: codexState.path.join('/'), q: codexState.q, offset: String(offset), limit: String(count) });
+    try {
+      const page = await api(`/api/codex/${encodeURIComponent(codexState.id)}?${params}`);
+      if (token !== codexState.token) return;
+      const anchor = $('#codexGrid .codex-card[data-codex-index="0"]'), before = anchor?.getBoundingClientRect().top ?? 0;
+      codexState.base = offset;
+      codexState.entries = page.entries.slice(0, count).concat(codexState.entries);
+      renderCodexGrid(0);
+      const moved = $(`#codexGrid .codex-card[data-codex-index="${Math.min(count, page.entries.length)}"]`);
+      if (moved) window.scrollBy({ top: moved.getBoundingClientRect().top - before, behavior: 'auto' });
+    } catch (error) {
+      if (token === codexState.token) toast(`读取失败：${error.message}`, 'error');
+    } finally {
+      if (token === codexState.token) { codexState.loading = false; syncCodexRail(); }
+    }
+  }
+
+  // The rail: a thin track on the right edge. The handle sits at the first card on screen; dragging
+  // shows 第 N 条 and jumps there on release (within what is loaded it only scrolls).
+  let rail = null, railDrag = null, railFrame = 0;
+  // Below the sticky book / search block, which covers the cards scrolling under it.
+  const visibleTop = () => Math.max(0, $('#codexTab .codex-top')?.getBoundingClientRect().bottom || 0) + 8;
+  function firstVisibleIndex() {
+    const line = visibleTop();
+    // Columns are filled one card at a time, so the earliest card still on screen is the smallest index.
+    let first = Infinity;
+    for (const card of $('#codexGrid').querySelectorAll('.codex-card')) if (card.getBoundingClientRect().bottom > line) first = Math.min(first, Number(card.dataset.codexIndex));
+    return Number.isFinite(first) ? first : 0;
+  }
+  function railPosition(fraction, label) {
+    const track = rail.querySelector('.codex-rail-track'), thumb = rail.querySelector('.codex-rail-thumb');
+    const room = Math.max(0, track.clientHeight - thumb.offsetHeight);
+    const offset = `translateY(${Math.round(Math.min(1, Math.max(0, fraction)) * room)}px)`;
+    thumb.style.transform = offset;
+    const tag = rail.querySelector('.codex-rail-label');
+    tag.textContent = label;
+    tag.style.transform = offset;
+  }
+  function syncCodexRail() {
+    if (!rail) return;
+    const show = isActive() && codexState.total > CODEX_PAGE * 2 && codexState.entries.length > 0;
+    rail.hidden = !show;
+    $('#codexTab').classList.toggle('has-rail', show);
+    const before = $('#codexBefore');
+    if (before) {
+      before.hidden = !codexState.base;
+      before.textContent = `↑ 载入前面（还有 ${codexState.base} 条）`;
+    }
+    if (!show || railDrag) return;
+    rail.style.top = `${Math.round(visibleTop())}px`;
+    const position = codexState.base + firstVisibleIndex();
+    railPosition(position / Math.max(1, codexState.total - 1), `${(position + 1).toLocaleString()} / ${codexState.total.toLocaleString()}`);
+  }
+  function railTarget(event) {
+    const box = rail.querySelector('.codex-rail-track').getBoundingClientRect();
+    const fraction = Math.min(1, Math.max(0, (event.clientY - box.top) / Math.max(1, box.height)));
+    return { fraction, index: Math.min(codexState.total - 1, Math.floor(fraction * codexState.total)) };
+  }
+  function bindCodexRail() {
+    rail = el('div', 'codex-rail');
+    rail.hidden = true;
+    rail.setAttribute('role', 'slider');
+    rail.setAttribute('aria-label', '在这一栏里跳到某个位置');
+    const track = el('div', 'codex-rail-track');
+    track.append(el('div', 'codex-rail-thumb'));
+    rail.append(track, el('span', 'codex-rail-label'));
+    $('#codexTab').append(rail);
+    const before = el('button', 'codex-before');
+    before.type = 'button';
+    before.id = 'codexBefore';
+    before.hidden = true;
+    before.addEventListener('click', loadCodexBefore);
+    $('#codexGrid').before(before);
+    rail.addEventListener('pointerdown', event => {
+      event.preventDefault();
+      rail.setPointerCapture(event.pointerId);
+      railDrag = railTarget(event);
+      rail.classList.add('dragging');
+      railPosition(railDrag.fraction, `第 ${(railDrag.index + 1).toLocaleString()} 条`);
+    });
+    rail.addEventListener('pointermove', event => {
+      if (!railDrag) return;
+      railDrag = railTarget(event);
+      railPosition(railDrag.fraction, `第 ${(railDrag.index + 1).toLocaleString()} 条`);
+    });
+    const finish = event => {
+      if (!railDrag) return;
+      const { index } = railTarget(event);
+      railDrag = null;
+      rail.classList.remove('dragging');
+      const local = index - codexState.base;
+      const loadedCard = local >= 0 && local < codexState.entries.length ? $(`#codexGrid .codex-card[data-codex-index="${local}"]`) : null;
+      if (loadedCard) {
+        window.scrollBy({ top: loadedCard.getBoundingClientRect().top - visibleTop(), behavior: 'auto' });
+        syncCodexRail();
+      } else loadCodexPage(true, Math.floor(index / CODEX_PAGE) * CODEX_PAGE);
+    };
+    rail.addEventListener('pointerup', finish);
+    rail.addEventListener('pointercancel', () => { railDrag = null; rail.classList.remove('dragging'); syncCodexRail(); });
+    // The position shows while dragging and for a moment after scrolling.
+    let scrollingTimer = 0;
+    window.addEventListener('scroll', () => {
+      if (rail.hidden) return;
+      rail.classList.add('scrolling');
+      clearTimeout(scrollingTimer);
+      scrollingTimer = setTimeout(() => rail.classList.remove('scrolling'), 1200);
+      if (railFrame) return;
+      railFrame = requestAnimationFrame(() => { railFrame = 0; syncCodexRail(); });
+    }, { passive: true });
   }
 
   function codexTreeChildren() {
@@ -266,7 +388,7 @@ export function createCodexPanel({ api, toast, isActive, tags: tagTools, editor,
       }
       placeCard(card, entry);
     });
-    $('#codexMore').hidden = codexState.entries.length >= codexState.total;
+    $('#codexMore').hidden = codexState.base + codexState.entries.length >= codexState.total;
   }
 
   function renderCodexCredit() {
@@ -568,6 +690,7 @@ export function createCodexPanel({ api, toast, isActive, tags: tagTools, editor,
     document.addEventListener('pointerdown', event => {
       if (!$('#codexSourcePanel').hidden && !event.target.closest('#codexSourcePanel, #codexSourceButton')) toggleCodexSources(false);
     });
+    bindCodexRail();
     // Load more as the end of the list comes into view.
     const more = $('#codexMore');
     if ('IntersectionObserver' in window) {
@@ -675,8 +798,9 @@ export function createCodexPanel({ api, toast, isActive, tags: tagTools, editor,
   // Signing out forgets the loaded directory, so the next account reads its own preferences.
   function resetCodex() {
     if (codexDetail) closeCodexDetail();
-    Object.assign(codexState, { list: null, id: '', meta: null, path: [], q: '', tree: [], entries: [], total: 0, token: codexState.token + 1, loading: false, nsfw: false, opening: false });
+    Object.assign(codexState, { list: null, id: '', meta: null, path: [], q: '', tree: [], entries: [], base: 0, total: 0, token: codexState.token + 1, loading: false, nsfw: false, opening: false });
     $('#codexGrid')?.replaceChildren();
+    syncCodexRail();
   }
 
   return { bind: bindCodex, ensureLoaded: ensureCodexLoaded, stickHeader: stickCodexHeader, closeDetail: closeCodexDetail, reset: resetCodex };

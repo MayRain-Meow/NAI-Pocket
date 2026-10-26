@@ -1,12 +1,17 @@
-import { EXACT_CHIPS, VIBE_GROUP_ORDER, chipForWord, attributesForChips } from './artist-vibe-chips.js?v=1.9.3';
-import { STYLE_FACETS, queryHasStyleTerms } from './artist-catalog.js?v=1.9.3';
-import { createArtistResultViewer } from './artist-result.js?v=1.9.3';
-import { observeFittedChips } from './artist-chip-layout.js?v=1.9.3';
-import { buildNaxV5ArtistSearchUrl } from './artist-index-v5.js?v=1.9.3';
-import { modelDisplayName } from './model-utils.js?v=1.9.3';
-import { normalizeProviderId } from './provider-route.js?v=1.9.3';
-import { confirmAction } from './confirm-sheet.js?v=1.9.3';
-import { STYLE_ATTRIBUTES, STYLE_SCHEMA_VERSION, validateStyleAttributes, attributesFromLegacy, legacyFromAttributes, summarizeStyleEvidence } from './artist-style-schema.js?v=1.9.3';
+import { EXACT_CHIPS, VIBE_GROUP_ORDER, chipForWord, attributesForChips } from './artist-vibe-chips.js?v=1.9.29';
+import { STYLE_FACETS, queryHasStyleTerms } from './artist-catalog.js?v=1.9.29';
+import { createArtistResultViewer } from './artist-result.js?v=1.9.29';
+import { observeFittedChips } from './artist-chip-layout.js?v=1.9.29';
+import { buildNaxV5ArtistSearchUrl } from './artist-index-v5.js?v=1.9.29';
+import { modelDisplayName } from './model-utils.js?v=1.9.29';
+import { normalizeProviderId } from './provider-route.js?v=1.9.29';
+import { confirmAction } from './confirm-sheet.js?v=1.9.29';
+import { STYLE_ATTRIBUTES, STYLE_SCHEMA_VERSION, validateStyleAttributes, attributesFromLegacy, legacyFromAttributes, summarizeStyleEvidence } from './artist-style-schema.js?v=1.9.29';
+
+// 画风依据 (1.9.17): 混合 / V5 出图 / 原作, remembered on this device; storage may be denied.
+const STYLE_SOURCE_KEY = 'nai-pocket-style-source';
+function readStyleSource() { try { const value = localStorage.getItem(STYLE_SOURCE_KEY); return ['originals', 'v5'].includes(value) ? value : 'mix'; } catch { return 'mix'; } }
+function writeStyleSource(value) { try { localStorage.setItem(STYLE_SOURCE_KEY, value); } catch { /* the choice holds for this page */ } }
 
 const PAGE_SIZE = 40;
 const MAX_COMPARE = 3;
@@ -145,7 +150,7 @@ export function createLibraryState() {
     view: 'list',
     selectedArtist: '',
     // vibe: chip ids from the style index, "-id" = avoid. like: an artist whose style to match.
-    filters: { query: '', facets: emptyFacets(), attributes: {}, model: '', favorite: false, annotated: false, includeAutomatic: true, confirmedOnly: false, sort: 'default', vibe: [], like: '', image: null, exact: false },
+    filters: { query: '', facets: emptyFacets(), attributes: {}, model: '', favorite: false, annotated: false, includeAutomatic: true, confirmedOnly: false, sort: 'default', vibe: [], like: '', image: null, exact: false, source: readStyleSource() },
     vibePanelOpen: false,
     // The sort control is switched to 画风相关性 automatically while the user has not
     // chosen a sort themselves, and stops doing so the moment they do — an automatic
@@ -253,6 +258,7 @@ export function buildArtistListUrl(filters = {}, page = 1, limit = PAGE_SIZE) {
   if (vibe.length) params.set('vibe', vibe.join(','));
   if (filters.like) params.set('like', cleanText(filters.like, 160));
   if (filters.image?.id && /^[A-Za-z0-9_-]{1,40}$/.test(filters.image.id)) params.set('image', filters.image.id);
+  if ((vibe.length || filters.like || filters.image?.id) && ['originals', 'v5'].includes(filters.source)) params.set('source', filters.source);
   const sort = normalizeArtistSort(filters.sort);
   if (sort !== 'default') params.set('sort', sort);
   const safeLimit = Math.max(1, Math.min(100, Number(limit) || PAGE_SIZE));
@@ -1041,7 +1047,9 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
       menu.append(menuBody);
       actions.append(menu);
     }
-    if (ingestionError || status?.lastError) copy.append(el('small', { className: 'artist-library-ingestion-error', text: ingestionError || cleanText(status.lastError, 300) }));
+    // A Danbooru outage pause carries its planned resume (1.9.21); the time is shown in this device's clock.
+    const resumeAt = Number(status?.autoResumeAt) > 0 ? new Date(Number(status.autoResumeAt)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+    if (ingestionError || status?.lastError) copy.append(el('small', { className: 'artist-library-ingestion-error', text: ingestionError || `${cleanText(status.lastError, 300)}${resumeAt ? ` 预计 ${resumeAt} 继续，也可以现在点继续。` : ''}` }));
     if (!status) {
       const retry = button('重试', 'ghost');
       retry.addEventListener('click', () => refreshIngestion({ refreshList: true }));
@@ -1500,10 +1508,29 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
       return row;
     });
     const loading = state.styleIndex && !vibeInfo ? [el('p', { className: 'artist-vibe-loading', text: '正在读取感觉词…' })] : [];
+    // 依据 (1.9.17): only when the server holds the V5 samples' index.
+    if (vibeInfo?.v5) loading.push(styleSourceRow());
     const hint = wanted.length >= 4 ? '词越多越像混合氛围，个别项可能变弱' : vibeInfo?.available ? '点一下想要，再点一下不要 · 带角标的按标注精确过滤' : '带角标的词按标注逐张精确过滤';
     panel.querySelector('.artist-vibe-body').replaceChildren(...loading, ...rows,
       el('p', { className: `artist-vibe-hint${wanted.length >= 4 ? ' is-warning' : ''}`, attrs: { 'data-vibe-hint': 'true' }, text: hint }));
     settlePinned();
+  }
+  function styleSourceRow() {
+    const current = ['originals', 'v5'].includes(state.filters.source) ? state.filters.source : 'mix';
+    const notes = { mix: '原作和 V5 出图一起比，最准', v5: '按 V5 实际画出来的样子排，封面是 V5 出图', originals: '只按画师原作排' };
+    const group = el('div', { className: 'artist-style-source-options', attrs: { role: 'radiogroup', 'aria-label': '画风依据' } });
+    for (const [value, label] of [['mix', '混合'], ['v5', 'V5 出图'], ['originals', '原作']]) {
+      const option = button(label, 'artist-style-source-option', { 'data-style-source': value, role: 'radio', 'aria-checked': String(current === value) });
+      option.addEventListener('click', () => {
+        if (state.filters.source === value) return;
+        state.filters.source = value; writeStyleSource(value); state.page = 1;
+        renderVibePanel(body.querySelector('[data-artist-vibe]'));
+        if (state.filters.vibe?.length || state.filters.like || state.filters.image?.id) scheduleFilterSearch();
+      });
+      group.append(option);
+    }
+    return el('div', { className: 'artist-style-source' }, [el('span', { className: 'artist-style-source-label', text: '依据' }), group,
+      el('small', { className: 'artist-style-source-note', text: notes[current] })]);
   }
   function vibePanel() {
     const exactInput = el('input', { name: 'vibeExact', attrs: { type: 'checkbox', 'aria-label': '精确：同时要求有标注证据' } });
@@ -2232,8 +2259,8 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
 
   function detailToolbar(profile, panels = [], { withAdd = true, extra = [] } = {}) {
     const bar = el('div', { className: 'artist-library-detail-toolbar' });
-    const back = button('← 返回列表', 'ghost');
-    back.addEventListener('click', returnToList);
+    const back = button(externalReturn ? externalReturn.label : '← 返回列表', 'ghost');
+    back.addEventListener('click', () => leaveDetail());
     const compare = COMPARE_ENABLED ? button(state.compareArtists.includes(profile.artist) ? '取消对比' : '加入对比', 'ghost', { 'data-artist-compare': profile.artist }) : el('span', { attrs: { hidden: '' } });    if (COMPARE_ENABLED) compare.setAttribute('aria-pressed', state.compareArtists.includes(profile.artist) ? 'true' : 'false');
     compare.addEventListener('click', () => {
       if (!toggleComparison(state, profile.artist)) notify('最多同时对比 3 位画师。', 'error');
@@ -3984,9 +4011,12 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     return finishEntry(!body.childNodes.length ? loadList() : Promise.resolve());
   }
 
-  function open(artist = '') {
+  // A page that opened an artist directly (反推) gets the detail's back button: it leads there, once.
+  let externalReturn = null;
+  function open(artist = '', { returnTo = null } = {}) {
     ensureDialog();
     active = true;
+    externalReturn = artist ? returnTo : null;
     if (!embedded && !dialog.open) dialog.showModal();
     renderIngestion();
     const name = cleanText(artist, 160);
@@ -4030,8 +4060,18 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     const panel = [...dialog.querySelectorAll('dialog.artist-library-panel')].find(item => item.open);
     if (panel) { panel.close(); return true; }
     if (state.view === 'list') return false;
+    if (externalReturn && state.view !== 'compare') { leaveDetail(); return true; }
     close();
     return true;
+  }
+
+  // 返回: to the page that opened this artist when there is one (the list loads behind it), else the list.
+  function leaveDetail() {
+    const target = externalReturn;
+    externalReturn = null;
+    const result = returnToList();
+    if (target) target.go();
+    return result;
   }
 
   function reset() {

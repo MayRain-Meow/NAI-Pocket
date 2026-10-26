@@ -1,4 +1,4 @@
-import { normalizeArtistIdentity } from './artist-index-v5.js?v=1.9.3';
+import { normalizeArtistIdentity } from './artist-index-v5.js?v=1.9.29';
 
 const round = (value, digits = 2) => {
   const scale = 10 ** digits;
@@ -143,16 +143,57 @@ export function buildArtistStormPlan(rawArtists, options = {}) {  if (Array.isAr
     externalArtists.push({ text: /^artist\s*:/i.test(raw) ? raw : `artist:${raw}`, weight: 1 });
   }
 
-  const mode = options.mode === 'linked' ? 'linked' : 'mix';
-  const levels = artistStormLevels(options.count, options.delta);
-  const baselineIndex = levels.findIndex(value => Math.abs(value) < 0.0001);
+  // mix: every artist visits every level once, shuffled; linked: all artists move together;
+  // solo (1.9.27): one artist at a time, up then down; add (1.9.27): weights kept, one candidate each.
+  const mode = ['linked', 'solo', 'add'].includes(options.mode) ? options.mode : 'mix';
+  if (mode === 'add' && !externalArtists.length) throw new Error('先选几位要试的画师。');
+  const variantRow = (variantIndex, isBaseline, externalArtist, offsetOf) => ({
+    index: variantIndex + 1, isBaseline, externalArtist,
+    weights: artists.map((artist, artistIndex) => {
+      const offset = isBaseline ? 0 : offsetOf(artistIndex);
+      return { id: artist.id, text: artist.text, baseWeight: artist.baseWeight, offset: round(offset),
+        weight: isBaseline ? artist.baseWeight : round(clamp(artist.baseWeight + offset, -10, 10)) };
+    })
+  });
+  let variants, levels, baselineIndex;
+  if (mode === 'solo' || mode === 'add') {
+    const delta = clamp(Math.abs(Number(options.delta) || 0.3), 0.01, 10);
+    levels = mode === 'solo' ? [-delta, 0, delta] : [0];
+    baselineIndex = 0;
+    const rows = [variantRow(0, true, null, () => 0)];
+    if (mode === 'solo') {
+      let externalIndex = 0;
+      artists.forEach((_, chosen) => [delta, -delta].forEach(offset => rows.push(variantRow(rows.length, false,
+        externalArtists.length ? externalArtists[externalIndex++ % externalArtists.length] : null, artistIndex => artistIndex === chosen ? offset : 0))));
+    } else externalArtists.forEach(external => rows.push(variantRow(rows.length, false, external, () => 0)));
+    variants = rows;
+  } else if (mode === 'mix' && Number.isInteger(options.roll) && options.roll >= 0) {
+    // A real roll (1.9.28): for each artist, one offset per stratum of the ±delta range (a batch still
+    // reaches from low to high), at a random point inside the stratum, in a random order per artist.
+    // Steps of 0.05; the baseline (the editor's weights) stays as #1 for reference.
+    const delta = clamp(Math.abs(Number(options.delta) || 0.3), 0.01, 10);
+    const n = clamp(Math.round(Number(options.count) || 7), 2, 10000) - 1;
+    const random = mulberry32(options.roll >>> 0);
+    const offsets = artists.map(() => {
+      const order = Array.from({ length: n }, (_, index) => index);
+      for (let index = n - 1; index > 0; index -= 1) { const swap = Math.floor(random() * (index + 1)); [order[index], order[swap]] = [order[swap], order[index]]; }
+      return order.map(stratum => clamp(Math.round((-delta + (2 * delta * (stratum + random())) / n) * 20) / 20, -delta, delta));
+    });
+    levels = [-delta, delta];
+    baselineIndex = 0;
+    let externalIndex = 0;
+    variants = [variantRow(0, true, null, () => 0), ...Array.from({ length: n }, (_, index) => variantRow(index + 1, false,
+      externalArtists.length ? externalArtists[externalIndex++ % externalArtists.length] : null, artistIndex => offsets[artistIndex][index]))];
+  } else {
+  levels = artistStormLevels(options.count, options.delta);
+  baselineIndex = levels.findIndex(value => Math.abs(value) < 0.0001);
   const permutations = artists.map((artist, artistIndex) => {
     if (mode === 'linked' || artistIndex === 0) return levels.map((_, index) => index);
     return stratifiedIndexes(levels.length, hashText(`${artist.id}|${artist.text}|${artistIndex}|${levels.length}`), baselineIndex);
   });
 
   let externalIndex = 0;
-  const variants = levels.map((_, variantIndex) => ({
+  variants = levels.map((_, variantIndex) => ({
     index: variantIndex + 1,
     isBaseline: variantIndex === baselineIndex,
     externalArtist: variantIndex === baselineIndex || !externalArtists.length ? null : externalArtists[externalIndex++ % externalArtists.length],
@@ -167,6 +208,7 @@ export function buildArtistStormPlan(rawArtists, options = {}) {  if (Array.isAr
       };
     })
   }));
+  }
 
   // The UI and queue use the same effective (hundredth-precision) plan. Prefer
   // the true baseline when clamping creates an identical non-baseline row.

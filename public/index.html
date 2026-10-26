@@ -8,10 +8,10 @@
   
   <link rel="icon" href="/icons/icon-flow-192.png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="/styles.css?v=1.9.3">
+  <link rel="stylesheet" href="/styles.css?v=1.9.29">
   <link rel="stylesheet" href="/artist-library.css">
-  <link rel="stylesheet" href="/workspace.css?v=1.9.3">
-  <link rel="stylesheet" href="/tag-chips.css?v=1.9.3">
+  <link rel="stylesheet" href="/workspace.css?v=1.9.29">
+  <link rel="stylesheet" href="/tag-chips.css?v=1.9.29">
 <link rel="stylesheet" href="/native.css">
 <link rel="stylesheet" href="/artist-browser.css">
 </head>
@@ -42,6 +42,7 @@
       </div>
       <div class="workspace-nav-list">
         <button class="tab active" data-tab="editor" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19l3.8-.8L19 8l-3-3L5.8 15.2 5 19zM13.8 7.2l3 3"></path></svg><span>编辑</span></button>
+        <button class="tab" data-tab="reverse" type="button" data-owner-only="" data-new-layout-only=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 4.5H5.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V11"></path><circle cx="8.5" cy="9.5" r="1.4"></circle><path d="M4 17l4-4 3 2.6 2.6-2.3 4.4 4.2M18.5 2.8l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9z"></path></svg><span>反推</span></button>
         <button class="tab" data-tab="artists" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"></circle><path d="M3.5 19c.6-4 2.4-6 5.5-6s4.9 2 5.5 6M16 6h5M18.5 3.5v5"></path></svg><span>画师</span></button>
         <button class="tab" data-tab="codex" type="button" data-new-layout-only=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h5.5A2.5 2.5 0 0 1 13 7v12.5a2 2 0 0 0-2-2H5zM19 4.5h-3.5A2.5 2.5 0 0 0 13 7v12.5a2 2 0 0 1 2-2h4z"></path></svg><span>法典</span></button>
         
@@ -59,7 +60,7 @@
       <header class="topbar workspace-topbar">
         <div class="workspace-crumb"><span>Workspace</span><strong id="pageCrumb">编辑工作台</strong></div>
         <div class="top-actions">
-          <span id="connectionText" class="connection-text">连接中 · v1.9.3</span>
+          <span id="connectionText" class="connection-text">连接中 · v1.9.29</span>
           
           <button id="openNaiImportButton" class="ghost compact-button" type="button" title="导入 NAI / JSON">导入</button>
           
@@ -82,7 +83,6 @@
             
             <button type="button" role="menuitem" data-menu-action="brackets">括号权重转数字</button>
             <button type="button" role="menuitem" data-menu-action="default-scheme" data-owner-only="">载入默认方案</button>
-            <button type="button" role="menuitem" data-menu-action="tagger" data-owner-only="">图片反推…</button>
             <button type="button" role="menuitem" data-proxy="#clearTagsButton">清空正面 Tag</button>
             <button type="button" role="menuitem" data-proxy="#clearNegativeButton">清空负面提示词</button>
             
@@ -450,6 +450,10 @@
       <div id="codexDetail" class="codex-detail" role="dialog" aria-label="法典条目" hidden=""></div>
     </section>
 
+    <section id="reverseTab" class="tab-panel reverse-workspace-tab" data-owner-only="">
+      <div id="reverseWorkspace" class="tagger-workspace" aria-label="图片反推工作台"></div>
+    </section>
+
     
 
     <section id="queueTab" class="tab-panel">
@@ -763,20 +767,21 @@
   </dialog>
 
   
-  <dialog id="taggerDialog" class="tagger-dialog" aria-label="图片反推"></dialog>
+  <dialog id="reverseSettingsDialog" class="reverse-settings-dialog" aria-label="反推设置"></dialog>
   <input id="taggerFile" type="file" accept="image/png,image/jpeg,image/webp" hidden="">
 
   <dialog id="semanticDialog" class="semantic-dialog">
     <div class="dialog-header">
-      <div><strong>Danbooru 语义工作台</strong><small id="semanticTargetLabel">添加到当前区域</small></div>
+      <div><strong>语义工作台</strong><small id="semanticTargetLabel">添加到当前区域</small></div>
       <button id="closeSemanticDialog" class="icon-button" type="button" aria-label="关闭">×</button>
     </div>
     <div class="semantic-body">
-      <div class="semantic-tabs" role="tablist" aria-label="语义工作台" data-new-layout-only=""><button type="button" role="tab" data-semantic-tab="search" aria-selected="true">查词</button><button type="button" role="tab" data-semantic-tab="explore" aria-selected="false">联想</button></div>
+      <div class="semantic-tabs" role="tablist" aria-label="语义工作台" data-new-layout-only=""><button type="button" role="tab" data-semantic-tab="search" aria-selected="true">查词</button><button type="button" role="tab" data-semantic-tab="explore" aria-selected="false">联想</button><button type="button" role="tab" data-semantic-tab="agent" aria-selected="false">问秋月</button></div>
       <section class="semantic-search-workbench">
-        <label>自然语言、模糊写法或完整画面描述
-          <textarea id="semanticQuery" rows="3" spellcheck="false" enterkeyhint="search" placeholder="描述想要的画面，如：雨夜霓虹街道"></textarea>
-        </label>
+        <div class="semantic-query-card">
+          <textarea id="semanticQuery" rows="3" spellcheck="false" enterkeyhint="search" aria-label="描述想要的画面" placeholder="描述想要的画面，如：雨夜霓虹街道"></textarea>
+          <button id="semanticSearchButton" class="primary" type="button">搜索</button>
+        </div>
         <div class="semantic-primary-options">
           <div class="semantic-mode-chips" role="group" aria-label="搜索模式" data-new-layout-only="">
             <button type="button" data-semantic-mode-chip="subject_describe">描述查词</button>
@@ -793,7 +798,6 @@
             </select>
           </label>
           <label class="check-label semantic-nsfw"><input id="semanticShowNsfw" type="checkbox" checked=""><span class="semantic-nsfw-long">显示 NSFW 标签</span><span class="semantic-nsfw-short">NSFW</span></label>
-          <button id="semanticSearchButton" class="primary" type="button">开始搜索</button>
         </div>
 
         <details id="semanticAdvanced" class="semantic-advanced">
@@ -850,6 +854,7 @@
                 <label><input id="semanticDisplaySource" type="checkbox">显示匹配来源</label>
               </fieldset>
             </div>
+            <p class="semantic-credit">搜索服务：<a href="https://huggingface.co/spaces/SAkizuki/DanbooruSearch" target="_blank" rel="noopener noreferrer">DanbooruSearch</a>（SAkizuki）</p>
           </div>
         </details>
       </section>
@@ -867,10 +872,11 @@
       <section class="semantic-recommendation-panel">
         <div class="panel-title-row semantic-recommendation-heading compact-section-heading">
           <strong>关联探索</strong>
+          <span class="semantic-step-title" data-new-layout-only="">从这些 Tag 出发</span>
           <div class="semantic-seed-chips" role="group" aria-label="推荐依据" data-new-layout-only="">
-            <button type="button" data-semantic-seed-chip="selected">所选</button>
-            <button type="button" data-semantic-seed-chip="target">当前区域</button>
-            <button type="button" data-semantic-seed-chip="all">全部 Tag</button>
+            <button type="button" data-semantic-seed-chip="selected">已选</button>
+            <button type="button" data-semantic-seed-chip="target">本栏</button>
+            <button type="button" data-semantic-seed-chip="all">全部</button>
           </div>
           <label>依据
             <select id="semanticSeedSource">
@@ -879,6 +885,14 @@
               <option value="all">全部已启用 Tag</option>
             </select>
           </label>
+        </div>
+        <div id="semanticSeedTags" class="semantic-seed-tags" data-new-layout-only=""></div>
+        <div class="semantic-find" data-new-layout-only="">
+          <span class="semantic-step-title">找</span>
+          <div class="semantic-find-options" role="group" aria-label="找什么">
+            <button type="button" data-semantic-find="related" aria-pressed="true">相关 Tag</button>
+            <button type="button" data-semantic-find="artists" aria-pressed="false">相近画师</button>
+          </div>
         </div>
         <div class="semantic-recommendation-controls">
           <div class="semantic-recommendation-control-pair">
@@ -894,12 +908,25 @@
         <div id="semanticRecommendationResults" class="semantic-results semantic-recommendation-results empty-state">暂无推荐</div>
       </section>
 
-      <p class="semantic-credit">搜索服务：<a href="https://huggingface.co/spaces/SAkizuki/DanbooruSearch" target="_blank" rel="noopener noreferrer">DanbooruSearch</a></p>
+      <section class="semantic-agent" aria-label="问秋月">
+        <div class="semantic-agent-head">
+          <div class="semantic-agent-modes" role="group" aria-label="问秋月">
+            <button type="button" data-semantic-agent="prompt" aria-pressed="true">写提示词</button>
+            <button type="button" data-semantic-agent="blog" aria-pressed="false">问写法</button>
+          </div>
+          <a id="semanticAgentOpen" class="semantic-agent-open" href="https://sakizuki-wenqiuyue.hf.space/prompt" target="_blank" rel="noopener noreferrer">新窗口 ↗</a>
+        </div>
+        <iframe id="semanticAgentFrame" class="semantic-agent-frame" title="问秋月" allow="clipboard-write" referrerpolicy="no-referrer"></iframe>
+        <div class="semantic-agent-paste">
+          <textarea id="semanticAgentPaste" rows="2" spellcheck="false" aria-label="粘贴问秋月写的提示词" placeholder="把问秋月写好的提示词粘贴到这里"></textarea>
+          <button id="semanticAgentAdd" class="primary" type="button" disabled="">加入</button>
+        </div>
+      </section>
+
       <div id="semanticActionBar" class="semantic-action-bar" data-new-layout-only="" hidden="">
         <span id="semanticBarCount">已选 0</span>
         <button type="button" data-semantic-bar="clear">清空</button>
-        <button type="button" data-semantic-bar="related">相关</button>
-        <button type="button" data-semantic-bar="artists">画师</button>
+        <button type="button" data-semantic-bar="explore">联想 →</button>
         <button type="button" class="semantic-bar-add" data-semantic-bar="add">加入</button>
       </div>
     </div>
@@ -1184,7 +1211,6 @@
         <img id="artistPreviewImage" alt="" loading="eager" decoding="async">
         <div id="artistPreviewFallback" class="artist-preview-fallback">此画师暂时没有可用的 NAX V5 对照图。</div>
       </div>
-      <p class="artist-preview-caption">NAX V5 参考样图，不含 Prompt、Seed 与生成参数；单张图不代表画师的全部表现。</p>
       <div><button id="artistPreviewRetry" class="artist-preview-chip artist-preview-retry hidden" type="button">重新载入预览</button></div>
       <div id="artistPreviewVerify" class="artist-preview-verify" hidden="">
         <p id="artistPreviewVerifyText" class="artist-preview-verify-text"></p>
@@ -1196,14 +1222,12 @@
         </div>
       </div>
       <div class="artist-preview-links">
-        <span class="artist-preview-links-label">外部参考</span>
         <a id="artistPreviewDanbooru" class="artist-preview-chip" target="_blank" rel="noopener noreferrer">Danbooru 作品<span aria-hidden="true">↗</span></a>
         <a id="artistPreviewNax" class="artist-preview-chip" target="_blank" rel="noopener noreferrer">NAX V5 作者搜索<span aria-hidden="true">↗</span></a>
       </div>
       <button id="artistPreviewLibrary" class="artist-preview-library" type="button">
         <span class="artist-preview-library-copy">
           <strong>查看画师资料</strong>
-          <small>例图、画风特征与 AI 标注</small>
         </span>
         <span class="artist-preview-library-arrow" aria-hidden="true">→</span>
       </button>

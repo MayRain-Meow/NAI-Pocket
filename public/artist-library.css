@@ -1055,3 +1055,9 @@ body:not(.tag-layout-legacy) #settingsDialog .annotation-v2 .annotation-block > 
 :is(.artist-library-page, .artist-library-modal) .artist-overview-annotations { border-top: 1px solid var(--line); padding-top: 10px; }
 :is(.artist-library-page, .artist-library-modal) .artist-overview-annotations > summary { color: var(--muted); font-size: 12.5px; cursor: pointer; }
 :is(.artist-library-page, .artist-library-modal) .artist-overview-annotations[open] > summary { margin-bottom: 8px; }
+:is(.artist-library-page, .artist-library-modal) .artist-style-source { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+:is(.artist-library-page, .artist-library-modal) .artist-style-source-label { color: var(--muted); font-size: 12px; font-weight: 600; }
+:is(.artist-library-page, .artist-library-modal) .artist-style-source-options { display: inline-flex; gap: 2px; padding: 3px; border-radius: 16px; background: #ffffff0a; }
+:is(.artist-library-page, .artist-library-modal) .artist-style-source-option { min-width: 0; min-height: 30px; padding: 0 12px; border: 0; border-radius: 13px; background: none; color: var(--muted); font-size: 12.5px; box-shadow: none; }
+:is(.artist-library-page, .artist-library-modal) .artist-style-source-option[aria-checked="true"] { background: color-mix(in srgb, var(--accent) 22%, #23241f); color: var(--text); font-weight: 600; }
+:is(.artist-library-page, .artist-library-modal) .artist-style-source-note { flex-basis: 100%; color: var(--muted); font-size: 11.5px; }

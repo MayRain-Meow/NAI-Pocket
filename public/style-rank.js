@@ -154,6 +154,40 @@ export function parseVibe(text, ix) {
   return { want, avoid };
 }
 
+// 混合 (1.9.17): the originals' likeness plus the V5 samples' (scripts/style-index on the owner's V5
+// single-artist samples, DATA_DIR/style-index-v5). Measured on 1,319 other people's single-artist V5
+// pictures: true artist in the top 10 10.3% (originals) / 7.0% (V5 alone) / 14.6% (both), median rank
+// 568 → 304; for feel words the picked artists' V5 pictures showed the word 0.78 / 0.68 / 1.03 (z).
+// Each source is put on one scale per query (z-score over its artists), and an artist with both gets
+// the sum rescaled to the same spread (1.9.25). Summing raw scores and doubling a lone one made a lone
+// score twice as spread out, so artists with only originals took the top of every list once ~10k of
+// them had no V5 sample (new-artist share of the top 20: 94% for a 44% share of the library).
+// Cover and hits come from the originals (the V5 ranking when there are no originals).
+const zScale = map => {
+  let n = 0, sum = 0, squares = 0;
+  for (const { score } of map.values()) { n += 1; sum += score; squares += score * score; }
+  const mean = n ? sum / n : 0, spread = n ? Math.sqrt(Math.max(1e-12, squares / n - mean * mean)) : 1;
+  return score => (score - mean) / spread;
+};
+export function mixStyleRanks(originals, samples) {
+  if (!samples) return originals;
+  if (!originals) return samples;
+  const zo = zScale(originals), zv = zScale(samples);
+  let n = 0, sum = 0, squares = 0;
+  for (const [name, item] of originals) {
+    const other = samples.get(name); if (!other) continue;
+    const both = zo(item.score) + zv(other.score); n += 1; sum += both; squares += both * both;
+  }
+  const spread = n > 1 ? Math.sqrt(Math.max(1e-12, squares / n - (sum / n) ** 2)) : Math.SQRT2;
+  const mixed = new Map();
+  for (const [name, item] of originals) {
+    const other = samples.get(name);
+    mixed.set(name, { ...item, score: other ? (zo(item.score) + zv(other.score)) / spread : zo(item.score) });
+  }
+  for (const [name, item] of samples) if (!mixed.has(name)) mixed.set(name, { ...item, score: zv(item.score) });
+  return mixed;
+}
+
 // Rank artists. `vibe`: chip ids (prefix "-" to avoid). `like`: an artist name. `image`: a picture,
 // { key, vector } with the vector from centerQuery; it is "like" with an outside target. Combinable
 // with vibe; like and image are alternatives (image wins).

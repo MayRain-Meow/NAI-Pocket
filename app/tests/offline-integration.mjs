@@ -455,6 +455,11 @@ try {
   assert.match(await page.locator('.native-license-dialog pre').textContent(),/SQLCipher/);
   await page.locator('.native-license-dialog button').click();
   await page.locator('#closeSettingsButton').click();
+  // 0.7.0: 反推 has its own tab; without a server it is the WD Tagger only (no AI 草稿, no 设置).
+  await page.locator('[data-tab="reverse"]').click();
+  await page.waitForFunction(()=>document.querySelector('#reverseWorkspace .reverse-empty p')?.textContent.includes('从图里认出 Tag'),{},{timeout:10000});
+  assert.equal(await page.locator('#reverseWorkspace .tagger-settings-button').count(),0);
+  await page.screenshot({path:path.join(temporary,'native-reverse.png'),fullPage:false});
   await page.locator('[data-tab="editor"]').click();
   assert.equal(await page.locator('[data-storm-link]').count(),0);
   await page.locator('[data-edit-text]').click();

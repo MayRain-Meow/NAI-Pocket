@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0 — Preview
+
+- 反推 has its own tab beside 编辑, one tap from every page. In the app it is the free WD Tagger: pick a picture (or one from the gallery), tap away the Tags you do not want, add the rest to the editor.
+- 语义工作台 redone. 查词: describe what you want in the card and tap 搜索 inside it; the search modes and NSFW sit on one row; a few example searches to tap before the first search. 联想: starts from the Tags you ticked in 查词 (or the current section, or all), shows them as chips you can drop, and 相关 Tag / 相近画师 runs at once. One selection across both pages; the bar under it reads 已选 N · 清空 · 联想 → · 加入<section>.
+- 问秋月 (new, in 语义工作台): SAkizuki's 问秋月 inside the app — 写提示词 to have its agent turn an idea into a prompt, 问写法 to ask about writing prompts. Paste what it wrote into the box under it and tap 加入 to add it to the section as Tags (one undo step). It runs on the author's service; you can set your own API key in its ⚙.
+- 法典: a rail on the right of a long section jumps anywhere in it — drag to 第 N 条 and let go; 载入前面 fills in the page before without moving the screen. The rail shows where you are while you scroll.
+- 画师预览: no explanatory captions; the line under the name says only whether the artist: prefix is there.
+- 回收站 on phones: three per row across the full width, the remaining time on the picture, small 恢复 / 删除 buttons.
+
 ## 0.6.5 — Preview
 
 - V5 例图 (new, optional download, about 540 MB): one NovelAI V5 Full picture for each of 12,703 artists, all from one base prompt with only the artist tag changed, so styles compare side by side. Settings → V5 例图 reads the catalog and shows the size, then downloads; 删除 removes only these pictures. They appear in the artist page's 生成 group (and as the cover for an artist without an original), and 查看生成依据 shows each picture's Prompt, UC and parameters (16 or 28 steps). Independent of the annotation packs: updating either never touches the other.

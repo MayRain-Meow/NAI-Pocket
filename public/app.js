@@ -7,28 +7,28 @@ import {
   unwrapLegacyBrackets,
   parseStructuredPrompt as parseStructuredPromptUtil,
   cloneTagForStorage
-} from './prompt-utils.js?v=1.9.3';
-import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.9.3';
-import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.9.3';
-import { repairImportedPrompt } from './import-repair.js?v=1.9.3';
-import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.9.3';
-import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, isKnownArtistName, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity, suggestArtistNames } from './artist-index-v5.js?v=1.9.3';
-import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.9.3';
-import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.9.3';
-import { buildArtistStormPlan } from './storm-utils.js?v=1.9.3';
-import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.9.3';
-import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.9.3';
-import { MEDIUM_EFFORT, normalizeUcPreset, supportsMediumEffort, UC_PRESET_LABELS, ucPresetFromHint, usesMediumEffort } from './nai-presets.js?v=1.9.3';
-import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.9.3';
-import { focusedInpaintPlan, sanitizeInpaintRegion } from './focused-inpaint.js?v=1.9.3';
-import { observeToastClearance } from './toast-layout.js?v=1.9.3';
-import { installSelectSheets } from './select-sheet.js?v=1.9.3';
-import { attachWeightHighlight } from './weight-highlight.js?v=1.9.3';
-import { confirmAction, promptText } from './confirm-sheet.js?v=1.9.3';
-import { createTaggerPanel } from './tagger-panel.js?v=1.9.3';
-import { createCodexPanel } from './codex-panel.js?v=1.9.3';
-import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.3';
-import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.9.3';
+} from './prompt-utils.js?v=1.9.29';
+import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.9.29';
+import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.9.29';
+import { repairImportedPrompt } from './import-repair.js?v=1.9.29';
+import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.9.29';
+import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, isKnownArtistName, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity, suggestArtistNames } from './artist-index-v5.js?v=1.9.29';
+import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.9.29';
+import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.9.29';
+import { buildArtistStormPlan } from './storm-utils.js?v=1.9.29';
+import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.9.29';
+import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.9.29';
+import { MEDIUM_EFFORT, normalizeUcPreset, supportsMediumEffort, UC_PRESET_LABELS, ucPresetFromHint, usesMediumEffort } from './nai-presets.js?v=1.9.29';
+import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.9.29';
+import { focusedInpaintPlan, sanitizeInpaintRegion } from './focused-inpaint.js?v=1.9.29';
+import { observeToastClearance } from './toast-layout.js?v=1.9.29';
+import { installSelectSheets } from './select-sheet.js?v=1.9.29';
+import { attachWeightHighlight } from './weight-highlight.js?v=1.9.29';
+import { confirmAction, promptText } from './confirm-sheet.js?v=1.9.29';
+import { createTaggerPanel } from './tagger-panel.js?v=1.9.29';
+import { createCodexPanel } from './codex-panel.js?v=1.9.29';
+import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.29';
+import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.9.29';
 
 const GROUP_LABELS_BY_KEY = {
   scene: '场景',
@@ -787,13 +787,13 @@ function ensureArtistLibrary() {
   return artistLibrary;
 }
 
-function openArtistLibrary(artist = '') {
+function openArtistLibrary(artist = '', options = {}) {
   if (!artistLibraryAvailable) return toast('本机画师栏尚未接入。');
   // 语义工作台是顶层 modal；不先关掉它，画师页会切到对话框后面，例图与资料看起来没反应。
   
   if (els.semanticDialog?.open) els.semanticDialog.close();
   ensureArtistLibrary();
-  artistLibrary.open(artist);
+  artistLibrary.open(artist, options);
 }
 
 // Native back first lets the current page unwind its own detail view.
@@ -804,7 +804,8 @@ window.addEventListener('nai-navigation-back', event => {
 function renderArtistVerification(active, unverified) {
   const box = $('#artistPreviewVerify'); if (!box) return;
   const name = active.artist.canonical || active.artist.name;
-  box.hidden = false;
+  // A known name needs no note (不是画师 below still undoes a wrong guess); an unknown one gets the check.
+  box.hidden = !unverified;
   box.dataset.state = unverified ? 'unverified' : 'known';
   $('#artistPreviewVerifyText').textContent = unverified
     ? `「${name}」不在画师库和 NAX 索引里：可能拼错了，也可能是没收录的画师。NovelAI 不认识的名字会被直接忽略。`
@@ -1080,6 +1081,34 @@ function syncSemanticChips() {
   $$('[data-semantic-seed-chip]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.semanticSeedChip === (els.semanticSeedSource?.value || 'selected'))));
 }
 
+// 联想's starting Tags, as chips: the ones it will really use for the chosen source. 已选 ones can be
+// dropped here (the same selection as 查词); the others are shown, not edited.
+const SEMANTIC_SEED_SHOWN = 18;
+function renderSemanticSeedTags() {
+  const host = $('#semanticSeedTags'); if (!host) return;
+  const source = els.semanticSeedSource?.value || 'selected';
+  const seeds = semanticRecommendationSeedTags(semanticLastRecommendationKind || 'related');
+  const chips = seeds.slice(0, SEMANTIC_SEED_SHOWN).map(tag => {
+    const chip = document.createElement(source === 'selected' ? 'button' : 'span');
+    chip.className = 'semantic-seed-tag';
+    chip.textContent = normalizeDanbooruTagForNai(tag);
+    if (source === 'selected') { chip.type = 'button'; chip.dataset.seedDrop = semanticSeedKey(tag); chip.setAttribute('aria-label', `不用 ${chip.textContent}`); }
+    return chip;
+  });
+  if (seeds.length > SEMANTIC_SEED_SHOWN) { const more = document.createElement('span'); more.className = 'semantic-seed-more'; more.textContent = `等 ${seeds.length} 个`; chips.push(more); }
+  if (!seeds.length) { const none = document.createElement('span'); none.className = 'semantic-seed-none'; none.textContent = source === 'selected' ? '还没选 Tag：在查词结果里点几行' : '这里还没有 Tag'; chips.push(none); }
+  host.replaceChildren(...chips);
+  $$('[data-semantic-find]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.semanticFind === (semanticLastRecommendationKind || 'related'))));
+}
+// A tick (or a dropped chip) shows the same everywhere a row for that Tag is on screen.
+function syncSemanticRowSelection() {
+  $$('#semanticDialog [data-seed-key]').forEach(row => {
+    const on = semanticSelectedTags.has(row.dataset.seedKey);
+    row.classList.toggle('selected', on);
+    row.setAttribute('aria-pressed', String(on));
+  });
+}
+
 function updateSemanticSelectionSummary() {
   const count = semanticSelectedTags.size;
   const bar = $('#semanticActionBar');
@@ -1089,6 +1118,8 @@ function updateSemanticSelectionSummary() {
     bar.querySelector('[data-semantic-bar="add"]').textContent = `加入${semanticTargetShortLabel()}`;
   }
   syncSemanticChips();
+  renderSemanticSeedTags();
+  syncSemanticRowSelection();
   if (els.semanticSelectionSummary) els.semanticSelectionSummary.textContent = `已选 ${count} 个探索标签`;
   if (els.semanticAddSelectedButton) els.semanticAddSelectedButton.disabled = count === 0;
   if (els.semanticClearSelectedButton) els.semanticClearSelectedButton.disabled = count === 0;
@@ -1160,7 +1191,7 @@ function semanticResultRow(item, index, kind, exists, seedable = true) {
   if (els.semanticDisplayLayer?.checked && item.layer) extras.push(`匹配层 ${item.layer}`);
   if (els.semanticDisplaySource?.checked && item.source) extras.push(`来源 ${item.source}`);
   if (kind === 'related' && Array.isArray(item.sources) && item.sources.length) extras.push(`共同来源：${item.sources.slice(0, 6).join(', ')}`);
-  return `<article class="semantic-row${selected ? ' selected' : ''}${exists ? ' exists' : ''}"${seedable ? ` data-semantic-row="${index}" role="button" tabindex="0" aria-pressed="${selected}"` : ''}>
+  return `<article class="semantic-row${selected ? ' selected' : ''}${exists ? ' exists' : ''}"${seedable ? ` data-semantic-row="${index}" data-seed-key="${escapeHtml(semanticSeedKey(item.tag))}" role="button" tabindex="0" aria-pressed="${selected}"` : ''}>
     <span class="semantic-row-check" aria-hidden="true"></span>
     <div class="semantic-row-text">
       <div class="semantic-row-title">${name}${label ? `<i class="semantic-row-kind">${label}</i>` : ''}${Number(item.postCount) ? `<small class="semantic-row-count">${formatCompactNumber(item.postCount)}</small>` : ''}</div>
@@ -1473,20 +1504,38 @@ function clearSemanticSelection() {
   updateSemanticSelectionSummary();
 }
 
+// Nothing searched yet: a few queries to tap (each runs a search), and for 联想 where it starts from.
+const SEMANTIC_EXAMPLES = ['雨夜霓虹街道', '逆光剪影', '水彩质感', '窗边看书的少女', '赛博朋克城市', '樱花飘落'];
+function showSemanticEmptyStates() {
+  const examples = document.createElement('div');
+  examples.className = 'semantic-examples';
+  const label = document.createElement('span');
+  label.textContent = '试试';
+  examples.append(label, ...SEMANTIC_EXAMPLES.map(text => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.semanticExample = text;
+    button.textContent = text;
+    return button;
+  }));
+  els.semanticResults.classList.add('empty-state');
+  els.semanticResults.replaceChildren(examples);
+  els.semanticRecommendationResults.classList.add('empty-state');
+  els.semanticRecommendationResults.textContent = '';
+}
+
 function openSemanticSearch(target, initialQuery = '') {
   semanticTarget = target;
   // The sheet takes the target's hue (section or character).
   els.semanticDialog.dataset.targetGroup = target?.scope === 'character' ? 'character' : target?.groupKey || '';
   const info = semanticTargetInfo(target);
   els.semanticTargetLabel.textContent = `添加到：${info.label}`;
+  if ($('#semanticAgentAdd')) $('#semanticAgentAdd').textContent = `加入${info.label}`;
   els.semanticQuery.value = initialQuery.trim();
   semanticSelectedTags.clear();
   semanticLastSearchData = null;
   semanticLastRecommendationKind = '';
-  els.semanticResults.classList.add('empty-state');
-  els.semanticResults.textContent = '尚未搜索';
-  els.semanticRecommendationResults.classList.add('empty-state');
-  els.semanticRecommendationResults.textContent = '暂无推荐';
+  showSemanticEmptyStates();
   els.semanticStatus.textContent = '';
   restoreSemanticSettings();
   updateSemanticSelectionSummary();
@@ -1670,9 +1719,10 @@ async function renderTrashView() {
     const card = document.createElement('div'); card.className = 'gallery-trash-card'; card.dataset.trashId = image.id;
     const img = document.createElement('img'); img.src = image.thumbUrl; img.alt = ''; img.loading = 'lazy'; img.decoding = 'async';
     const meta = document.createElement('small'); meta.textContent = left(image);
-    const restore = document.createElement('button'); restore.type = 'button'; restore.className = 'ghost'; restore.textContent = '恢复';
+    const restore = document.createElement('button'); restore.type = 'button'; restore.className = 'ghost restore'; restore.textContent = '恢复';
     restore.addEventListener('click', async () => { restore.disabled = true; if (!(await restoreTrashedImages([image.id]))) restore.disabled = false; });
-    const purge = document.createElement('button'); purge.type = 'button'; purge.className = 'ghost danger'; purge.textContent = '彻底删除';
+    const purge = document.createElement('button'); purge.type = 'button'; purge.className = 'ghost danger'; purge.textContent = '删除';
+    purge.setAttribute('aria-label', '彻底删除');
     purge.addEventListener('click', async () => {
       if (!(await confirmAction('彻底删除这张图片？之后无法恢复。', { confirmLabel: '彻底删除', danger: true }))) return;
       try { const result = await api('/api/images/trash/purge', { method: 'POST', body: { ids: [image.id] } }); noteGalleryExamplesDeleted(result); }
@@ -1697,7 +1747,7 @@ function watchForUpdates() {
     if (!controlled) { controlled = true; return; } // first install, not an update
     showUpdateBanner();
   });
-  navigator.serviceWorker.register('/sw.js?v=1.9.3').then(registration => {
+  navigator.serviceWorker.register('/sw.js?v=1.9.29').then(registration => {
     let checkedAt = Date.now();
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible' || Date.now() - checkedAt < 10 * 60 * 1000) return;
@@ -4552,16 +4602,89 @@ const codexEditor = {
       }
     });
     return { count, created, hadCharacters };
+  },
+  // AI 反推 (1.9.5): the draft replaces the four sections and the character Tags as one undo step.
+  // Artist Tags already in 画风 stay (the artist string is never inferred); quality, UC and parameters
+  // are untouched. An existing character keeps its name, position and UC; only its Tags change, and
+  // with no characters in the draft the current ones stay. Sentences go in whole, as one card each.
+  // `include` (1.9.12): the parts to fill — any of scene / camera / style / misc / characters. A part
+  // left out keeps what the editor has; artist Tags in 画风 always stay. `mode` (1.9.13): 'replace'
+  // swaps the chosen parts, 'append' keeps them and adds only what is not there yet.
+  // 反推's artist buttons read the editor: is this artist in 画风 now; take it out again (one undo step).
+  hasArtist(name) {
+    const key = normalizeArtistIdentity(name);
+    if (directPromptEdited) return tokenizePrompt(els.promptPreview.value).some(token => normalizeArtistIdentity(parseTagToken(token).text) === key);
+    return (appState.groups.style || []).some(tag => normalizeArtistIdentity(tag.text) === key);
+  },
+  removeArtist(name) {
+    const key = normalizeArtistIdentity(name);
+    const list = appState.groups.style || [];
+    const index = directPromptEdited ? -1 : list.findIndex(tag => normalizeArtistIdentity(tag.text) === key);
+    if (index < 0) return false;
+    list.splice(index, 1);
+    refreshTagEditor();
+    return true;
+  },
+  applyReverse(result, { include = ['scene', 'camera', 'style', 'misc', 'characters'], mode = 'replace', keepArtists = [] } = {}) {
+    const append = mode === 'append';
+    const SENTENCE_GROUP = { relation: 'misc', scene: 'scene', texture: 'style', style: 'style' };
+    const parts = new Set(include);
+    const added = [];
+    let sentences = 0, characters = 0, characterTags = 0, characterSentences = 0;
+    asOneHistoryStep(() => {
+      // 替换 of 画风 replaces the artist string too, except artists picked on the reverse page for this draft.
+      const keep = new Set(keepArtists.map(name => normalizeArtistIdentity(name)));
+      for (const key of ['scene', 'camera', 'style', 'misc']) {
+        if (!parts.has(key) || append) continue;
+        appState.groups[key] = key === 'style' ? (appState.groups.style || []).filter(tag => isConfirmedArtistTag(tag.text) && keep.has(normalizeArtistIdentity(tag.text))) : [];
+      }
+      clearTagSelection();
+      const put = (key, parsed) => { const tag = addTag(key, parsed, 1, true, '', { render: false, translate: false }); if (tag) added.push(tag); return tag; };
+      for (const key of ['misc', 'camera', 'scene', 'style']) if (parts.has(key)) for (const text of result[key] || []) for (const parsed of codexTags(text)) put(key, { ...parsed });
+      for (const sentence of result.sentences || []) {
+        const key = SENTENCE_GROUP[sentence.kind] || 'scene';
+        if (!parts.has(key)) continue;
+        const tag = rawBundleTag(sentence.text);
+        if (tag && put(key, tag)) sentences += 1;
+      }
+      if (parts.has('characters') && result.characters?.length) {
+        const previous = appState.characters;
+        const drafted = result.characters.slice(0, characterLimitForModel()).map((character, index) => {
+          let promptTags = [...character.tags.flatMap(text => codexTags(text)).map(tag => hydrateTag({ ...tag, id: uid() })),
+            ...(character.sentences || []).map(rawBundleTag).filter(Boolean)];
+          // Append: the character keeps its Tags; only the ones it does not have yet are added.
+          if (append && previous[index]) { const have = new Set(previous[index].promptTags.map(codexTagKey)); promptTags = promptTags.filter(tag => !have.has(codexTagKey(tag))); }
+          const tagCount = promptTags.filter(tag => !tag.bundle).length, sentenceCount = promptTags.length - tagCount;
+          characterTags += tagCount; characterSentences += sentenceCount; sentences += sentenceCount;
+          if (previous[index]) { previous[index].promptTags = append ? [...previous[index].promptTags, ...promptTags] : promptTags; return previous[index]; }
+          return createCharacter({ name: '', promptTags });
+        });
+        appState.characters = append ? [...drafted, ...previous.slice(drafted.length)] : drafted;
+        characters = result.characters.length ? Math.min(result.characters.length, characterLimitForModel()) : 0;
+      }
+      renderTagGroups();
+      renderCharacters();
+      compilePromptToPreview(true);
+    });
+    translateSpecificTags([...added, ...appState.characters.flatMap(character => character.promptTags)].slice(0, 60)).catch(() => {});
+    return { tags: added.length - sentences + characterSentences + characterTags, sentences, characters };
   }
 };
 
 // 图片反推 (public/tagger-panel.js) writes Tags through the same editor operations.
 const taggerPanel = createTaggerPanel({
   api, toast,
+  navigate: () => switchTabTo('reverse'),
+  openEditor: () => switchTabTo('editor'),
+  // The artist page's back button leads here again (one tap back to the draft).
+  openArtistPage: name => openArtistLibrary(name, { returnTo: { label: '← 回到反推', go: () => switchTabTo('reverse') } }),
+  isActive: () => activeMainTab === 'reverse',
+  chooseFile: () => $('#taggerFile')?.click(),
+  openGallery: () => switchTabTo('gallery'),
   parse: text => codexTags(text)[0] || null,
   tagKey: codexTagKey,
   editor: codexEditor,
-  addArtist: name => addSemanticArtist({ artist: name })
+  addArtist: name => addSemanticArtist({ artist: name }, { quiet: true })
 });
 
 const codexPanel = createCodexPanel({
@@ -4855,7 +4978,6 @@ function bindNewLayoutControls() {
     if (event.target.closest('[data-menu-action="renewal"]')) { closeMenu(); openRenewalDialog(); return; }
     if (event.target.closest('[data-menu-action="brackets"]')) { closeMenu(); convertAllBracketWeights(); return; }
     if (event.target.closest('[data-menu-action="default-scheme"]')) { closeMenu(); loadDefaultScheme().catch(error => toast(error.message, 'error')); return; }
-    if (event.target.closest('[data-menu-action="tagger"]')) { closeMenu(); $('#taggerFile')?.click(); return; }
     const item = event.target.closest('[data-proxy]');
     if (!item) return;
     closeMenu();
@@ -7784,13 +7906,66 @@ function currentStormPlan() {
     count,
     delta: Number(els.stormDelta?.value || 0.3),
     mode: els.stormMode?.value,
+    roll: stormRoll,
     externalArtists: els.stormUseExternalArtists?.checked ? stormExternalArtistPool : []
   });
 }
 
+// Storm page (1.9.27). The visible controls write the original inputs (#stormMode, #stormDelta,
+// #stormCount, #stormUseExternalArtists), which the plan and the queue read; the choice is remembered
+// on this device. 调权重 / 加画师 / 都要 × 随机混合 / 一位一位 / 整体强弱; candidates come from the style index.
+const STORM_UI_KEY = 'nai-pocket-storm-v1';
+const stormUi = (() => { try { return { what: 'weights', way: 'mix', source: 'near', ...JSON.parse(localStorage.getItem(STORM_UI_KEY) || '{}') }; } catch { return { what: 'weights', way: 'mix', source: 'near' }; } })();
+let stormCandidateSource = '';
+// The roll number behind 随机混合: new when the page opens, on ↻, and after every Storm is queued.
+const newStormRoll = () => crypto.getRandomValues(new Uint32Array(1))[0];
+let stormRoll = newStormRoll();
+function saveStormUi() {
+  try { localStorage.setItem(STORM_UI_KEY, JSON.stringify({ what: stormUi.what, way: stormUi.way, source: stormUi.source, delta: els.stormDelta?.value, count: els.stormCount?.value })); } catch { /* per-device convenience */ }
+}
+function syncStormControls() {
+  if (!els.stormMode) return;
+  const adds = stormUi.what !== 'weights';
+  els.stormUseExternalArtists.checked = adds;
+  els.stormMode.value = stormUi.what === 'add' ? 'add' : stormUi.way;
+  for (const [attr, value] of [['stormWhat', stormUi.what], ['stormWay', stormUi.way], ['stormSource', stormUi.source]]) {
+    document.querySelectorAll(`[data-${attr.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}]`).forEach(button => button.setAttribute('aria-pressed', String(button.dataset[attr] === value)));
+  }
+  const page = $('#stormTab');
+  page?.querySelector('.storm-weights')?.toggleAttribute('hidden', stormUi.what === 'add');
+  page?.querySelector('.storm-add')?.toggleAttribute('hidden', !adds);
+  const range = $('#stormDeltaRange');
+  if (range && document.activeElement !== range) range.value = els.stormDelta.value;
+  if ($('#stormDeltaValue')) $('#stormDeltaValue').textContent = `±${Number(els.stormDelta.value).toFixed(2)}`;
+  // 一位一位 and 只加画师 decide their own count.
+  const fixedCount = ['solo', 'add'].includes(els.stormMode.value);
+  page?.querySelector('.storm-count')?.classList.toggle('is-fixed', fixedCount);
+  page?.querySelector('.storm-count')?.classList.toggle('is-mix', els.stormMode.value === 'mix');
+  if (adds && stormCandidateSource !== stormUi.source) { stormCandidateSource = stormUi.source; loadStormExternalArtists().catch(() => {}); }
+}
+function stormChip(text, weight, kind = '') {
+  const name = String(text).replace(/^artist\s*:\s*/i, '');
+  return `<span class="storm-chip${kind ? ` is-${kind}` : ''}">${escapeHtml(name)}${weight === undefined ? '' : `<b>${Number(weight)}</b>`}</span>`;
+}
+function stormVariantChips(variant) {
+  if (variant.isBaseline) return '<span class="storm-chip is-base">基准 · 编辑器里的样子</span>';
+  const changed = variant.weights.filter(item => Number(item.weight) !== Number(item.baseWeight));
+  const chips = changed.map(item => stormChip(item.text, item.weight, Number(item.weight) > Number(item.baseWeight) ? 'up' : 'down'));
+  if (variant.externalArtist) chips.push(stormChip(`＋ ${String(variant.externalArtist.text || variant.externalArtist).replace(/^artist\s*:\s*/i, '')}`, undefined, 'add'));
+  return chips.join('') || '<span class="storm-chip is-base">与基准相同</span>';
+}
+
 function renderStormPlan() {
+  syncStormControls();
+  const mixHost = $('#stormMixChips');
+  if (mixHost) {
+    const mix = directPromptEdited ? [] : currentStormArtists();
+    mixHost.innerHTML = mix.length ? mix.map(item => stormChip(item.text, item.weight)).join('') : '<span class="storm-empty">画风栏里还没有画师 Tag。</span>';
+  }
   try {
     const plan = currentStormPlan();
+    if ($('#stormCountValue')) $('#stormCountValue').textContent = String(plan.count);
+    if (els.generateStormButton) els.generateStormButton.textContent = `生成 ${plan.count} 张`;
     els.stormArtistSummary?.classList.remove('is-error');
     if (els.stormArtistSummary) els.stormArtistSummary.textContent = `${plan.artists.length} 位 · ${plan.count} 张${plan.count < plan.requestedCount ? `（合并 ${plan.requestedCount - plan.count} 个重复组合）` : ''} · ±${plan.delta.toFixed(2)} · #${plan.baselineIndex} 原始基准`;
     if (els.stormPlanPreview) {
@@ -7802,7 +7977,7 @@ function renderStormPlan() {
       for (const variantIndex of visibleIndexes) {
         if (previous >= 0 && variantIndex - previous > 1) rows.push(`<div class="storm-plan-row"><strong>…</strong><span>省略 ${variantIndex - previous - 1} 张预览；任务仍会完整生成</span></div>`);
         const variant = plan.variants[variantIndex];
-        rows.push(`<div class="storm-plan-row${variant.isBaseline ? ' is-baseline' : ''}"><strong>#${variant.index}${variant.isBaseline ? ' 基准' : ''}</strong><span>${variant.weights.map(item => `${escapeHtml(item.text)} ${Number(item.weight)}`).join(' · ')}${variant.externalArtist ? ` · ＋ ${escapeHtml(variant.externalArtist.text)} 1` : ''}</span></div>`);
+        rows.push(`<div class="storm-plan-row${variant.isBaseline ? ' is-baseline' : ''}"><strong>#${variant.index}</strong><span class="storm-plan-chips">${stormVariantChips(variant)}</span></div>`);
         previous = variantIndex;
       }
       els.stormPlanPreview.innerHTML = rows.join('');
@@ -7816,29 +7991,11 @@ function renderStormPlan() {
   }
 }
 
-function stormRecommendationSeedTags() {
-  const tags = [];
-  for (const key of globalPromptOrder()) {
-    for (const tag of appState.groups[key] || []) if (tag.enabled !== false && tag.text && !isConfirmedArtistTag(tag.text)) tags.push(normalizeNaiTagForDanbooru(tag.text));
-  }
-  for (const character of appState.characters || []) {
-    if (character.enabled === false) continue;
-    for (const tag of character.promptTags || []) if (tag.enabled !== false && tag.text && !isConfirmedArtistTag(tag.text)) tags.push(normalizeNaiTagForDanbooru(tag.text));
-  }
-  return uniqueSemanticTags(tags).slice(0, 200);
-}
-
-function sampleArtistCandidates(rawItems, count) {
-  const items = rawItems.slice(0, 100);
-  const selected = [];
-  while (items.length && selected.length < count) {
-    const index = Math.floor(crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296 * items.length);
-    selected.push(items.splice(index, 1)[0]);
-  }
-  return selected;
-}
-
 function renderStormExternalArtists(message = '') {
+  const host = $('#stormCandidateChips');
+  if (host) {
+    host.innerHTML = message ? `<span class="storm-empty">${escapeHtml(message)}</span>` : stormExternalArtistPool.map((item, index) => `<button type="button" class="storm-candidate" data-storm-drop="${index}" aria-label="不试 ${escapeHtml(item.artist)}">${item.exampleId ? `<img src="/api/artists/examples/${encodeURIComponent(item.exampleId)}/thumb" alt="" loading="lazy">` : ''}<span>${escapeHtml(item.artist)}</span></button>`).join('');
+  }
   if (!els.stormExternalArtistList) return;
   if (message) {
     els.stormExternalArtistList.textContent = message;
@@ -7849,16 +8006,14 @@ function renderStormExternalArtists(message = '') {
 
 async function loadStormExternalArtists() {
   const poolSize = Math.min(30, Math.max(2, Math.round(Number(els.stormExternalPoolSize?.value || 8))));
-  const seedTags = stormRecommendationSeedTags();
-  if (!seedTags.length) seedTags.push('1girl');
   if (els.refreshStormExternalArtistsButton) els.refreshStormExternalArtistsButton.disabled = true;
-  renderStormExternalArtists('正在读取候选画师…');
+  renderStormExternalArtists('正在挑画师…');
   try {
-    const data = await api('/api/danbooru/artists', { method: 'POST', body: { tags: seedTags, limit: 100, minCooc: 1, showNsfw: false } });
-    const existing = new Set(currentStormArtists().map(item => normalizeNaiTagForDanbooru(item.text).toLocaleLowerCase('en-US')));
-    const candidates = (data.results || []).filter(item => item.artist && !existing.has(normalizeNaiTagForDanbooru(item.artist).toLocaleLowerCase('en-US')));
-    stormExternalArtistPool = sampleArtistCandidates(candidates, poolSize).map(item => ({ ...item, text: `artist:${normalizeDanbooruTagForNai(item.artist)}` }));
-    if (!stormExternalArtistPool.length) throw new Error('没有找到可用的外来画师。');
+    // 1.9.27: from the style index — artists near the mix, a bit further, or anyone (V5-known only).
+    const mix = currentStormArtists().map(item => normalizeNaiTagForDanbooru(item.text).replace(/^artist:/i, '').replace(/_/g, ' '));
+    const data = await api('/api/storm/candidates', { method: 'POST', body: { artists: mix, source: stormUi.source, count: poolSize } });
+    stormExternalArtistPool = (data.artists || []).map(item => ({ ...item, text: `artist:${normalizeDanbooruTagForNai(item.artist)}` }));
+    if (!stormExternalArtistPool.length) throw new Error('没有找到可试的画师。');
     renderStormExternalArtists();
     renderStormPlan();
     return stormExternalArtistPool;
@@ -7869,6 +8024,50 @@ async function loadStormExternalArtists() {
   } finally {
     if (els.refreshStormExternalArtistsButton) els.refreshStormExternalArtistsButton.disabled = false;
   }
+}
+
+// 上一轮: the last Storm's pictures, each labelled by what it changed; pick one and 用这一组 puts its
+// weights (and any added artist) into the editor as one undo step. Refreshes itself while it is still
+// generating and the Storm page is open.
+let stormLast = null, stormLastPick = -1, stormLastTimer = 0;
+async function loadStormLast() {
+  clearTimeout(stormLastTimer);
+  try { stormLast = (await api('/api/storm/recent')).storm; } catch { return; }
+  renderStormLast();
+  if (stormLast?.items.some(item => ['pending', 'running'].includes(item.status)) && activeMainTab === 'storm') stormLastTimer = setTimeout(loadStormLast, 8000);
+}
+function renderStormLast() {
+  const host = $('#stormLast'); if (!host) return;
+  host.hidden = !stormLast?.items?.length;
+  if (host.hidden) return;
+  const done = stormLast.items.filter(item => item.status === 'completed').length;
+  $('#stormLastMeta').textContent = `${done}/${stormLast.items.length} 张 · Seed ${stormLast.seed}`;
+  $('#stormLastTiles').innerHTML = stormLast.items.map((item, index) => {
+    const picture = item.imageId ? `<img src="/api/images/${encodeURIComponent(item.imageId)}/thumbnail" alt="" loading="lazy" decoding="async">`
+      : `<span class="storm-last-wait">${({ pending: '等待', running: '生成中', failed: '失败', cancelled: '已取消' })[item.status] || ''}</span>`;
+    const label = stormVariantChips({ ...item, externalArtist: item.externalArtist ? { text: item.externalArtist } : null });
+    return `<button type="button" class="storm-last-tile${index === stormLastPick ? ' picked' : ''}" data-storm-pick="${index}" ${item.imageId ? '' : 'disabled'}><span class="storm-last-pic">${picture}<i>#${item.index}</i></span><span class="storm-plan-chips">${label}</span></button>`;
+  }).join('');
+  const picked = stormLast.items[stormLastPick];
+  $('#stormLastPick').hidden = !picked;
+  if (picked) $('#stormLastPickText').textContent = `#${picked.index} ${picked.isBaseline ? '基准' : picked.weights.filter(w => w.weight !== w.baseWeight).map(w => `${w.text.replace(/^artist:/, '')} ${w.weight}`).concat(picked.externalArtist ? [`＋ ${picked.externalArtist.replace(/^artist:/, '')}`] : []).join(' · ')}`;
+}
+function applyStormVariant(item) {
+  const key = text => normalizeArtistIdentity(String(text || ''));
+  let changed = 0;
+  asOneHistoryStep(() => {
+    for (const weight of item.weights) {
+      for (const group of globalPromptOrder()) {
+        const tag = (appState.groups[group] || []).find(entry => isConfirmedArtistTag(entry.text) && key(entry.text) === key(weight.text));
+        if (tag && Number(tag.weight) !== Number(weight.weight)) { tag.weight = weight.weight; changed += 1; }
+      }
+    }
+    if (item.externalArtist && addSemanticArtist({ artist: item.externalArtist.replace(/^artist\s*:\s*/i, '') }, { quiet: true })) changed += 1;
+    renderTagGroups();
+    compilePromptToPreview();
+  });
+  toast(changed ? `已用 #${item.index} 这一组，可撤销。` : '编辑器里已经是这一组了。', changed ? 'success' : '');
+  renderStormPlan();
 }
 
 function chooseStormSeed(state) {
@@ -7897,12 +8096,15 @@ async function generateArtistStorm() {
     const result = await api('/api/jobs/enqueue-variants', {
       method: 'POST',
       body: {
-        state: baseState, count: plan.requestedCount, delta: plan.delta, mode: plan.mode, seed,
+        state: baseState, count: plan.requestedCount, delta: plan.delta, mode: plan.mode, seed, roll: stormRoll,
         artistIds: plan.artists.map(item => item.id), externalArtists: plan.externalArtists.map(item => item.text)
       }
     });
-    toast(`Storm 已加入 ${result.count} 张 · 固定 Seed ${result.seed}${result.externalArtists ? ` · 外来画师池 ${result.externalArtists} 位` : ''}；结果直接进入图库。`, 'success');
+    toast(`Storm 已加入 ${result.count} 张 · 固定 Seed ${result.seed}；生成好的会出现在下面“上一轮”。`, 'success');
     await refreshJobs();
+    stormRoll = newStormRoll();
+    renderStormPlan();
+    loadStormLast();
   } finally {
     if (els.generateStormButton) els.generateStormButton.disabled = false;
   }
@@ -10900,15 +11102,18 @@ async function saveNote() {
 function switchTabTo(name) {
   if (name === 'artists' && !artistLibraryAvailable) return toast('本机画师栏尚未接入。');
   if (name === 'storm' && !stormAvailable) return toast('此版本未包含 Storm 工作台。');
-  if (name === activeMainTab && document.querySelector(`.tab[data-tab="${name}"]`)?.classList.contains('active')) return;
+  if (name === activeMainTab && document.querySelector(`#${name}Tab`)?.classList.contains('active')) return;
   if (!tabScrollPositions[name] && tabScrollPositions[name] !== 0) tabScrollPositions[name] = 0;
   if (activeMainTab && activeMainTab !== name) tabScrollPositions[activeMainTab] = window.scrollY;
   activeMainTab = name;
-  if ($('#pageCrumb')) $('#pageCrumb').textContent = ({ editor: '编辑工作台', artists: '画师资料库', storm: '画风 Storm', codex: '法典', gallery: '图库', scheme: '方案', queue: '生成队列' })[name] || '工作台';
+  if ($('#pageCrumb')) $('#pageCrumb').textContent = ({ editor: '编辑工作台', artists: '画师资料库', storm: '画风 Storm', reverse: '图片反推', codex: '法典', gallery: '图库', scheme: '方案', queue: '生成队列' })[name] || '工作台';
   $$('.tab').forEach(button => button.classList.toggle('active', button.dataset.tab === name));
   $$('.tab-panel').forEach(panel => panel.classList.remove('active'));
   $(`#${name}Tab`)?.classList.add('active');
   document.body.classList.toggle('editor-tab-active', name === 'editor');
+  document.body.classList.toggle('reverse-tab-active', name === 'reverse');
+  // The reverse dock follows the page (taggerPanel is created at start-up, before any tab change).
+  if (typeof taggerPanel !== 'undefined') taggerPanel.syncDock();
   els.floatingGenerateBar?.classList.toggle('hidden', name !== 'editor');
   if (name === 'gallery' && !galleryLoaded) resetGallery(false);
   else if (name === 'gallery') requestAnimationFrame(() => {
@@ -10921,8 +11126,11 @@ function switchTabTo(name) {
   if (name === 'artists') ensureArtistLibrary().show().then(() => artistAutomationAvailable ? ensureArtistAutomation().refresh() : undefined).catch(error => toast(error.message, 'error'));
   if (name === 'storm') {
     if (els.artistStormPanel) els.artistStormPanel.open = true;
+    stormRoll = newStormRoll();
     renderStormPlan();
+    loadStormLast();
   }
+  if (name === 'reverse') taggerPanel.show();
   const targetY = Number(tabScrollPositions[name] || 0);
   requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo({ top: targetY, left: 0, behavior: 'auto' })));
 }
@@ -10934,11 +11142,41 @@ function syncWholeAddButtons() {
   });
 }
 
-// 语义工作台 has two pages: 查词 (describe → tags) and 联想 (from existing tags).
+// 语义工作台 has three pages: 查词 (describe → tags), 联想 (from existing tags) and 问秋月
+// (SAkizuki's agent, embedded; loaded the first time the page is opened).
+const SEMANTIC_AGENT = { prompt: 'https://sakizuki-wenqiuyue.hf.space/prompt', blog: 'https://sakizuki-wenqiuyue.hf.space/blog' };
 function setSemanticTab(tab) {
-  const page = tab === 'explore' ? 'explore' : 'search';
+  const page = ['explore', 'agent'].includes(tab) ? tab : 'search';
   if (els.semanticDialog) els.semanticDialog.dataset.tab = page;
+  if (page === 'explore') renderSemanticSeedTags();
   document.querySelectorAll('[data-semantic-tab]').forEach(button => button.setAttribute('aria-selected', String(button.dataset.semanticTab === page)));
+  const frame = $('#semanticAgentFrame');
+  if (page === 'agent' && frame && !frame.getAttribute('src')) frame.src = SEMANTIC_AGENT.prompt;
+}
+function setSemanticAgent(mode) {
+  const url = SEMANTIC_AGENT[mode] || SEMANTIC_AGENT.prompt;
+  document.querySelectorAll('[data-semantic-agent]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.semanticAgent === mode)));
+  const frame = $('#semanticAgentFrame');
+  if (frame && frame.getAttribute('src') !== url) frame.src = url;
+  const open = $('#semanticAgentOpen');
+  if (open) open.href = url;
+}
+// What 问秋月 wrote goes into the current section like typed Tags, as one undo step; one message.
+function addAgentTextToSemanticTarget(text) {
+  if (!semanticTarget) return 0;
+  const tokens = codexTags(text);
+  let added = 0;
+  asOneHistoryStep(() => {
+    for (const parsed of tokens) {
+      if (semanticTarget.scope === 'character') {
+        const list = getCharacterTagList(semanticTarget.characterId, semanticTarget.kind);
+        if (list && addParsedTagToList(list, { ...parsed })) added += 1;
+      } else if (addTag(semanticTarget.groupKey, { ...parsed }, 1, true, '', { render: false, translate: false })) added += 1;
+    }
+    if (semanticTarget.scope === 'character') renderCharacters(); else renderTagGroups();
+    compilePromptToPreview();
+  });
+  return added;
 }
 
 function initBindings() {
@@ -10946,6 +11184,20 @@ function initBindings() {
   document.addEventListener('click', event => { if (event.target.closest?.('.tag-add')) requestAnimationFrame(syncWholeAddButtons); });
   document.addEventListener('keydown', event => { if (event.key === 'Enter' && event.target.closest?.('.tag-add')) requestAnimationFrame(syncWholeAddButtons); });
   document.querySelectorAll('[data-semantic-tab]').forEach(button => button.addEventListener('click', () => setSemanticTab(button.dataset.semanticTab)));
+  document.querySelectorAll('[data-semantic-agent]').forEach(button => button.addEventListener('click', () => setSemanticAgent(button.dataset.semanticAgent)));
+  const agentPaste = $('#semanticAgentPaste'), agentAdd = $('#semanticAgentAdd');
+  agentPaste?.addEventListener('input', () => { agentAdd.disabled = !agentPaste.value.trim(); });
+  agentAdd?.addEventListener('click', () => {
+    const added = addAgentTextToSemanticTarget(agentPaste.value);
+    toast(added ? `已加入 ${added} 个 Tag，可撤销。` : '这些 Tag 已经都在了。', added ? 'success' : '');
+    if (added) { agentPaste.value = ''; agentAdd.disabled = true; }
+  });
+  els.semanticResults?.addEventListener('click', event => {
+    const example = event.target.closest('[data-semantic-example]');
+    if (!example) return;
+    els.semanticQuery.value = example.dataset.semanticExample;
+    runSemanticSearch();
+  });
   observeToastClearance($('#toastHost'), els.floatingGenerateBar);
   installSelectSheets({ isEnabled: () => !document.body.classList.contains('tag-layout-legacy') });
   for (const area of [els.promptPreview, $('#negativePrompt')]) attachWeightHighlight(area, { isEnabled: () => !document.body.classList.contains('tag-layout-legacy') });
@@ -11418,8 +11670,8 @@ function initBindings() {
     els.artistPreviewFallback.classList.add('hidden');
     els.artistPreviewRetry?.classList.add('hidden');
     els.artistPreviewStatus.textContent = activeArtistPreview.artist.explicit
-      ? '已由 artist: 前缀确认 · NAX V5 参考样图'
-      : 'NAX V5 精确名单命中 · 请审核是否加入 artist:';
+      ? '已加 artist: 前缀'
+      : '在画师名单里 · 要加 artist: 前缀吗';
   });
   els.artistPreviewImage?.addEventListener('error', () => {
     if (!activeArtistPreview || activeArtistPreview.timedOut || activeArtistPreview.requestId !== Number(els.artistPreviewImage.dataset.previewRequestId)) return;
@@ -11534,11 +11786,21 @@ function initBindings() {
     const action = event.target.closest('[data-semantic-bar]')?.dataset.semanticBar;
     if (action === 'clear') clearSemanticSelection();
     if (action === 'add') addSelectedSemanticTags();
-    if (action === 'related' || action === 'artists') {
+    if (action === 'explore') {
       if (els.semanticSeedSource.value !== 'selected') { els.semanticSeedSource.value = 'selected'; saveSemanticSettings(); syncSemanticChips(); }
-      $('.semantic-recommendation-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      if (action === 'related') runSemanticRelated(); else runSemanticArtists();
+      setSemanticTab('explore');
+      if ((semanticLastRecommendationKind || 'related') === 'artists') runSemanticArtists(); else runSemanticRelated();
     }
+  });
+  // 联想: 找 runs at once; a dropped chip leaves the selection.
+  $$('[data-semantic-find]').forEach(button => button.addEventListener('click', () => {
+    if (button.dataset.semanticFind === 'artists') runSemanticArtists(); else runSemanticRelated();
+  }));
+  $('#semanticSeedTags')?.addEventListener('click', event => {
+    const drop = event.target.closest('[data-seed-drop]');
+    if (!drop) return;
+    const item = semanticSelectedTags.get(drop.dataset.seedDrop);
+    if (item) toggleSemanticSeed(item, false);
   });
   els.semanticDialog.addEventListener('click', event => {
     if (event.target === els.semanticDialog && !semanticBusy) els.semanticDialog.close();
@@ -11660,6 +11922,28 @@ function initBindings() {
   els.refreshRbqAccountButton?.addEventListener('click', () => refreshRbqAccount(true));
   els.accountUsagePanel?.addEventListener('toggle', () => storageSet('nai-pocket-account-usage-open', els.accountUsagePanel.open ? '1' : '0'));
   [els.stormCount, els.stormDelta, els.stormMode].filter(Boolean).forEach(control => control.addEventListener('input', renderStormPlan));
+  // Storm page controls (1.9.27).
+  try { if (stormUi.delta) els.stormDelta.value = stormUi.delta; if (stormUi.count) els.stormCount.value = stormUi.count; } catch { /* defaults */ }
+  $('#stormTab')?.addEventListener('click', event => {
+    const what = event.target.closest('[data-storm-what]')?.dataset.stormWhat;
+    const way = event.target.closest('[data-storm-way]')?.dataset.stormWay;
+    const source = event.target.closest('[data-storm-source]')?.dataset.stormSource;
+    const step = event.target.closest('[data-storm-count]')?.dataset.stormCount;
+    const drop = event.target.closest('[data-storm-drop]')?.dataset.stormDrop;
+    const pick = event.target.closest('[data-storm-pick]')?.dataset.stormPick;
+    if (what) stormUi.what = what;
+    if (way) stormUi.way = way;
+    if (source) { stormUi.source = source; stormCandidateSource = ''; }
+    if (step) els.stormCount.value = String(Math.max(2, Math.min(serverMaxStormSize || 60, Math.round(Number(els.stormCount.value || 7)) + Number(step))));
+    if (drop !== undefined) { stormExternalArtistPool.splice(Number(drop), 1); renderStormExternalArtists(stormExternalArtistPool.length ? '' : '都去掉了，点 ↻ 换一批。'); }
+    if (event.target.closest('#stormCandidatesReroll')) loadStormExternalArtists().catch(() => {});
+    if (event.target.closest('#stormLastRefresh')) loadStormLast();
+    if (event.target.closest('#stormReroll')) { stormRoll = newStormRoll(); renderStormPlan(); return; }
+    if (pick !== undefined) { stormLastPick = Number(pick) === stormLastPick ? -1 : Number(pick); renderStormLast(); return; }
+    if (event.target.closest('#stormLastApply') && stormLast?.items[stormLastPick]) return applyStormVariant(stormLast.items[stormLastPick]);
+    if (what || way || source || step || drop !== undefined) { saveStormUi(); renderStormPlan(); }
+  });
+  $('#stormDeltaRange')?.addEventListener('input', event => { els.stormDelta.value = Number(event.target.value).toFixed(2); saveStormUi(); renderStormPlan(); });
   els.artistStormPanel?.addEventListener('toggle', () => { if (els.artistStormPanel.open) renderStormPlan(); });
   els.refreshStormPlanButton?.addEventListener('click', renderStormPlan);
   els.generateStormButton?.addEventListener('click', () => generateArtistStorm().catch(error => toast(error.message, 'error')));

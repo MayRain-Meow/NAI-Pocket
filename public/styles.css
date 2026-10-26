@@ -1998,9 +1998,7 @@ body.editor-focus-mode .settings-column .generation-panel { display: block; }
 .artist-preview-stage { min-height: 240px; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: 13px; background: var(--surface-deep); }
 .artist-preview-stage img { display: block; width: 100%; max-height: min(62dvh, 720px); object-fit: contain; }
 .artist-preview-fallback { max-width: 430px; padding: 22px; color: var(--muted); text-align: center; line-height: 1.55; }
-.artist-preview-caption { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
 .artist-preview-links { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.artist-preview-links-label { margin-right: 2px; color: var(--muted); font-size: 10px; letter-spacing: .04em; }
 .artist-preview-chip { display: inline-flex; align-items: center; gap: 4px; min-height: 30px; padding: 4px 11px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--text-secondary); font: inherit; font-size: 11px; line-height: 1.3; text-decoration: none; white-space: nowrap; cursor: pointer; }
 .artist-preview-chip:hover,
 .artist-preview-chip:focus-visible { border-color: var(--line-accent); background: var(--surface-active); color: var(--accent-2); }
