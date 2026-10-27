@@ -6,7 +6,7 @@
  * classification in this small, browser-safe module so the server inspector
  * and the browser importer cannot drift apart.
  */
-import { DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.41';
+import { DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.42';
 
 export const IMAGE_WORKFLOW_PARAMETER_KEYS = Object.freeze(new Set([
   'image', 'mask', 'input_image', 'inputimage', 'base_image', 'baseimage', 'source_image', 'sourceimage', 'original_image', 'originalimage', 'mask_image', 'maskimage', 'strength', 'noise',

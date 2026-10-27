@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.4 — Preview
+
+- Fixed: every start went back to the official channel, so a relay user had to pick their relay again. Drafts and schemes carry no channel on purpose (a scheme must never hold an account), so a restored draft took the dropdown's default. The channel (and the chosen official account) is now remembered on the phone and applied before the draft is restored; switching back to the official channel is remembered too.
+
 ## 0.7.3 — Preview
 
 - Storm (new in the app): 画风 → Storm › generates one batch on one fixed seed in which only the artist weights change, so the pictures compare by weight alone — random mixes, one artist at a time, linked, or adding one candidate artist. Candidates come from the installed 画风数据 (close to the mix, a change of taste, or random; only artists the V5 example index knows). 上一轮 shows the last batch; 用这一组 puts its weights into the editor as one undo step. The batch runs in the phone's queue (its limit of 50 pending pictures applies).

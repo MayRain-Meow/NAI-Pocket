@@ -435,6 +435,11 @@ try {
   assert.match(await page.locator('#generationProvider').inputValue(),/^relay:/);
   assert.match(await page.locator('#relayList').textContent(),/Synthetic relay/);
   await page.locator('#closeSettingsButton').click();
+  // 0.7.4 (website 1.9.42): the chosen channel survives restarting the app; drafts carry no route.
+  await page.waitForTimeout(300);
+  await page.reload();
+  await page.waitForFunction(()=>globalThis.NAI_RUNTIME&& !document.querySelector('#appView').classList.contains('hidden'),{},{timeout:15000});
+  await page.waitForFunction(()=>(document.querySelector('#generationProvider')?.value||'').startsWith('relay:'),{},{timeout:10000});
   await page.locator('#floatingGenerateButton').click();
   await waitCompleted(5);
   assert.equal(generationCalls.at(-1).host,'relay.example.test');assert.equal(generationCalls.at(-1).authorization,'Bearer synthetic-relay-key-123');

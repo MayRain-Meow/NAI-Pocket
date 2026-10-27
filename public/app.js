@@ -7,28 +7,28 @@ import {
   unwrapLegacyBrackets,
   parseStructuredPrompt as parseStructuredPromptUtil,
   cloneTagForStorage
-} from './prompt-utils.js?v=1.9.41';
-import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.9.41';
-import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.9.41';
-import { repairImportedPrompt } from './import-repair.js?v=1.9.41';
-import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.9.41';
-import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, isKnownArtistName, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity, suggestArtistNames } from './artist-index-v5.js?v=1.9.41';
-import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.9.41';
-import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.9.41';
-import { buildArtistStormPlan } from './storm-utils.js?v=1.9.41';
-import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.9.41';
-import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.9.41';
-import { MEDIUM_EFFORT, normalizeUcPreset, supportsMediumEffort, UC_PRESET_LABELS, ucPresetFromHint, usesMediumEffort } from './nai-presets.js?v=1.9.41';
-import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.9.41';
-import { focusedInpaintPlan, sanitizeInpaintRegion } from './focused-inpaint.js?v=1.9.41';
-import { observeToastClearance } from './toast-layout.js?v=1.9.41';
-import { installSelectSheets } from './select-sheet.js?v=1.9.41';
-import { attachWeightHighlight } from './weight-highlight.js?v=1.9.41';
-import { confirmAction, promptText } from './confirm-sheet.js?v=1.9.41';
-import { createTaggerPanel } from './tagger-panel.js?v=1.9.41';
-import { createCodexPanel } from './codex-panel.js?v=1.9.41';
-import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.41';
-import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.9.41';
+} from './prompt-utils.js?v=1.9.42';
+import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.9.42';
+import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.9.42';
+import { repairImportedPrompt } from './import-repair.js?v=1.9.42';
+import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.9.42';
+import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, isKnownArtistName, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity, suggestArtistNames } from './artist-index-v5.js?v=1.9.42';
+import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.9.42';
+import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.9.42';
+import { buildArtistStormPlan } from './storm-utils.js?v=1.9.42';
+import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.9.42';
+import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.9.42';
+import { MEDIUM_EFFORT, normalizeUcPreset, supportsMediumEffort, UC_PRESET_LABELS, ucPresetFromHint, usesMediumEffort } from './nai-presets.js?v=1.9.42';
+import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.9.42';
+import { focusedInpaintPlan, sanitizeInpaintRegion } from './focused-inpaint.js?v=1.9.42';
+import { observeToastClearance } from './toast-layout.js?v=1.9.42';
+import { installSelectSheets } from './select-sheet.js?v=1.9.42';
+import { attachWeightHighlight } from './weight-highlight.js?v=1.9.42';
+import { confirmAction, promptText } from './confirm-sheet.js?v=1.9.42';
+import { createTaggerPanel } from './tagger-panel.js?v=1.9.42';
+import { createCodexPanel } from './codex-panel.js?v=1.9.42';
+import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.42';
+import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.9.42';
 
 const GROUP_LABELS_BY_KEY = {
   scene: '场景',
@@ -1757,7 +1757,7 @@ function watchForUpdates() {
     if (await pageIsCurrentRelease()) return; // the page already loaded this release (1.9.39)
     showUpdateBanner();
   });
-  navigator.serviceWorker.register('/sw.js?v=1.9.41').then(registration => {
+  navigator.serviceWorker.register('/sw.js?v=1.9.42').then(registration => {
     let checkedAt = Date.now();
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible' || Date.now() - checkedAt < 10 * 60 * 1000) return;
@@ -8339,6 +8339,22 @@ function providerConfigured(provider) {
   if (isOfficialProvider(provider)) return providerCatalog.official?.configured !== false;
   return Boolean(relayById(normalizeProviderId(provider))?.configured);
 }
+// The device's channel (1.9.42): drafts and schemes carry no route, so the choice of channel and official
+// account is kept here and applied at startup before the draft or the default scheme is restored.
+const ROUTE_KEY = 'nai-pocket-generation-route';
+function restoreGenerationRoute() {
+  let saved = null;
+  try { saved = JSON.parse(storageGet(ROUTE_KEY) || 'null'); } catch { saved = null; }
+  if (!saved || typeof saved !== 'object') return;
+  appState.provider = normalizeProviderId(saved.provider);
+  if (typeof saved.officialAccountId === 'string' && saved.officialAccountId) appState.officialAccountId = saved.officialAccountId;
+  syncProviderOptions();
+}
+function rememberGenerationRoute() {
+  // Only once the provider list is known: before that the dropdown may still show its default.
+  if (!providerCatalog) return;
+  try { storageSet(ROUTE_KEY, JSON.stringify({ provider: normalizeProviderId(appState.provider), officialAccountId: String(appState.officialAccountId || '') })); } catch { /* this visit keeps it */ }
+}
 // The channel select lists NovelAI plus every configured relay. appState.provider is the
 // source of truth: before the catalog arrives the saved relay keeps a placeholder option, so
 // an early generate can never fall back to the official account by accident.
@@ -8460,6 +8476,7 @@ function syncAccountUsageSummary() {
 
 function syncProviderUi() {
   syncProviderOptions();
+  rememberGenerationRoute();
   const provider = normalizeProviderId(els.generationProvider?.value);
   const official = providerCatalog?.official || null;
   const relayRoute = !isOfficialProvider(provider);
@@ -12433,6 +12450,7 @@ async function startApp(context = authContext) {
   activeEditorModule = storageGet('nai-pocket-active-module') || 'all';
   if (editorFocusMode && activeEditorModule === 'all') activeEditorModule = 'scene';
   hydrateState(createDefaultState());
+  restoreGenerationRoute();
   restoreDraft();
   applyEditorFocusMode();
   updateEditorModuleCounts();
