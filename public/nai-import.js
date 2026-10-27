@@ -1,5 +1,5 @@
-import { repairJsonSyntax } from './import-repair.js?v=1.9.40';
-import { inferNovelAiModel } from './model-utils.js?v=1.9.40';
+import { repairJsonSyntax } from './import-repair.js?v=1.9.41';
+import { inferNovelAiModel } from './model-utils.js?v=1.9.41';
 import {
   classifyNaiParameters,
   canonicalAdvancedParameterKey,
@@ -7,9 +7,9 @@ import {
   KNOWN_ADVANCED_PARAMETER_KEYS,
   isNonAdvancedParameterKey,
   isReferenceMetadataKey
-} from './parameter-semantics.js?v=1.9.40';
-import { DEFAULT_GENERATION_MODEL, DEFAULT_GENERATION_PARAMS } from './generation-state.js?v=1.9.40';
-import { recordedMediumEffort, separateAutoText, ucPresetFromHint } from './nai-presets.js?v=1.9.40';
+} from './parameter-semantics.js?v=1.9.41';
+import { DEFAULT_GENERATION_MODEL, DEFAULT_GENERATION_PARAMS } from './generation-state.js?v=1.9.41';
+import { recordedMediumEffort, separateAutoText, ucPresetFromHint } from './nai-presets.js?v=1.9.41';
 
 const SAMPLER_ALIASES = new Map([
   ['euler a', 'k_euler_ancestral'], ['euler ancestral', 'k_euler_ancestral'], ['k_euler_ancestral', 'k_euler_ancestral'],

@@ -2,6 +2,7 @@ import { Buffer } from 'buffer';
 import { buildPayload, sanitizeGenerationState } from '../../public/generation-payload.js';
 import { hasCjk } from '../../public/translation-core.js';
 import { NAX_V5_ARTISTS } from '../../public/artist-index-v5.js';
+import { stormCandidatesOf } from '../../public/style-rank.js';
 import { nativeFiles, localPath } from './files.js';
 import { PocketNative } from './providers.js';
 
@@ -136,6 +137,20 @@ export function createLocalApi({ database, settings, providers, client, assets, 
       return result;
     }
     if (pathname === '/api/jobs/enqueue' && method === 'POST') { const data = await body(); return queue.enqueue(data.state, bounded(data.count, 1, settings.maxBatchSize)); }
+    // Storm (0.7.3): the batch into the phone's queue; candidate artists from the installed 画风数据; 上一轮.
+    if (pathname === '/api/jobs/enqueue-variants' && method === 'POST') { const data = await body(); return queue.enqueueStorm(data.state, data); }
+    if (pathname === '/api/storm/candidates' && method === 'POST') {
+      const data = await body(), ix = await references.stylePack.index.ready();
+      if (!ix) throw failure(503, '还没有画风数据：在 设置 → 画风数据 下载后，Storm 才能挑选画师。');
+      const strings = value => (Array.isArray(value) ? value : []).filter(item => typeof item === 'string').slice(0, 60).map(item => item.slice(0, 160));
+      return stormCandidatesOf(ix, await references.stylePack.index.samples(), { artists: strings(data.artists), exclude: strings(data.exclude), count: data.count,
+        source: ['near', 'far', 'random'].includes(data.source) ? data.source : 'near' }, n => crypto.getRandomValues(new Uint32Array(1))[0] % n);
+    }
+    if (pathname === '/api/storm/recent' && method === 'GET') {
+      const storm = await queue.recentStorm();
+      if (storm) await media.registerIds(storm.items.map(item => item.imageId).filter(Boolean));
+      return { storm };
+    }
     if (['/api/jobs/pause','/api/jobs/resume'].includes(pathname) && method === 'POST') {
       const paused = pathname.endsWith('pause'); await queue.control.setQueuePaused(paused); queue.kick(); return { paused };
     }

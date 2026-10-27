@@ -252,3 +252,56 @@ export function rankStyle(ix, { vibe = '', like = '', image = null } = {}) {
   ix.cache.set(key, scores);
   return scores;
 }
+
+// 依据 over one or two indexes (shared by the website and the app, 1.9.41): 混合 = the originals plus the
+// V5 samples, each on its own scale; 'v5' = the samples alone (the originals when an artist has none);
+// 原作 = pass no samples. `image.vector` is the picture's raw CLIP embedding; each index centres it on its
+// own mean. Returns Map(artist -> { score, exampleId, hits }).
+export function rankStyleSources(ix, samples, { vibe = '', like = '', image = null, source = 'mix', unsupported = '画风索引不支持以图找画师，请重建索引。' } = {}) {
+  const v5 = source === 'originals' ? null : samples || null;
+  const rank = (index, optional) => {
+    const vector = image ? centerQuery(index, image.vector) : null;
+    if (image && !vector) {
+      if (optional) return null;
+      throw fail(unsupported, 503);
+    }
+    try { return rankStyle(index, { vibe, like, image: vector ? { key: image.key, vector } : null }); }
+    catch (error) { if (optional && error.status === 404) return null; throw error; }
+  };
+  if (source === 'v5' && v5) return rank(v5, true) || rank(ix, false);
+  return mixStyleRanks(rank(ix, false), v5 ? rank(v5, true) : null);
+}
+
+// Storm candidates (1.9.27; shared with the app in 1.9.41): artists to try beside the current mix.
+// 风格相近 (near) samples from the artists closest to the mix as a whole (each mix artist's 找相似
+// ranking, z-scored and summed); 换换口味 (far) from further down the same ranking; 随机 (random) from
+// everyone. With the V5 samples' index present, only artists V5 has drawn are offered (it knows the name).
+// `randomInt(n)` returns an integer in [0, n).
+const STORM_NEAR = [0, 60], STORM_FAR = [250, 1500];
+export function stormCandidatesOf(ix, samples, { artists = [], source = 'near', count = 8, exclude = [] } = {}, randomInt = n => Math.floor(Math.random() * n)) {
+  const known = samples ? new Set(samples.names) : null;
+  const key = name => String(name || '').replace(/^artist\s*:\s*/i, '').trim().toLowerCase();
+  const skip = new Set([...artists, ...exclude].map(key));
+  const eligible = name => ix.artists.has(name) && (!known || known.has(name)) && !skip.has(key(name));
+  const present = ix.names.filter(name => artists.some(artist => key(artist) === key(name)));
+  let pool;
+  if (source !== 'random' && present.length) {
+    const total = new Map();
+    for (const name of present) {
+      const ranked = rankStyleSources(ix, samples, { like: name });
+      let n = 0, sum = 0, squares = 0;
+      for (const { score } of ranked.values()) { n += 1; sum += score; squares += score * score; }
+      const mean = sum / n, spread = Math.sqrt(Math.max(1e-12, squares / n - mean * mean));
+      for (const [other, item] of ranked) total.set(other, (total.get(other) || 0) + (item.score - mean) / spread);
+    }
+    const order = [...total].filter(([name]) => eligible(name)).sort((a, b) => b[1] - a[1]).map(([name]) => name);
+    const [from, to] = source === 'far' ? STORM_FAR : STORM_NEAR;
+    pool = order.slice(from, to);
+  } else pool = ix.names.filter(eligible);
+  const picked = [];
+  const bag = [...pool];
+  const size = Math.max(1, Math.min(30, Math.round(Number(count) || 8)));
+  while (bag.length && picked.length < size) picked.push(bag.splice(randomInt(bag.length), 1)[0]);
+  return { source: source !== 'random' && !present.length ? 'random' : source, basedOn: present, knownOnly: Boolean(known),
+    artists: picked.map(name => ({ artist: name, exampleId: ix.rows[ix.artists.get(name).rows[0]][0] })) };
+}

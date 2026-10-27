@@ -12,6 +12,12 @@ import { nativeFiles, nativeImages, localPath } from './files.js';
 import { PocketNative } from './providers.js';
 import { createQueueRunner } from './queue-runner.js';
 import { createPhoneGallery } from './phone-gallery.js';
+import { createArtistStorm, summarizeStorm } from '../../service/artist-storm.js';
+import { identifyArtistTag } from '../../public/artist-index-v5.js';
+
+// Storm (0.7.3): the website's batch building on the phone's queue; the last batch is remembered for 上一轮.
+const LAST_STORM_KEY = 'artist_storm_last_batch';
+const artistStorm = createArtistStorm({ isArtistTag: text => identifyArtistTag(text).recognized });
 
 export function openQueue(database, settings, providers, client, media, assets) {
   const { db, serial, transaction } = database, activeJobControllers = new Map();
@@ -85,6 +91,32 @@ export function openQueue(database, settings, providers, client, media, assets) 
       await assets.prepareVibeGeneration(state);
       const result = await enqueueBatch(state, count); kick(); return result;
     },
-    async start() { await control.recoverOrphanedRunningJobs(); kick(); }
+    async start() { await control.recoverOrphanedRunningJobs(); kick(); },
+    // One fixed seed; only the editor's artist weights change (and one candidate artist in the 加画师 modes).
+    // The phone's queue limit (settings.maxQueueSize) also bounds a Storm.
+    async enqueueStorm(raw, options = {}) {
+      await ensureResources();
+      const generationState = sanitizeGenerationState(raw);
+      await assets.prepareVibeGeneration(generationState);
+      await providers.generationProvider(generationState.provider, generationState.officialAccountId);
+      const numeric = Number(options.seed);
+      const seed = Number.isInteger(numeric) && numeric >= 0 && numeric <= 4294967295 ? numeric : crypto.getRandomValues(new Uint32Array(1))[0];
+      const { plan, count, jobs } = artistStorm.stormJobs(generationState, options, { maxSize: settings.maxQueueSize, seed });
+      const batchId = ids.next(), now = Date.now();
+      const rows = jobs.map((job, index) => ({ id: ids.next(), batchId, position: index + 1, json: JSON.stringify(job.state), seed, now }));
+      await generationStore.enqueue(rows, settings.maxQueueSize, rawControl.appendJobLog);
+      await state.set(LAST_STORM_KEY, batchId);
+      kick();
+      return { batchId, count: plan.count, requestedCount: count, seed, externalArtists: plan.externalArtists.length };
+    },
+    async recentStorm() {
+      const batchId = await state.get(LAST_STORM_KEY, '');
+      if (!batchId) return null;
+      const rows = await serial(() => db.prepare('SELECT position,status,image_id,seed,created_at,request_json FROM jobs WHERE batch_id=? ORDER BY position').all(batchId));
+      return summarizeStorm(batchId, rows.map(row => {
+        let experiment = {}; try { experiment = JSON.parse(row.request_json).experiment || {}; } catch { /* unreadable row: no labels */ }
+        return { position: row.position, status: row.status, image_id: row.image_id, seed: row.seed, created_at: row.created_at, experiment };
+      }));
+    }
   };
 }

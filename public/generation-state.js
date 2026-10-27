@@ -13,7 +13,7 @@
 // and the Node server already import prompt/parameter helpers from here, so both runtimes read
 // the same object. Nothing here may touch `db.js`, `node:*` or the network — the browser loads
 // this file directly.
-import { DEFAULT_NAI_MODEL } from './model-utils.js?v=1.9.40';
+import { DEFAULT_NAI_MODEL } from './model-utils.js?v=1.9.41';
 
 
 export const DEFAULT_GENERATION_MODEL = DEFAULT_NAI_MODEL;

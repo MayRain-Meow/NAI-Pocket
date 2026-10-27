@@ -13,7 +13,8 @@ export function publicCss(source) {
 
 export function publicHtml(source) {
   const root = parse(source);
-  const privateIds = new Set(['stormTab','artistAnnotationSettings','renewalDialog','storageAuditButton','galleryScopeRotation','dialogSimilarFromImage','installButton','logoutButton']);
+  // Storm ships in the app since 0.7.3 (it runs on the phone's queue and 画风数据).
+  const privateIds = new Set(['artistAnnotationSettings','renewalDialog','storageAuditButton','galleryScopeRotation','dialogSimilarFromImage','installButton','logoutButton']);
   const privateClasses = new Set(['annotation-settings-section','visitor-settings-section','renewal-settings-section','account-settings-section']);
   function walk(node) {
     if (!node.childNodes) return;
@@ -21,7 +22,7 @@ export function publicHtml(source) {
       if (child.nodeName === '#comment') return false;
       const attrs = Object.fromEntries((child.attrs || []).map(attr => [attr.name, attr.value]));
       if (privateIds.has(attrs.id) || String(attrs.class || '').split(/\s+/).some(value => privateClasses.has(value))) return false;
-      if (attrs['data-tab'] === 'storm' || attrs['data-menu-action'] === 'renewal' || attrs['data-gallery-proxy'] === 'storageAuditButton' || attrs['data-proxy'] === '#logoutButton') return false;
+      if (attrs['data-menu-action'] === 'renewal' || attrs['data-gallery-proxy'] === 'storageAuditButton' || attrs['data-proxy'] === '#logoutButton') return false;
       if (child.tagName === 'link' && /manifest\.webmanifest/.test(attrs.href || '')) return false;
       // 0.6.2 (issue #1, Redmi K80): without viewport-fit=cover, Capacitor's SystemBars pads the app out
       // of the status and gesture bars natively instead of trusting the WebView's env(safe-area-inset-*),

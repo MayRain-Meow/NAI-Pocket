@@ -444,6 +444,25 @@ try {
   const exported=await call('/api/export');assert.equal(exported.data.schemes.length,1);for(const secret of [token,secondToken,rbqToken,'synthetic-relay-key-123'])assert.ok(!JSON.stringify(exported.data).includes(secret));
   const clean=await page.evaluate(async id=>{const response=await fetch(`/api/images/${id}/clean`);const blob=await response.blob();const image=await createImageBitmap(blob);return {status:response.status,width:image.width,type:blob.type};},image.id);
   assert.equal(clean.status,200);assert.equal(clean.width,64);assert.equal(clean.type,'image/png');
+  // Storm (0.7.3): one batch in the phone's queue on one fixed seed, only the artist weight varies; 上一轮 reads it back.
+  const stormState={...state,provider:'rbq',prompt:'artist:anmi, synthetic fixture',groups:{style:[{id:'storm-artist',text:'artist:anmi',weight:1,enabled:true}],scene:[{id:'storm-scene',text:'synthetic fixture',weight:1,enabled:true}],camera:[],misc:[]}};
+  const storm=await call('/api/jobs/enqueue-variants',{state:stormState,count:3,delta:0.3,mode:'mix',roll:7,seed:99,artistIds:['storm-artist']});
+  assert.equal(storm.status,200,JSON.stringify(storm.data));assert.equal(storm.data.count,3);assert.equal(storm.data.seed,99);
+  await waitCompleted(8);
+  const stormCalls=generationCalls.slice(-3);
+  assert.ok(stormCalls.every(item=>item.payload.parameters.seed===99),'one fixed seed');
+  assert.equal(new Set(stormCalls.map(item=>item.payload.input)).size,3,'each picture is a different weighting: '+stormCalls.map(item=>item.payload.input).join(' | '));
+  const recentStorm=(await call('/api/storm/recent')).data.storm;
+  assert.equal(recentStorm.items.length,3);assert.equal(recentStorm.seed,99);
+  assert.ok(recentStorm.items.every(item=>item.status==='completed'&&item.imageId),'上一轮 shows every picture');
+  assert.equal(recentStorm.items.filter(item=>item.isBaseline).length,1,'one baseline');
+  // The Storm page opens from 画风's 「Storm ›」 and shows 上一轮 with its pictures.
+  await page.locator('[data-tab="editor"]').click();
+  await page.locator('[data-storm-link]').first().click();
+  await page.locator('#stormTab.active, #stormTab:not([hidden])').first().waitFor();
+  await page.locator('#stormLast:not([hidden]) .storm-last-tile img').first().waitFor();
+  assert.equal(await page.locator('#stormLast .storm-last-tile').count(),3);
+  await page.screenshot({path:path.join(temporary,'native-storm.png'),fullPage:false});
   await page.locator('[data-tab="gallery"]').click();
   await page.waitForFunction(()=>document.querySelector('#galleryGrid img')?.naturalWidth>0,{},{timeout:10000});
   await page.screenshot({path:path.join(temporary,'native-gallery.png'),fullPage:false});
@@ -465,7 +484,7 @@ try {
   assert.equal(await page.locator('#reverseWorkspace .tagger-settings-button').count(),0);
   await page.screenshot({path:path.join(temporary,'native-reverse.png'),fullPage:false});
   await page.locator('[data-tab="editor"]').click();
-  assert.equal(await page.locator('[data-storm-link]').count(),0);
+  assert.equal(await page.locator('[data-storm-link]').count(),1,'0.7.3: 画风 offers Storm ›');
   await page.locator('[data-edit-text]').click();
   if (!await page.locator('#promptPreview').isVisible()) await page.locator('[data-edit-text]').click();
   await page.locator('#promptPreview').fill('artist:anmi');
@@ -708,6 +727,11 @@ try {
   assert.deepEqual((await call('/api/artists?vibe=watercolor&source=originals')).data.artists.map(item=>item.artist),['fixture same image','anmi'],'原作 ranks by the originals');
   assert.deepEqual((await call('/api/artists/profile?artist=anmi')).data.artist.vibeTags,['暗调阴郁'],'the detail carries the vibe words');
   assert.equal((await call('/api/artists?like=anmi')).data.artists[0].artist,'fixture same image','找相似 answers locally');
+  // Storm (0.7.3): candidate artists come from the installed 画风数据 — with the V5 index, only names V5 knows,
+  // never the mix's own artist.
+  const stormPick=(await call('/api/storm/candidates',{artists:['anmi'],source:'random',count:3})).data;
+  assert.equal(stormPick.knownOnly,true);assert.deepEqual(stormPick.artists.map(item=>item.artist),['fixture same image']);
+  assert.equal((await call('/api/storm/candidates',{artists:['anmi'],source:'near',count:3})).data.basedOn[0],'anmi','近似 starts from the mix');
   // 以图找画师 (0.6.0): the model is its own optional download; the list offers picture search only
   // once it is on the phone.
   assert.equal((await call('/api/artists')).data.imageSearch,false,'no model yet: no picture search');

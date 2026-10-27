@@ -1,10 +1,9 @@
-/* Local builds omit server administration and private artist management tools. */
+/* Local builds omit server administration and private artist management tools (Storm ships since 0.7.3). */
 body.native-mode #artistAnnotationSettings, body.native-mode .visitor-settings-section,
 body.native-mode #storageAuditButton, body.native-mode [data-gallery-proxy="storageAuditButton"],
 body.native-mode .renewal-settings-section, body.native-mode [data-menu-action="renewal"],
 body.native-mode #installButton, body.native-mode #logoutButton, body.native-mode #settingsLogoutButton,
 body.native-mode #galleryScopeRotation,
-body.native-mode [data-tab="storm"], body.native-mode #stormTab,
 body.native-mode #findSimilarArtistsButton { display: none !important; }
 .native-startup-error { max-width: 36rem; margin: 18vh auto; padding: 2rem; }
 body.native-mode { overscroll-behavior-y: contain; }

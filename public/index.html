@@ -8,10 +8,10 @@
   
   <link rel="icon" href="/icons/icon-flow-192.png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="/styles.css?v=1.9.40">
+  <link rel="stylesheet" href="/styles.css?v=1.9.41">
   <link rel="stylesheet" href="/artist-library.css">
-  <link rel="stylesheet" href="/workspace.css?v=1.9.40">
-  <link rel="stylesheet" href="/tag-chips.css?v=1.9.40">
+  <link rel="stylesheet" href="/workspace.css?v=1.9.41">
+  <link rel="stylesheet" href="/tag-chips.css?v=1.9.41">
 <link rel="stylesheet" href="/native.css">
 <link rel="stylesheet" href="/artist-browser.css">
 </head>
@@ -45,7 +45,7 @@
         <button class="tab" data-tab="reverse" type="button" data-owner-only="" data-new-layout-only=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 4.5H5.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V11"></path><circle cx="8.5" cy="9.5" r="1.4"></circle><path d="M4 17l4-4 3 2.6 2.6-2.3 4.4 4.2M18.5 2.8l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9z"></path></svg><span>反推</span></button>
         <button class="tab" data-tab="artists" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"></circle><path d="M3.5 19c.6-4 2.4-6 5.5-6s4.9 2 5.5 6M16 6h5M18.5 3.5v5"></path></svg><span>画师</span></button>
         <button class="tab" data-tab="codex" type="button" data-new-layout-only=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h5.5A2.5 2.5 0 0 1 13 7v12.5a2 2 0 0 0-2-2H5zM19 4.5h-3.5A2.5 2.5 0 0 0 13 7v12.5a2 2 0 0 1 2-2h4z"></path></svg><span>法典</span></button>
-        
+        <button class="tab" data-tab="storm" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17l4-4 3 2 7-8M15 7h4v4"></path></svg><span>Storm</span></button>
         <button class="tab" data-tab="gallery" type="button" data-onboarding-target="gallery"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4" width="17" height="16" rx="2"></rect><circle cx="9" cy="9" r="1.5"></circle><path d="M4 16l4-4 3.2 3 2.3-2 6.5 6"></path></svg><span>图库</span></button>
         <button class="tab" data-tab="scheme" type="button" data-owner-only=""><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"></path></svg><span>方案</span></button>
         <button class="tab" data-tab="queue" type="button" data-onboarding-target="queue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h12M6 12h12M6 19h8"></path><circle cx="3" cy="5" r=".8"></circle><circle cx="3" cy="12" r=".8"></circle><circle cx="3" cy="19" r=".8"></circle></svg><span>队列</span><span id="queueBadge" class="badge">0</span></button>
@@ -60,7 +60,7 @@
       <header class="topbar workspace-topbar">
         <div class="workspace-crumb"><span>Workspace</span><strong id="pageCrumb">编辑工作台</strong></div>
         <div class="top-actions">
-          <span id="connectionText" class="connection-text">连接中 · v1.9.40</span>
+          <span id="connectionText" class="connection-text">连接中 · v1.9.41</span>
           
           <button id="openNaiImportButton" class="ghost compact-button" type="button" title="导入 NAI / JSON">导入</button>
           
@@ -454,7 +454,74 @@
       <div id="reverseWorkspace" class="tagger-workspace" aria-label="图片反推工作台"></div>
     </section>
 
-    
+    <section id="stormTab" class="tab-panel storm-workspace-tab">
+      <div class="tab-page-header storm-page-header">
+        <div><span class="workspace-eyebrow">Variation workspace</span><div class="storm-title-row"><h1>画风 Storm</h1><button class="parameter-help-button storm-help-button" type="button" data-parameter-help="storm" aria-label="画风 Storm 说明">?</button></div></div>
+      </div>
+      <details id="artistStormPanel" class="storm-panel storm-page-panel" open="">
+        <summary><strong>实验参数</strong></summary>
+        <div class="storm-body">
+          <section class="storm-card storm-mix" data-new-layout-only="">
+            <h3 class="storm-step">现在的画师串</h3>
+            <div id="stormMixChips" class="storm-mix-chips"></div>
+          </section>
+          <section class="storm-card storm-roll" data-new-layout-only="">
+            <h3 class="storm-step">怎么 roll</h3>
+            <div class="storm-seg" role="group" aria-label="roll 什么">
+              <button type="button" data-storm-what="weights">调权重</button>
+              <button type="button" data-storm-what="add">加画师</button>
+              <button type="button" data-storm-what="both">都要</button>
+            </div>
+            <div class="storm-weights">
+              <div class="storm-seg storm-seg-small" role="group" aria-label="权重怎么变">
+                <button type="button" data-storm-way="mix">随机混合</button>
+                <button type="button" data-storm-way="solo">一位一位</button>
+                <button type="button" data-storm-way="linked">整体强弱</button>
+              </div>
+              <label class="storm-range"><span>幅度</span><input id="stormDeltaRange" type="range" min="0.05" max="1" step="0.05" value="0.3"><output id="stormDeltaValue">±0.30</output></label>
+            </div>
+            <div class="storm-add">
+              <div class="storm-seg storm-seg-small" role="group" aria-label="新画师从哪来">
+                <button type="button" data-storm-source="near">风格相近</button>
+                <button type="button" data-storm-source="far">换换口味</button>
+                <button type="button" data-storm-source="random">随机</button>
+              </div>
+              <div class="storm-candidates-row"><div id="stormCandidateChips" class="storm-candidate-chips"></div><button id="stormCandidatesReroll" class="storm-reroll" type="button" aria-label="换一批">↻</button></div>
+            </div>
+            <div class="storm-count"><span>张数</span><button id="stormReroll" class="storm-reroll storm-reroll-plan" type="button" aria-label="重新 roll 一组">↻</button><div class="storm-stepper"><button type="button" data-storm-count="-1" aria-label="少一张">−</button><output id="stormCountValue">7</output><button type="button" data-storm-count="1" aria-label="多一张">＋</button></div></div>
+          </section>
+          <div class="storm-controls">
+            <label>张数<input id="stormCount" type="number" min="2" step="1" value="7"></label>
+            <label>波动 ±<input id="stormDelta" type="number" min="0.01" max="3" step="0.01" value="0.30"></label>
+            <label>采样方式
+              <select id="stormMode">
+                <option value="mix">混合探索</option>
+                <option value="linked">联动权重</option>
+                <option value="solo">一位一位</option>
+                <option value="add">只加画师</option>
+              </select>
+            </label>
+          </div>
+          <div id="stormArtistSummary" class="storm-artist-summary">正在检查当前画师 Tag…</div>
+          <div id="stormPlanPreview" class="storm-plan-preview"></div>
+          <label class="check-label storm-external-toggle"><input id="stormUseExternalArtists" type="checkbox">加入外部画师候选</label>
+          <div id="stormExternalControls" class="storm-external-controls" hidden="">
+            <label>候选数量<input id="stormExternalPoolSize" type="number" min="2" max="30" value="8"></label>
+            <button id="refreshStormExternalArtistsButton" class="ghost" type="button">换一批</button>
+            <div id="stormExternalArtistList" class="storm-external-artist-list">启用后显示候选。</div>
+          </div>
+          <div class="inline-actions storm-actions">
+            <button id="refreshStormPlanButton" class="ghost" type="button">刷新计划</button>
+            <button id="generateStormButton" class="primary" type="button">加入生成队列</button>
+          </div>
+          <section id="stormLast" class="storm-card storm-last" data-new-layout-only="" hidden="">
+            <div class="storm-last-head"><h3 class="storm-step">上一轮</h3><small id="stormLastMeta"></small><button id="stormLastRefresh" class="storm-reroll" type="button" aria-label="刷新上一轮">↻</button></div>
+            <div id="stormLastTiles" class="storm-last-tiles"></div>
+            <div id="stormLastPick" class="storm-last-pick" hidden=""><span id="stormLastPickText"></span><button id="stormLastApply" class="primary" type="button">用这一组</button></div>
+          </section>
+        </div>
+      </details>
+    </section>
 
     <section id="queueTab" class="tab-panel">
       <div class="panel queue-panel standalone">

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.3 — Preview
+
+- Storm (new in the app): 画风 → Storm › generates one batch on one fixed seed in which only the artist weights change, so the pictures compare by weight alone — random mixes, one artist at a time, linked, or adding one candidate artist. Candidates come from the installed 画风数据 (close to the mix, a change of taste, or random; only artists the V5 example index knows). 上一轮 shows the last batch; 用这一组 puts its weights into the editor as one undo step. The batch runs in the phone's queue (its limit of 50 pending pictures applies).
+- Fixed: weights could keep rising by themselves. Tapping + on the strip under a selected Tag could move the strip to the next row (the longer weight made the Tag wrap), the lift of the finger went unheard, and 0.38 s later it acted as a hold, adding a step every 0.085 s without end — even after leaving the editor. A press now ends wherever the finger lifts, and on leaving the app.
+
 ## 0.7.2 — Preview
 
 - The per-image annotations are retired from the artist page; styles are compared by CLIP for every artist. On the 28,912 annotated pictures the annotations and CLIP mostly agreed, but only about half the library had annotations (none of the ~10,000 artists added in October), so every annotation filter quietly dropped half the artists.
