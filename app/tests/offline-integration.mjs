@@ -506,15 +506,16 @@ try {
     await page.waitForFunction(node=>node.naturalWidth>0&&node.src.startsWith('blob:'),await image.elementHandle());
   }
   assert.equal(naxCalls.length,1,'original examples never invoke NAX or upstream services');
-  const chips=async id=>library.locator(`[data-example-evidence="${id}"] .artist-library-chip:not([hidden])`).evaluateAll(nodes=>nodes.map(node=>[node.textContent,node.dataset.automatic||'',node.dataset.evidencePending||'']));
-  assert.deepEqual(await chips('fixture-anmi-1'),[['纤细','true',''],['冷色调','true','']],'AI observations are marked unconfirmed');
-  assert.deepEqual((await chips('fixture-anmi-2')).map(([label,automatic])=>[label,automatic]).sort(),[['平涂','false'],['暖色调','false'],['粗重','false']],'reviewed observations are confirmed chips');
-  assert.deepEqual(await chips('fixture-anmi-3'),[['待标注','','true']],'an example without annotations says so');
+  // 0.7.2 (website 1.9.40): the per-image annotations are retired — pictures carry no tag chips and no
+  // 查看标注; tapping a picture opens it large, without its annotation.
   const viewer=page.locator('.artist-result-dialog');
-  const viewAnnotation=async id=>{await library.locator(`[data-view-annotation="${id}"]`).click();await viewer.locator('.artist-result-info').waitFor();const text=await viewer.textContent();await viewer.getByRole('button',{name:'关闭',exact:true}).click();return text;};
-  { const text=await viewAnnotation('fixture-anmi-1');assert.match(text,/AI 初标 · 未人工确认/);assert.match(text,/合成标注 A/); }
-  { const text=await viewAnnotation('fixture-anmi-2');assert.match(text,/人工已确认/);assert.doesNotMatch(text,/合成标注 A/);assert.match(text,/合成标注 B/); }
-  assert.match(await viewAnnotation('fixture-anmi-3'),/暂无可查看的标注结果/);
+  assert.equal(await library.locator('[data-example-evidence] .artist-library-chip:visible').count(),0,'pictures carry no tag chips');
+  assert.equal(await library.locator('[data-view-annotation], [data-annotate-example], [data-evidence-annotate]').count(),0,'no annotation entries on pictures');
+  await library.locator('.artist-library-example-image').first().click();
+  await viewer.locator('.artist-result-media img').waitFor();
+  assert.match(await viewer.textContent(),/例图 · anmi/);
+  assert.doesNotMatch(await viewer.textContent(),/判断依据|未人工确认|人工已确认|编辑标注/,'the viewer shows the picture, not its annotation');
+  await viewer.getByRole('button',{name:'关闭',exact:true}).click();
   // 1.7.2 / 0.5.0: without management and before 画风数据 is installed the icon bar is only 笔记;
   // 画风概览 opens from the vibe line under the name.
   assert.deepEqual(await library.locator('.artist-library-detail-actions > button').allTextContents(),['笔记'],'no management actions without management');
@@ -528,7 +529,7 @@ try {
   await page.keyboard.press('Escape');
   await page.setViewportSize({width:360,height:800});
   await page.waitForTimeout(250);
-  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'per-image annotations fit a narrow phone');
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'the artist detail fits a narrow phone');
   await page.screenshot({path:path.join(temporary,'native-artist-resources.png'),fullPage:true});
   // Notes are edited in the 资料 sheet; a failed save is reported and nothing is stored.
   await library.locator('[data-open-artist-panel="profile"]').click();
@@ -543,9 +544,9 @@ try {
   await page.getByText('画师资料已保存。',{exact:true}).first().waitFor();
   assert.equal((await call('/api/artists/profile?artist=anmi')).data.artist.note,'星空方案，线条与色彩待比较。','note saved from the 资料 panel persists');
   await profilePanel.getByRole('button',{name:'关闭',exact:true}).click();
-  // Back navigation: an open dialog closes first (here the annotation viewer), then the detail.
-  await library.locator('[data-view-annotation="fixture-anmi-1"]').click();
-  await viewer.locator('.artist-result-info').waitFor();
+  // Back navigation: an open dialog closes first (here the picture viewer), then the detail.
+  await library.locator('.artist-library-example-image').first().click();
+  await viewer.locator('.artist-result-media img').waitFor();
   await page.evaluate(()=>globalThis.fixtureApp.emit('backButton'));
   assert.equal(await viewer.evaluate(node=>node.open),false,'native back closes the open dialog first');
   assert.equal(await library.locator('.artist-library-detail-toolbar').isVisible(),true,'closing the dialog keeps the detail');
@@ -560,20 +561,10 @@ try {
   assert.equal(await searchBox.inputValue(),'anmi','the list comes back with its search');
   // Style filters narrow results.
   await openFilters();
-  // 0.7.1: the label groups are rows of the panel's 标注筛选 list (no 更多标注筛选 fold).
-  assert.equal(await library.locator('.artist-filter-labels').isVisible(),true,'标注筛选 shows with the panel');
-  await library.locator('.artist-library-refined-filters > summary').click();
-  await library.locator('input[name="attribute-line.weight"][value="bold"]').check();
-  await page.waitForFunction(()=>{const names=[...document.querySelectorAll('#artistLibraryMount .artist-library-card')].map(node=>node.dataset.artistCard);return names.length===1&&names[0]==='anmi';});
-  await library.locator('input[name="attribute-line.weight"][value="bold"]').uncheck();
-  await library.locator('input[name="attribute-line.weight"][value="fine"]').check();
+  // 0.7.2: 标注筛选 is retired (website 1.9.40); the panel is 依据 + 感觉词, and 收藏 still narrows the list.
+  assert.equal(await library.locator('.artist-filter-labels, .artist-library-refined-filters, input[name="confirmedOnly"], input[name="annotated"]').count(),0,'no annotation filters');
   await searchBox.fill('');
-  await page.waitForFunction(()=>{const names=[...document.querySelectorAll('#artistLibraryMount .artist-library-card')].map(node=>node.dataset.artistCard).sort().join();return names==='anmi,fixture no image,fixture same image';});
-  await library.locator('label:has(input[name="confirmedOnly"])').click();
-  await library.getByText('没有符合当前条件的画师。可以清除筛选或搜索其他名称。',{exact:true}).waitFor();
-  await library.locator('label:has(input[name="confirmedOnly"])').click();
-  await artistCard.waitFor();
-  await library.locator('input[name="attribute-line.weight"][value="fine"]').uncheck();
+  await page.waitForFunction(()=>{const names=[...document.querySelectorAll('#artistLibraryMount .artist-library-card')].map(node=>node.dataset.artistCard);return names.length>1&&names.includes('anmi');});
   await library.locator('label:has(input[name="favorite"])').click();
   await page.waitForFunction(()=>[...document.querySelectorAll('#artistLibraryMount .artist-library-card')].map(node=>node.dataset.artistCard).join()==='anmi');
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'artist browsing fits a narrow phone');

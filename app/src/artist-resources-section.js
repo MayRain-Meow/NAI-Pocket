@@ -306,11 +306,11 @@ export function artistResourceNotice({ request, section, styleSection = null, cu
   function render() {
     later.hidden = true;
     if (installed === 0) {
-      text.textContent = '还没有画师标注资料。下载后可看 2.2 万位画师的例图和逐图画风标注（约 100 MB，不含图片，例图从 Danbooru 按需读取）。';
+      text.textContent = '还没有画师资料。下载后可看 2.2 万位画师的原作例图（约 100 MB，不含图片，例图从 Danbooru 按需读取）。';
       action.textContent = '去下载'; action.hidden = false; banner.hidden = false;
     } else if (installed > 0 && outdated && !updateDismissed) {
       // 0.7.1: earlier data is still installed; the update replaces it only once verified.
-      text.textContent = outdated === 'catalog' ? '画师标注资料有更新：画师从约 1.3 万位增加到 2.2 万位（约 100 MB，不含图片）。' : '画风数据有更新：覆盖 2.1 万位画师，并可在画风面板选「依据」V5 出图（约 63 MB）。';
+      text.textContent = outdated === 'catalog' ? '画师标注资料有更新：画师从约 1.3 万位增加到 2.2 万位（约 100 MB，不含图片）。' : '画风数据有更新：覆盖 2.1 万位画师，新增 12 个感觉词（特写、全身、漫画分格……）和「依据」V5 出图（约 63 MB）。';
       action.textContent = '去更新'; action.hidden = false; later.hidden = false; banner.hidden = false;
     } else if (installed > 0 && !style && !styleDismissed) {
       text.textContent = '新增画风数据：下载后可按感觉找画师、找相似（约 63 MB）。';

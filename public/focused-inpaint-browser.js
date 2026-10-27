@@ -1,7 +1,7 @@
-import { decodeRgbaPng, readPngChunks } from './png-metadata.js?v=1.9.37';
-import { imageDimensionsFromBytes, detectImageMime } from './image-bytes.js?v=1.9.37';
-import { Inflate } from './vendor/pako-inflate.js?v=1.9.37';
-import { FOCUSED_IMAGE_MAX_BYTES, assertFocusedDimensions, assertFocusedRgba, checkFocusedAbort } from './focused-inpaint.js?v=1.9.37';
+import { decodeRgbaPng, readPngChunks } from './png-metadata.js?v=1.9.40';
+import { imageDimensionsFromBytes, detectImageMime } from './image-bytes.js?v=1.9.40';
+import { Inflate } from './vendor/pako-inflate.js?v=1.9.40';
+import { FOCUSED_IMAGE_MAX_BYTES, assertFocusedDimensions, assertFocusedRgba, checkFocusedAbort } from './focused-inpaint.js?v=1.9.40';
 
 
 const signature = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);

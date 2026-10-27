@@ -1,12 +1,12 @@
-import { EXACT_CHIPS, VIBE_GROUP_ORDER, chipForWord, attributesForChips } from './artist-vibe-chips.js?v=1.9.37';
-import { STYLE_FACETS, queryHasStyleTerms } from './artist-catalog.js?v=1.9.37';
-import { createArtistResultViewer } from './artist-result.js?v=1.9.37';
-import { observeFittedChips } from './artist-chip-layout.js?v=1.9.37';
-import { buildNaxV5ArtistSearchUrl } from './artist-index-v5.js?v=1.9.37';
-import { modelDisplayName } from './model-utils.js?v=1.9.37';
-import { normalizeProviderId } from './provider-route.js?v=1.9.37';
-import { confirmAction } from './confirm-sheet.js?v=1.9.37';
-import { STYLE_ATTRIBUTES, STYLE_SCHEMA_VERSION, validateStyleAttributes, attributesFromLegacy, legacyFromAttributes, summarizeStyleEvidence } from './artist-style-schema.js?v=1.9.37';
+import { EXACT_CHIPS, VIBE_GROUP_ORDER, chipForWord, attributesForChips } from './artist-vibe-chips.js?v=1.9.40';
+import { STYLE_FACETS, queryHasStyleTerms } from './artist-catalog.js?v=1.9.40';
+import { createArtistResultViewer } from './artist-result.js?v=1.9.40';
+import { observeFittedChips } from './artist-chip-layout.js?v=1.9.40';
+import { buildNaxV5ArtistSearchUrl } from './artist-index-v5.js?v=1.9.40';
+import { modelDisplayName } from './model-utils.js?v=1.9.40';
+import { normalizeProviderId } from './provider-route.js?v=1.9.40';
+import { confirmAction } from './confirm-sheet.js?v=1.9.40';
+import { STYLE_ATTRIBUTES, STYLE_SCHEMA_VERSION, validateStyleAttributes, attributesFromLegacy, legacyFromAttributes, summarizeStyleEvidence } from './artist-style-schema.js?v=1.9.40';
 
 // 画风依据 (1.9.17): 混合 / V5 出图 / 原作, remembered on this device; storage may be denied.
 const STYLE_SOURCE_KEY = 'nai-pocket-style-source';
@@ -721,10 +721,7 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
       const help = el('details', { className: 'artist-library-coverage-help artist-library-attribute-help' }, [
         el('summary', { text: '?', attrs: { 'aria-label': '全库统计说明' } }),
         el('div', { className: 'artist-library-coverage-help-panel', attrs: { 'data-coverage-help-panel': 'true' } }, [
-          el('p', { text: `统计全库，不随当前筛选变化。未标注 ${count(summary.unannotatedExamples)} 张，已处理但未判断 ${count(summary.unjudgedExamples)} 张；后者不会自动重试。` }),
-          Number(summary.sampleExamples) > 0
-            ? el('p', { text: `例图样本 ${count(summary.sampleExamples)} 张不计入标注统计：它们由同一基准 Prompt 批量生成，只有画师 Tag 不同，标签彼此近乎重复。` })
-            : null,
+          el('p', { text: '统计全库，不随当前筛选变化。' }),
           el('p', { text: (() => {
             const parts = [];
             if (gone) parts.push(`${gone} 位经 D 站核查已确认无法获取（封禁、记录删除或查无此名）`);
@@ -744,13 +741,7 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
         fact('待补例图', remaining, ` / ${total} 位`, { className: 'artist-library-coverage-pending', attrs: { 'data-coverage-artists': 'true' } }),
         gone ? fact('已确认无法获取', gone, ' 位', { className: 'artist-library-coverage-gone', attrs: { 'data-coverage-gone': 'true', title: 'D 站已封禁、已删除或查无此名；已核实并保留记录' } }) : null,
         blocked ? fact('暂无合格静图', blocked, ' 位', { className: 'artist-library-coverage-blocked', attrs: { 'data-coverage-blocked': 'true', title: '已核查：合作图、匿名无 720 缩略图、无可见帖或名称无法作为 D 站标签查询' } }) : null,
-        fact('待补标签', count(summary.examplesWithoutTags), ` / ${count(summary.totalExamples)} 张`, { attrs: {
-          title: `只统计正式例图（不含例图样本）：未标注 ${count(summary.unannotatedExamples)} 张 · 已处理但未判断 ${count(summary.unjudgedExamples)} 张；后者不会自动重试` } }),
-        // Samples are stated rather than silently dropped, so the smaller backlog is not
-        // mistaken for lost examples.
-        Number(summary.sampleExamples) > 0
-          ? fact('例图样本', count(summary.sampleExamples), ' 张另计', { attrs: { 'data-coverage-samples': 'true', title: '批量生成的例图样本不参与标注统计：它们共用同一基准 Prompt，标签彼此近乎重复' } })
-          : null
+        // 待补标签 / 例图样本 left with the annotations (1.9.40).
       ].filter(Boolean);
       // The "?" CLOSES the line, and is bound to the last fact so it can never sit alone.
       //
@@ -764,7 +755,6 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
       // default `flex-wrap: nowrap`, so the last fact and the control wrap as one unit.
       const ratio = (done, all) => `${Math.round(Math.max(0, Math.min(1, all ? done / all : 0)) * 100)}%`;
       facts[0]?.style.setProperty('--done', ratio(total - remaining, total));
-      facts.find(node => node.textContent.startsWith('待补标签'))?.style.setProperty('--done', ratio(count(summary.totalExamples) - count(summary.examplesWithoutTags), count(summary.totalExamples)));
       const last = facts.pop();
       const tail = last ? el('span', { className: 'artist-library-coverage-tail' }, [last, help]) : help;
       coverageHost.replaceChildren(...facts, tail);
@@ -1496,19 +1486,13 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
       });
       (groups.get(chip.group) || groups.set(chip.group, []).get(chip.group)).push(node);
     }
-    for (const chip of EXACT_CHIPS) {
-      const node = chipButton(chip.id, chip.label, exactChipOn(chip) ? 'want' : 'off', GROUP_HUES[chip.group] || '#8fbf9f', true);
-      node.title = '按标注逐张精确过滤';
-      node.addEventListener('click', () => { pinUnderFinger(node, `[data-vibe-chip="${chip.id}"]`); toggleExactChip(chip); });
-      (groups.get(chip.group) || groups.set(chip.group, []).get(chip.group)).push(node);
-    }
     const rows = [...groups].filter(([, chips]) => chips.length).map(([group, chips]) => {
       const row = el('div', { className: 'artist-vibe-group' }, [el('span', { className: 'artist-vibe-group-label', text: group }), el('div', { className: 'artist-vibe-chips' }, chips)]);
       row.style.setProperty('--hue', GROUP_HUES[group] || '#d6b38a');
       return row;
     });
     const loading = state.styleIndex && !vibeInfo ? [el('p', { className: 'artist-vibe-loading', text: '正在读取感觉词…' })] : [];
-    const hint = wanted.length >= 4 ? '词越多越像混合氛围，个别项可能变弱' : vibeInfo?.available ? '点一下想要，再点不要 · 带角标的按标注过滤' : '带角标的词按标注逐张过滤';
+    const hint = wanted.length >= 4 ? '词越多越像混合氛围，个别项可能变弱' : '点一下想要，再点不要';
     const words = el('section', { className: 'artist-filter-section artist-vibe-words' }, [
       sectionHead('感觉词', hint, `artist-vibe-hint${wanted.length >= 4 ? ' is-warning' : ''}`, { 'data-vibe-hint': 'true' }),
       ...loading, ...rows]);
@@ -1574,7 +1558,6 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
       const id = token.replace(/^-/, '');
       pills.push(pill(vibeLabel(id), token.startsWith('-') ? 'avoid' : 'want', () => setVibe(tokens.filter(item => item !== token)), token));
     }
-    for (const chip of EXACT_CHIPS) if (exactChipOn(chip)) pills.push(pill(chip.label, 'want', () => toggleExactChip(chip), chip.id));
     host.replaceChildren(...pills);
     if (revealImagePill) {
       const shown = host.querySelector('[data-active-pill="image-pending"], [data-active-pill="image"]');
@@ -1588,13 +1571,11 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     if (!words.length) return false;
     if (state.styleIndex && !vibeInfo) await loadVibeInfo();
     const chips = vibeInfo?.available ? vibeInfo.chips : [];
-    const matched = words.map(word => [word, chipForWord(word, chips)]).filter(([, hit]) => hit);
+    // Only feel words light up (1.9.40: the annotation-only words are retired).
+    const matched = words.map(word => [word, chipForWord(word, chips)]).filter(([, hit]) => hit?.kind === 'vibe');
     if (!matched.length) return false;
     const tokens = [...(state.filters.vibe || [])];
-    for (const [, hit] of matched) {
-      if (hit.kind === 'vibe') { if (!tokens.includes(hit.id)) tokens.push(hit.id); }
-      else { const chip = EXACT_CHIPS.find(item => item.id === hit.id); setAttributeValue(chip.attribute[0], chip.attribute[1], true); }
-    }
+    for (const [, hit] of matched) if (!tokens.includes(hit.id)) tokens.push(hit.id);
     state.filters.vibe = tokens;
     input.value = words.filter(word => !matched.some(([hit]) => hit === word)).join(' ');
     return true;
@@ -1752,9 +1733,6 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
       state.page = 1;
       scheduleFilterSearch();
     });
-    const exactInput = el('input', { name: 'vibeExact', attrs: { type: 'checkbox' } });
-    exactInput.checked = state.filters.exact === true;
-    exactInput.addEventListener('change', () => { state.filters.exact = exactInput.checked; state.page = 1; scheduleFilterSearch(); });
     const detailedFilters = (auxiliary = false) => {
       const stateKey = auxiliary ? 'auxiliaryPanelOpen' : 'refinedPanelOpen';
       const disclosure = el('details', { className: auxiliary ? 'artist-library-auxiliary-filters' : 'artist-library-refined-filters' });
@@ -1780,15 +1758,9 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     // style ranking is active the sort select gives way to a 画风相近 label (the server orders by style).
     const styleSort = el('span', { className: 'artist-library-style-sort', text: '画风相近' });
     const quickRow = el('div', { className: 'artist-library-quickrow' }, [modelLabel, sortLabel, styleSort, favorite.label, el('div', { className: 'artist-active-pills', attrs: { 'data-artist-active-pills': 'true' } })]);
-    const labels = el('section', { className: 'artist-filter-section artist-filter-labels' }, [
-      sectionHead('标注筛选', '按存下的标注逐位过滤'),
-      el('div', { className: 'artist-filter-list' }, [
-        switchRow(exactInput, '精确', '想要的感觉词，也须有对应标注'),
-        switchRow(annotated.input, '只看有标注', '至少一张图做过标注的画师'),
-        switchRow(confirmed.input, '只看已确认', '只算人工确认过的标注'),
-        facetDisclosure, detailedFilters(), detailedFilters(true)])]);
     const footer = el('div', { className: 'artist-filter-footer' }, [clear, collapse]);
-    form.append(controls, quickRow, vibePanel(), labels, footer);
+    // 1.9.40: 标注筛选 is retired with the annotations; the panel is 依据 + 感觉词.
+    form.append(controls, quickRow, vibePanel(), footer);
     renderQuickRow(form);
     form.toggleAttribute('data-filtered', libraryFiltersActive(state.filters));
     const setPanelOpen = open => {
@@ -1834,6 +1806,11 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     return form;
   }
 
+  // The panel's 收起 says where it leads (1.9.38): 看 N 位结果, once the list has answered.
+  function syncCollapseLabel() {
+    const collapse = body.querySelector('.artist-library-filter-collapse');
+    if (collapse) collapse.textContent = Number.isFinite(state.total) ? `看 ${state.total} 位结果` : '收起';
+  }
   function syncFilterControls() {
     const form = body.querySelector('.artist-library-filters'); if (!form) return;
     for (const input of form.querySelectorAll('input, select')) {
@@ -1842,11 +1819,7 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
       else if (['favorite', 'annotated', 'confirmedOnly'].includes(input.name)) input.checked = state.filters[input.name];
       else if (['query', 'model', 'sort'].includes(input.name)) input.value = input.name === 'sort' ? normalizeArtistSort(state.filters.sort) : state.filters[input.name];
     }
-    form.querySelector('.artist-library-facet-disclosure').querySelector('summary').textContent = filterGroupLabel('画风特征', countSelectedFacets(state.filters.facets));
-    for (const [selector, auxiliary, label] of [['.artist-library-refined-filters', false, '细化特征'], ['.artist-library-auxiliary-filters', true, '构图与作品类型']]) {
-      const count = STYLE_ATTRIBUTES.filter(item => ['composition', 'work'].includes(item.group) === auxiliary).reduce((sum, item) => sum + (state.filters.attributes[item.key]?.length || 0), 0);
-      form.querySelector(selector).querySelector('summary').textContent = filterGroupLabel(label, count);
-    }
+    // 1.9.40: the annotation groups (画风特征 / 细化特征 / 构图) are no longer on the page.
     form.toggleAttribute('data-filtered', libraryFiltersActive(state.filters));
     renderVibePanel(form.querySelector('[data-artist-vibe]'));
     renderQuickRow(form);
@@ -1862,34 +1835,14 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     filterTimer = setTimeout(() => { filterTimer = 0; if (isOpen() && state.view === 'list') loadList({ scroll: null }); }, 100);
   }
 
-  function renderEvidenceChips(container, profile, exampleId = '', limit = 3, confirmedOnly = false) {
-    const dynamic = Boolean(container.dataset.exampleEvidence);
+  // 1.9.40 (owner: the per-image annotations are retired; CLIP covers every artist): an artist reads as
+  // the CLIP feel words it stands out on (profile.vibeTags); single pictures carry no tag chips. The
+  // stored annotations stay in the database and the app's packs; the page no longer shows them.
+  function renderEvidenceChips(container, profile, exampleId = '') {
     chipLayouts.get(container)?.(); chipLayouts.delete(container);
-    const evidence = facetEvidenceForExample(profile, exampleId, confirmedOnly);
-    if (!evidence.length) {
-      // A designed pending state rather than a bare grey string: an image with no
-      // confirmed tags yet is a normal state, so it reads as a label that invites the
-      // annotation instead of looking like a failure to load.
-      container.append(el('span', {
-        className: 'artist-library-chip is-pending',
-        text: '待标注',
-        attrs: { 'data-evidence-pending': 'true', title: '这张例图还没有画风特征标注' }
-      }));
-      return;
-    }
-    if (dynamic) { limit = evidence.length; container.className = 'artist-library-chips artist-library-chip-fit'; container.dataset.chipFit = 'true'; }
-    const groupFor = label => STYLE_ATTRIBUTES.find(definition => label.startsWith(`${definition.label} · `))?.group || label;
-    const groups = new Set(), selected = evidence.filter(item => { const group = groupFor(item.label); if (groups.has(group)) return false; groups.add(group); return true; }).slice(0, limit);
-    for (const item of evidence) { if (selected.length >= limit) break; if (!selected.includes(item)) selected.push(item); }
-    selected.forEach(({ label, automatic, visual }) => container.append(el('span', {
-      className: `artist-library-chip${automatic ? ' is-automatic' : ''}`,
-      text: label.split(' · ').slice(1).join(' · ') || label,
-      attrs: { ...(dynamic ? { 'data-fit-chip': 'true' } : {}), 'data-automatic': automatic ? 'true' : 'false', title: automatic ? visual ? 'AI 逐图观察，尚未经人工确认' : '来自 D 站作品标签，尚未经人工确认' : '已人工确认的例图特征' }
-    })));
-    if (dynamic) {
-      container.append(el('span', { className: 'artist-library-chip', text: `+${evidence.length}`, hidden: true, attrs: { 'data-fit-more': 'true' } }));
-      chipLayouts.set(container, observeFittedChips(container));
-    } else if (evidence.length > limit) container.append(el('span', { className: 'artist-library-chip', text: `+${evidence.length - limit}` }));
+    if (exampleId) { container.hidden = true; return; }
+    const tags = Array.isArray(profile?.vibeTags) ? profile.vibeTags : [];
+    for (const label of tags) container.append(el('span', { className: 'artist-library-chip is-vibe-tag', text: label, attrs: { 'data-vibe-tags': 'true', title: '这位画师在图像风格上突出的感觉词' } }));
   }
 
   // One compact, readable line instead of three short ones with wide gaps. Facts are
@@ -2107,11 +2060,7 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
       chips.className = 'artist-vibe-hits';
       for (const id of wantedChips) chips.append(el('span', { className: `artist-vibe-hit${profile.styleHits.includes(id) ? ' is-hit' : ''}`, text: vibeLabel(id), attrs: { 'data-vibe-hit': id } }));
     } else {
-      renderEvidenceChips(chips, profile, '', 3, state.filters.confirmedOnly);
-      const pending = chips.querySelector('[data-evidence-pending]');
-      if (pending && Array.isArray(profile?.vibeTags) && profile.vibeTags.length) {
-        pending.replaceWith(el('span', { className: 'artist-library-chip is-vibe-tag', text: profile.vibeTags.join(' · '), attrs: { 'data-vibe-tags': 'true', title: '由图像风格自动得出，未经标注' } }));
-      }
+      renderEvidenceChips(chips, profile);
     }
     copy.append(chips);
     const actions = el('div', { className: 'artist-library-card-actions' });
@@ -2186,6 +2135,7 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     // and 有新结果 · 更新 sit on their own full-width line under it, cut to one line. Inside the count's
     // narrow column they wrapped and made the row two or three lines tall.
     const summary = el('div', { className: 'artist-library-list-summary' }, [el('strong', { text: `找到 ${state.total} 位画师` })]);
+    syncCollapseLabel();
     const notes = el('div', { className: 'artist-library-list-notes' }, [
       //
       // A typed word used to be reinterpreted silently: an unrecognized style word
@@ -2999,7 +2949,7 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     else imageButton.dataset.exampleFluid = 'square';
     imageButton.append(imageNode(example.thumbUrl, `${profile.artist} 的例图`, 'artist-library-example-image'));
     const isStored = () => Boolean(example.id && profile.examples?.some(item => item.id === example.id));
-    const openLarge = () => (isStored() ? openResult({ artist: profile.artist, exampleId: example.id }) : showExamplePreview(example, previewHost));
+    const openLarge = () => (isStored() ? openResult({ artist: profile.artist, exampleId: example.id, picture: true }) : showExamplePreview(example, previewHost));
     imageButton.addEventListener('click', openLarge);
     const copy = el('div', { className: 'artist-library-example-copy' });
     if (example.model !== 'original') copy.append(el('strong', { text: friendlyModel(example.model) }));
@@ -3050,8 +3000,6 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
         }
       }).catch(error => notify(errorMessage(error), 'error'));
     });
-    const view = button('查看标注', 'ghost', { 'data-view-annotation': example.id });
-    view.addEventListener('click', () => openResult({ artist: profile.artist, exampleId: example.id }));
     const menu = el('details', { className: 'artist-library-example-menu' });
     const menuSummary = el('summary', { attrs: { 'aria-label': '更多例图操作', title: '更多操作' } });
     menuSummary.append(el('span', { className: 'artist-library-example-menu-dots', text: '⋯', attrs: { 'aria-hidden': 'true' } }));
@@ -3091,7 +3039,7 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     // The menu reads as one primary row plus a compact grid of secondary actions,
     // instead of a stack of equally wide buttons competing for attention.
     // Editing, covers and deletion are management; a host without it keeps only the details.
-    if (manageable()) menuBody.append(el('div', { className: 'artist-library-example-menu-primary' }, [edit]));
+    // 编辑标注 (人工确认) is retired with the annotations (1.9.40).
     const secondary = el('div', { className: 'artist-library-example-menu-actions' });
     // Three states, so cover control is complete: this image is the cover, this
     // image is the automatic cover (nothing to set), or it can become the cover.
@@ -3116,16 +3064,6 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     if (galleryImageId) {
       removeBoth.addEventListener('click', () => { menu.open = false; }, { once: true });
       secondary.append(removeBoth);
-    }
-    if (typeof onAnnotateExample === 'function' && example.sourceType === 'original' && example.model === 'original' && example.metadata?.provider === 'Danbooru' && ['g', 's', 'q', 'e'].includes(example.metadata?.rating)) {
-      const trial = button('单张试标', 'ghost', { 'data-annotate-example': example.id });
-      trial.disabled = manageLocked();
-      trial.addEventListener('click', () => {
-        if (manageLocked()) return;
-        menu.open = false;
-        Promise.resolve(onAnnotateExample(example)).catch(error => notify(errorMessage(error), 'error'));
-      });
-      secondary.append(trial);
     }
     // Every saved example can be the reference for "find artists that look like this",
     // which is the workflow the attribute filters could not serve: point at a picture
@@ -3153,7 +3091,7 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
       menuBody.append(details);
     }
     if (sourceHref) menuBody.append(el('a', { className: 'artist-library-example-menu-link', text: '打开来源链接 ↗', attrs: { href: sourceHref, target: '_blank', rel: 'noopener noreferrer' } }));
-    menu.append(menuBody); actions.append(view, menu);
+    menu.append(menuBody); actions.append(menu);
     const evidence = el('div', { className: 'artist-library-chips', attrs: { 'data-example-evidence': example.id } });
     renderEvidenceChips(evidence, profile, example.id);
     copy.append(evidence);
@@ -3163,16 +3101,6 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     const facts = [];
     if (Number(example.width) > 0 && Number(example.height) > 0) facts.push(`${example.width} × ${example.height}`);
     if (facts.length) copy.append(el('small', { className: 'artist-library-example-facts', attrs: { 'data-example-facts': 'true' }, text: facts.join(' · ') }));
-    // The pending label is the obvious way to fix the emptiness, so it opens the
-    // annotation editor directly. A visitor gets the label without the affordance.
-    const pending = evidence.querySelector('[data-evidence-pending]');
-    if (pending && !manageLocked()) {
-      const action = el('button', { className: 'artist-library-chip is-pending is-action', type: 'button',
-        attrs: { 'data-evidence-annotate': example.id, title: '为这张例图补充画风特征标注' } });
-      action.append(el('span', { text: '待标注' }), el('span', { className: 'artist-library-chip-plus', text: '+' }));
-      action.addEventListener('click', event => { event.stopPropagation(); openPanel(editor); });
-      pending.replaceWith(action);
-    }
     card.append(imageButton, copy, actions, editor);
     // One source of truth for the badge and the cover label, shared with the
     // in-place profile update.
@@ -3818,14 +3746,10 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     // under it; 资料 and 画风概览 open as sheets again.
     const profilePanel = makePanel('资料', profileEditor(profile), 'profile');
     const upload = makePanel('添加例图', uploadPanel(profile), 'upload');
-    // 画风概览 (1.8.2, owner: the old sheet was only annotation counts): what the style index says
-    // about this artist first, the per-image annotation evidence folded underneath.
-    const evidence = el('section', { className: 'artist-library-evidence-summary', attrs: { 'data-artist-evidence-summary': 'true' } });
-    renderSampleEvidence(evidence, profile);
+    // 画风概览 (1.8.2): what the style index says about this artist (1.9.40: the per-image annotation fold is retired).
     const styleOverview = el('div', { className: 'artist-style-overview', attrs: { 'data-artist-style-overview': 'true' } });
     renderStyleOverview(styleOverview, profile);
-    const annotationDetails = el('details', { className: 'artist-overview-annotations' }, [el('summary', { text: '标注明细' }), evidence]);
-    const evidencePanel = makePanel('画风概览', el('div', { className: 'artist-overview' }, [styleOverview, annotationDetails]), 'evidence');
+    const evidencePanel = makePanel('画风概览', el('div', { className: 'artist-overview' }, [styleOverview]), 'evidence');
     fragment.append(detailToolbar(profile, [], { withAdd: false }));
 
     const hero = el('section', { className: 'artist-library-detail-hero' });
@@ -3834,7 +3758,7 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     cover.dataset.artistDetailCover = 'true';
     if (coverExample) {
       cover.classList.add('is-openable');
-      cover.addEventListener('click', () => openResult({ artist: profile.artist, exampleId: coverExample.id }));
+      cover.addEventListener('click', () => openResult({ artist: profile.artist, exampleId: coverExample.id, picture: true }));
     }
     const intro = el('div', { className: 'artist-library-detail-intro' }, [el('h2', { text: profile.artist })]);
     if (profile.aliases?.length) intro.append(el('p', { className: 'artist-library-detail-aliases', text: profile.aliases.join(' · ') }));

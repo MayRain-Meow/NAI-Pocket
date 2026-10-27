@@ -2541,3 +2541,16 @@ body:not(.tag-layout-legacy) .artist-library-page .filters-open .artist-filter-l
 body:not(.tag-layout-legacy) .artist-library-page .filters-open .artist-filter-list .artist-filter-switch .artist-filter-switch-text { min-height: 0; padding: 0; border-radius: 0; background: none; color: inherit; font-size: inherit; }
 body:not(.tag-layout-legacy) .artist-library-page .filters-open .artist-filter-list .artist-filter-switch .artist-vibe-track { min-height: 0; padding: 0; background: #ffffff1a; }
 body:not(.tag-layout-legacy) .artist-library-page .filters-open .artist-filter-list .artist-filter-switch input:checked + .artist-vibe-track { background: color-mix(in srgb, var(--accent) 45%, transparent); }
+:is(.artist-library-page, .artist-library-modal) details.artist-filter-labels > summary { display: flex; align-items: center; min-height: 48px; padding: 0 14px; border-radius: 14px; background: #ffffff07; cursor: pointer; list-style: none; }
+:is(.artist-library-page, .artist-library-modal) details.artist-filter-labels > summary::-webkit-details-marker { display: none; }
+:is(.artist-library-page, .artist-library-modal) details.artist-filter-labels > summary::after { margin-left: auto; color: var(--muted); font-size: 17px; content: "›"; transition: transform .15s; }
+:is(.artist-library-page, .artist-library-modal) details.artist-filter-labels[open] > summary::after { transform: rotate(90deg); }
+:is(.artist-library-page, .artist-library-modal) details.artist-filter-labels[open] > summary { border-radius: 14px 14px 0 0; }
+:is(.artist-library-page, .artist-library-modal) details.artist-filter-labels[open] > .artist-filter-list { border-top: 1px solid #ffffff0b; border-radius: 0 0 14px 14px; }
+:is(.artist-library-page, .artist-library-modal) details.artist-filter-labels { gap: 0; }
+body:not(.tag-layout-legacy) .artist-library-page .filters-open .artist-filter-footer { position: sticky; z-index: 6; bottom: 12px; margin: 14px 0 12px; padding: 8px; border-radius: 16px; background: color-mix(in srgb, var(--bg, #141512) 88%, transparent); box-shadow: 0 -6px 18px #0000004d; backdrop-filter: blur(14px); }
+@media (max-width: 720px) {
+  body:not(.tag-layout-legacy) .artist-library-page .filters-open .artist-filter-footer { bottom: calc(74px + env(safe-area-inset-bottom)); }
+}
+.artist-result-dialog.is-picture .artist-result-body { grid-template-columns: minmax(0, 1fr); }
+.artist-result-dialog.is-picture .artist-result-media img { max-height: 76dvh; object-fit: contain; }

@@ -7,28 +7,28 @@ import {
   unwrapLegacyBrackets,
   parseStructuredPrompt as parseStructuredPromptUtil,
   cloneTagForStorage
-} from './prompt-utils.js?v=1.9.37';
-import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.9.37';
-import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.9.37';
-import { repairImportedPrompt } from './import-repair.js?v=1.9.37';
-import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.9.37';
-import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, isKnownArtistName, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity, suggestArtistNames } from './artist-index-v5.js?v=1.9.37';
-import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.9.37';
-import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.9.37';
-import { buildArtistStormPlan } from './storm-utils.js?v=1.9.37';
-import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.9.37';
-import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.9.37';
-import { MEDIUM_EFFORT, normalizeUcPreset, supportsMediumEffort, UC_PRESET_LABELS, ucPresetFromHint, usesMediumEffort } from './nai-presets.js?v=1.9.37';
-import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.9.37';
-import { focusedInpaintPlan, sanitizeInpaintRegion } from './focused-inpaint.js?v=1.9.37';
-import { observeToastClearance } from './toast-layout.js?v=1.9.37';
-import { installSelectSheets } from './select-sheet.js?v=1.9.37';
-import { attachWeightHighlight } from './weight-highlight.js?v=1.9.37';
-import { confirmAction, promptText } from './confirm-sheet.js?v=1.9.37';
-import { createTaggerPanel } from './tagger-panel.js?v=1.9.37';
-import { createCodexPanel } from './codex-panel.js?v=1.9.37';
-import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.37';
-import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.9.37';
+} from './prompt-utils.js?v=1.9.40';
+import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.9.40';
+import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.9.40';
+import { repairImportedPrompt } from './import-repair.js?v=1.9.40';
+import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.9.40';
+import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, isKnownArtistName, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity, suggestArtistNames } from './artist-index-v5.js?v=1.9.40';
+import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.9.40';
+import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.9.40';
+import { buildArtistStormPlan } from './storm-utils.js?v=1.9.40';
+import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.9.40';
+import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.9.40';
+import { MEDIUM_EFFORT, normalizeUcPreset, supportsMediumEffort, UC_PRESET_LABELS, ucPresetFromHint, usesMediumEffort } from './nai-presets.js?v=1.9.40';
+import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.9.40';
+import { focusedInpaintPlan, sanitizeInpaintRegion } from './focused-inpaint.js?v=1.9.40';
+import { observeToastClearance } from './toast-layout.js?v=1.9.40';
+import { installSelectSheets } from './select-sheet.js?v=1.9.40';
+import { attachWeightHighlight } from './weight-highlight.js?v=1.9.40';
+import { confirmAction, promptText } from './confirm-sheet.js?v=1.9.40';
+import { createTaggerPanel } from './tagger-panel.js?v=1.9.40';
+import { createCodexPanel } from './codex-panel.js?v=1.9.40';
+import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.40';
+import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.9.40';
 
 const GROUP_LABELS_BY_KEY = {
   scene: '场景',
@@ -1732,11 +1732,12 @@ async function renderTrashView() {
 function watchForUpdates() {
   if (!('serviceWorker' in navigator)) return;
   let controlled = Boolean(navigator.serviceWorker.controller);
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
+  navigator.serviceWorker.addEventListener('controllerchange', async () => {
     if (!controlled) { controlled = true; return; } // first install, not an update
+    if (await pageIsCurrentRelease()) return; // the page already loaded this release (1.9.39)
     showUpdateBanner();
   });
-  navigator.serviceWorker.register('/sw.js?v=1.9.37').then(registration => {
+  navigator.serviceWorker.register('/sw.js?v=1.9.40').then(registration => {
     let checkedAt = Date.now();
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible' || Date.now() - checkedAt < 10 * 60 * 1000) return;
@@ -1744,6 +1745,16 @@ function watchForUpdates() {
       registration.update().catch(() => {});
     });
   }).catch(() => {});
+}
+
+// The worker that takes over has just deleted every shell cache but its own (sw.js activate). If this
+// page's version still has one, the page and the worker are the same release and nothing needs a reload.
+async function pageIsCurrentRelease() {
+  try {
+    const version = new URL(import.meta.url).searchParams.get('v');
+    if (!version || !globalThis.caches) return false;
+    return (await caches.keys()).includes(`nai-pocket-shell-v${version.replace(/\./g, '-')}`);
+  } catch { return false; }
 }
 
 function showUpdateBanner() {

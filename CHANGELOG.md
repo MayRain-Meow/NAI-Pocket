@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.2 — Preview
+
+- The per-image annotations are retired from the artist page; styles are compared by CLIP for every artist. On the 28,912 annotated pictures the annotations and CLIP mostly agreed, but only about half the library had annotations (none of the ~10,000 artists added in October), so every annotation filter quietly dropped half the artists.
+- 12 of the corner-marked words are now CLIP feel words that cover every artist: 水墨, 晕染, 丰富色板, 特写, 全身, 远景, 多人, 纵深, 场景图, 肖像, 漫画分格, 设定图 (63 feel words in all; needs the new 画风数据, the artist page offers 去更新). The other 10 are gone: words like 赛璐璐 were on most pictures, so filtering by them kept almost everything.
+- 画风 panel: 依据 and 感觉词 only; 标注筛选 is gone. Cards show the feel words an artist stands out on; pictures carry no tag chips; tapping a picture or the cover opens it large. While the panel is open, 清空 and 看 N 位结果 stay above the bottom bar.
+
 ## 0.7.1 — Preview
 
 - Artist data follows the website's library. The annotation packs list 22,865 artists with 56,667 g/s originals (was 12,866 / 29,464); about 10,000 new artists come with Danbooru picture links but no per-image annotations yet. 画风数据 covers 21,137 artists and 55,742 originals (was 10,984 / 28,966). With the earlier data installed, the artist page offers 去更新; the old data stays until the new one is verified.

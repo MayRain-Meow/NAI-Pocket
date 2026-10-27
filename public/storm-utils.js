@@ -1,4 +1,4 @@
-import { normalizeArtistIdentity } from './artist-index-v5.js?v=1.9.37';
+import { normalizeArtistIdentity } from './artist-index-v5.js?v=1.9.40';
 
 const round = (value, digits = 2) => {
   const scale = 10 ** digits;

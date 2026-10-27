@@ -1,4 +1,4 @@
-import { STYLE_ATTRIBUTES, observationAttributes } from './artist-style-schema.js?v=1.9.37';
+import { STYLE_ATTRIBUTES, observationAttributes } from './artist-style-schema.js?v=1.9.40';
 
 const GROUPS = { line: '线条', coloring: '上色', palette: '色彩', lighting: '光影', texture: '质感', shape: '造型', composition: '构图', work: '作品类型' };
 const clean = (value, max = 2000) => String(value ?? '').trim().slice(0, max);
@@ -44,7 +44,8 @@ export function createArtistResultViewer({ api, onProfile = () => {}, onLocate =
     const scroll = body.scrollTop;
     const unknownOpen = body.querySelector('.artist-result-unknown')?.open || false;
     body.replaceChildren();
-    heading.textContent = `${target.jobId ? '本次 AI 输出' : '当前例图标注'} · ${clean(result.artist, 160) || '例图已移除'}`;
+    // `picture` (1.9.40): the artist page's picture viewer — the annotations it showed are retired.
+    heading.textContent = `${target.jobId ? '本次 AI 输出' : target.picture ? '例图' : '当前例图标注'} · ${clean(result.artist, 160) || '例图已移除'}`;
     const media = el('div', '', 'artist-result-media');
     const previewUrl = result.previewUrl || '';
     if (/^\/api\/artists\/examples\/[\w-]+\/(preview|thumb)$/.test(previewUrl) || /^\/api\/artists\/resources\/image\?/.test(previewUrl)) {
@@ -55,6 +56,7 @@ export function createArtistResultViewer({ api, onProfile = () => {}, onLocate =
       media.append(image);
     } else media.append(el('p', result.deleted ? '例图已移除，保留本次输出记录。' : '暂无例图预览'));
     const info = el('div', '', 'artist-result-info');
+    if (!target.picture) {
     const meta = [target.jobId ? 'AI 输出快照' : result.source, result.model, result.preset?.name || result.preset?.id,
       result.preset?.revision ? `预设版本 ${clean(result.preset.revision, 20)}` : ''].filter(Boolean);
     info.append(el('p', meta.map(value => clean(value, 160)).join(' · '), 'artist-result-meta'));
@@ -81,17 +83,19 @@ export function createArtistResultViewer({ api, onProfile = () => {}, onLocate =
       }
       const evidence = el('section', '', 'artist-result-evidence'); evidence.append(el('h3', '判断依据'), el('p', clean(result.evidence) || '未保存文字依据。')); info.append(evidence);
     }
+    }
     const actions = el('div', '', 'artist-result-actions');
     const href = link(result.sourceUrl);
     if (href) { const source = el('a', '打开原作来源'); source.setAttribute('href', href); source.setAttribute('target', '_blank'); source.setAttribute('rel', 'noopener noreferrer'); actions.append(source); }
     if (!result.deleted && result.artist && result.exampleId) actions.append(button('定位例图', () => { close(); Promise.resolve(onLocate(result.artist, result.exampleId)).catch(() => {}); }));
-    if (!result.deleted && result.artist && result.exampleId && canEdit() && typeof onEdit === 'function') actions.append(button('编辑标注', () => { close(); Promise.resolve(onEdit(result.artist, result.exampleId)).catch(() => {}); }));
-    media.append(actions); body.append(media, info); body.scrollTop = scroll;
+    if (!target.picture && !result.deleted && result.artist && result.exampleId && canEdit() && typeof onEdit === 'function') actions.append(button('编辑标注', () => { close(); Promise.resolve(onEdit(result.artist, result.exampleId)).catch(() => {}); }));
+    media.append(actions); body.append(media, ...(target.picture ? [] : [info])); body.scrollTop = scroll;
+    dialog.classList.toggle('is-picture', Boolean(target.picture));
   }
   async function open(selection) {
     ensure(); controller?.abort(); controller = new AbortController();
     const token = ++revision; target = { ...selection };
-    heading.textContent = '标注结果'; body.replaceChildren(el('p', '读取已保存结果…', 'artist-result-loading'));
+    heading.textContent = target.picture ? '例图' : '标注结果'; body.replaceChildren(el('p', target.picture ? '正在读取…' : '读取已保存结果…', 'artist-result-loading'));
     if (!dialog.open) dialog.showModal();
     try {
       const data = await api(target.jobId ? `/api/artists/annotation/result?jobId=${encodeURIComponent(target.jobId)}` : `/api/artists/profile?artist=${encodeURIComponent(target.artist)}`, { signal: controller.signal });
