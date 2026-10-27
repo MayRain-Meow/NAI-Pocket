@@ -10,7 +10,9 @@ import { nativeFiles } from './files.js';
 // same native JSON reader as the pack catalog; the file is saved natively, then decoded here before
 // the app switches to it, so a bad download never replaces working data.
 
-export const DEFAULT_STYLE_MANIFEST_URL = 'https://github.com/MayRain-Meow/NAI-Pocket/releases/download/artist-style-2026-10-18/style-index.json';
+// 0.7.1: the 2026-10-27 release (the 2.25 万-artist library) also holds the V5 samples' index.
+export const DEFAULT_STYLE_MANIFEST_URL = 'https://github.com/MayRain-Meow/NAI-Pocket/releases/download/artist-style-2026-10-27/style-index.json';
+export const CURRENT_STYLE_VERSION = '2026-10-27';
 const native = registerPlugin('ArtistResources');
 const STATE = 'style-index/installed.json';
 const busyError = () => Object.assign(new Error('画风数据正在下载。'), { status: 409 });
@@ -28,7 +30,10 @@ export function openStylePack() {
     if (!response.ok) throw new Error(`画风数据读取失败（${response.status}）。`);
     return new Uint8Array(await response.arrayBuffer());
   }
-  const index = createLocalStyleIndex({ async read() { const state = await installed(); return state ? bytesOf(state.path) : null; } });
+  const index = createLocalStyleIndex({
+    async read() { const state = await installed(); return state ? bytesOf(state.path) : null; },
+    async readV5() { const state = await installed(); return state?.v5?.path ? bytesOf(state.v5.path) : null; }
+  });
   return {
     index,
     async state() { return { installed: await installed(), busy }; },
@@ -44,21 +49,32 @@ export function openStylePack() {
       const manifest = validateStyleManifest(input.manifest, manifestUrl);
       if (busy) throw busyError();
       busy = true; operationId = crypto.randomUUID();
-      let saved = null;
+      let saved = null, savedV5 = null;
       try {
         const result = await native.downloadStyleIndex({ url: manifest.file.url, sha256: manifest.file.sha256, operationId });
         if (result.cancelled) return { cancelled: true };
         saved = result.path;
         const ix = index.decode(await bytesOf(saved));
+        // The V5 samples' index (0.7.1) comes in the same press; both are checked before either is used.
+        let v5 = null;
+        if (manifest.v5) {
+          const second = await native.downloadStyleIndex({ url: manifest.v5.file.url, sha256: manifest.v5.file.sha256, operationId });
+          if (second.cancelled) return { cancelled: true };
+          savedV5 = second.path;
+          const samples = index.decode(await bytesOf(savedV5));
+          v5 = { version: manifest.v5.version, sha256: manifest.v5.file.sha256, path: savedV5, bytes: second.bytes, images: samples.rows.length, artists: samples.names.length };
+        }
         const previous = await installed();
-        const state = { version: manifest.version, sha256: manifest.file.sha256, path: saved, bytes: result.bytes, images: ix.rows.length, artists: ix.names.length, installedAt: Date.now() };
+        const state = { version: manifest.version, sha256: manifest.file.sha256, path: saved, bytes: result.bytes + (v5?.bytes || 0), images: ix.rows.length, artists: ix.names.length, v5, installedAt: Date.now() };
         await nativeFiles.write(STATE, Buffer.from(JSON.stringify(state)));
-        saved = null;
+        saved = null; savedV5 = null;
         if (previous?.path && previous.path !== state.path) await nativeFiles.remove(previous.path).catch(() => {});
+        if (previous?.v5?.path && previous.v5.path !== state.v5?.path) await nativeFiles.remove(previous.v5.path).catch(() => {});
         index.reset();
         return { installed: state };
       } finally {
         if (saved) await nativeFiles.remove(saved).catch(() => {});
+        if (savedV5) await nativeFiles.remove(savedV5).catch(() => {});
         busy = false;
       }
     },
@@ -67,6 +83,7 @@ export function openStylePack() {
       const state = await installed();
       await nativeFiles.remove(STATE);
       if (state?.path) await nativeFiles.remove(state.path).catch(() => {});
+      if (state?.v5?.path) await nativeFiles.remove(state.v5.path).catch(() => {});
       // Leftovers from an interrupted download.
       try { for (const file of (await Filesystem.readdir({ path: 'style-index', directory: Directory.Data })).files) await nativeFiles.remove(`style-index/${file.name}`).catch(() => {}); } catch {}
       index.reset();

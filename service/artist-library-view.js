@@ -1,7 +1,7 @@
 import { isNaxV5Artist, normalizeArtistIdentity } from '../public/artist-index-v5.js';
 import { validateStyleAttributes, attributesFromLegacy, summarizeStyleEvidence, STYLE_ATTRIBUTES } from '../public/artist-style-schema.js';
 import { artistListOptions, listArtistsView, coverExample } from '../public/artist-list-view.js';
-import { rankStyle, vibeTagsOf, styleProfileOf, centerQuery } from '../public/style-rank.js';
+import { rankStyle, vibeTagsOf, styleProfileOf, centerQuery, mixStyleRanks } from '../public/style-rank.js';
 import { normalizeArtistPreference } from './artist-browser.js';
 import { publicDanbooruStats } from './artist-danbooru-stats.js';
 
@@ -157,15 +157,23 @@ export function createArtistLibraryView({ store, preferences, roster = [], names
       let styleRank = null;
       if (query.vibe || query.like || query.image) {
         if (!style) throw fail('还没有画风数据：在 设置 → 画风数据 下载后可按感觉找画师、找相似。', 503);
-        let image = null;
-        if (query.image) {
-          const raw = styleImages?.vector(String(query.image));
-          if (!raw) throw fail('这张图片的检索已过期，请重新选择图片。', 410);
-          const vector = centerQuery(style, raw);
-          if (!vector) throw fail('画风数据不支持以图找画师，请更新画风数据。', 503);
-          image = { key: String(query.image), vector };
-        }
-        styleRank = rankStyle(style, { vibe: String(query.vibe || ''), like: String(query.like || ''), image });
+        const raw = query.image ? styleImages?.vector(String(query.image)) : null;
+        if (query.image && !raw) throw fail('这张图片的检索已过期，请重新选择图片。', 410);
+        // 依据 (0.7.1, as the website's src/style-index.js): 混合 = originals + V5 samples, each on its own
+        // scale; V5 出图 = the samples alone (the originals when an artist has none); 原作 = originals only.
+        const source = ['originals', 'v5'].includes(query.source) ? query.source : 'mix';
+        const samples = source !== 'originals' && styleIndex.samples ? await styleIndex.samples() : null;
+        const rank = (index, optional) => {
+          let image = null;
+          if (raw) {
+            const vector = centerQuery(index, raw);
+            if (!vector) { if (optional) return null; throw fail('画风数据不支持以图找画师，请更新画风数据。', 503); }
+            image = { key: String(query.image), vector };
+          }
+          try { return rankStyle(index, { vibe: String(query.vibe || ''), like: String(query.like || ''), image }); }
+          catch (error) { if (optional && error.status === 404) return null; throw error; }
+        };
+        styleRank = source === 'v5' && samples ? (rank(samples, true) || rank(style, false)) : mixStyleRanks(rank(style, false), samples ? rank(samples, true) : null);
       }
       const { entries, examples } = await catalog({ notes: Boolean(String(options.query || '').trim()) });
       return { ...listArtistsView(entries, examples, options, { model, sort, fail, styleRank, vibeTags: style ? vibeTagsOf(style) : null,

@@ -5,13 +5,16 @@
 const el = (tag, text = '', className = '') => { const node = document.createElement(tag); node.textContent = text; if (className) node.className = className; return node; };
 const mib = bytes => `${(Math.max(0, Number(bytes) || 0) / 1024 / 1024).toFixed(1)} MB`;
 
-export function artistResourcesSection({ request, defaultCatalogUrl = '', notice = () => {} }) {
+export function artistResourcesSection({ request, defaultCatalogUrl = '', previousCatalogUrls = [], notice = () => {} }) {
   const section = el('section', '', 'settings-dialog-section native-artist-resources');
   const heading = el('div', '', 'settings-section-heading');
   heading.append(el('span', 'Artists', 'workspace-eyebrow'), el('h2', '画师标注资料'));
   const status = el('p', '正在读取本机资料…', 'hint'); status.setAttribute('role', 'status');
   const url = el('input'); url.type = 'url'; url.placeholder = '资料目录链接（catalog.json）'; url.setAttribute('aria-label', '资料目录链接');
-  try { url.value = localStorage.getItem('nai-artist-resource-catalog-url') || defaultCatalogUrl; } catch { url.value = defaultCatalogUrl; }
+  try {
+    const saved = localStorage.getItem('nai-artist-resource-catalog-url');
+    url.value = !saved || previousCatalogUrls.includes(saved) ? defaultCatalogUrl : saved;
+  } catch { url.value = defaultCatalogUrl; }
   const read = el('button', '读取目录', 'ghost'), all = el('button', '', 'primary'), importPack = el('button', '导入资料包', 'ghost'), cancel = el('button', '取消', 'ghost');
   all.hidden = true; cancel.hidden = true;
   const progress = el('progress'); progress.max = 1; progress.hidden = true;
@@ -179,9 +182,9 @@ export function stylePackSection({ request, notice = () => {} }) {
   cancel.hidden = true; remove.hidden = true;
   const progress = el('progress'); progress.max = 1; progress.hidden = true;
   const actions = el('div', '', 'native-artist-resources-actions'); actions.append(get, cancel, remove);
-  block.append(title, status, actions, progress, el('p', '用于画师页的按感觉找画师和找相似。只含画风向量与画师名，覆盖标注资料中的全年龄原作。', 'hint'));
+  block.append(title, status, actions, progress, el('p', '用于画师页的按感觉找画师、找相似和以图找画师。只含画风向量与画师名，覆盖标注资料中的全年龄原作，以及 V5 例图（画风面板的「依据」）。', 'hint'));
   let installed = null, busy = false, timer = 0;
-  const describe = state => `已安装 ${state.version}：${state.artists.toLocaleString()} 位画师、${state.images.toLocaleString()} 张原作（${mib(state.bytes)}）。`;
+  const describe = state => `已安装 ${state.version}：${state.artists.toLocaleString()} 位画师、${state.images.toLocaleString()} 张原作${state.v5 ? `，V5 例图 ${state.v5.images.toLocaleString()} 张` : ''}（${mib(state.bytes)}）。`;
   function sync() {
     get.disabled = busy; cancel.hidden = !busy; progress.hidden = !busy; remove.hidden = busy || !installed;
     get.textContent = installed ? '检查更新' : '下载画风数据';
@@ -221,7 +224,7 @@ export function stylePackSection({ request, notice = () => {} }) {
     try { await request('/api/artists/style-pack', { method: 'DELETE' }); window.dispatchEvent(new Event('nai-artist-resources-changed')); await refresh('已删除画风数据。'); }
     catch (error) { notice(error.message); }
   });
-  block.begin = () => { if (!busy && !installed) get.click(); };
+  block.begin = ({ update = false } = {}) => { if (!busy && (!installed || update)) get.click(); };
   refresh();
   return block;
 }
@@ -278,29 +281,39 @@ export function styleModelSection({ request, notice = () => {} }) {
 
 // Artist page banner (app only): tells the user to download the annotation packs when none
 // are installed, and explains repeated image failures (Danbooru's CDN may be unreachable).
-export function artistResourceNotice({ request, section, styleSection = null }) {
+// 0.7.1: also when the installed annotation packs or 画风数据 are older than this version's defaults.
+export function artistResourceNotice({ request, section, styleSection = null, currentCatalogVersion = '', currentStyleVersion = '' }) {
   const banner = el('div', '', 'native-artist-notice'); banner.hidden = true; banner.setAttribute('role', 'status');
   const text = el('p'), action = el('button', '', 'primary');
   banner.append(text, action);
   const later = el('button', '以后再说', 'ghost'); banner.append(later);
-  let failures = 0, installed = null, style = true, styleDismissed = false;
-  try { styleDismissed = localStorage.getItem('nai-style-pack-later') === '1'; } catch {}
+  let failures = 0, installed = null, style = true, styleDismissed = false, outdated = '', updateDismissed = false;
+  const UPDATE_LATER = `nai-data-update-later-${currentCatalogVersion}-${currentStyleVersion}`;
+  try { styleDismissed = localStorage.getItem('nai-style-pack-later') === '1'; updateDismissed = localStorage.getItem(UPDATE_LATER) === '1'; } catch {}
   action.addEventListener('click', () => {
-    const wantsStyle = installed > 0 && !style;
+    const wantsStyle = installed > 0 && (outdated === 'style' || (!outdated && !style));
     document.getElementById('openSettingsButton')?.click();
     requestAnimationFrame(() => {
-      if (wantsStyle && styleSection) { styleSection.scrollIntoView({ block: 'start' }); styleSection.begin?.(); return; }
-      section.scrollIntoView({ block: 'start' }); if (installed === 0) section.begin?.();
+      if (wantsStyle && styleSection) { styleSection.scrollIntoView({ block: 'start' }); styleSection.begin?.({ update: outdated === 'style' }); return; }
+      section.scrollIntoView({ block: 'start' }); if (installed === 0 || outdated === 'catalog') section.begin?.();
     });
   });
-  later.addEventListener('click', () => { styleDismissed = true; try { localStorage.setItem('nai-style-pack-later', '1'); } catch {} render(); });
+  later.addEventListener('click', () => {
+    if (outdated && !updateDismissed) { updateDismissed = true; try { localStorage.setItem(UPDATE_LATER, '1'); } catch {} }
+    else { styleDismissed = true; try { localStorage.setItem('nai-style-pack-later', '1'); } catch {} }
+    render();
+  });
   function render() {
     later.hidden = true;
     if (installed === 0) {
-      text.textContent = '还没有画师标注资料。下载后可看例图和逐图画风标注（约 79 MB，不含图片，例图从 Danbooru 按需读取）。';
+      text.textContent = '还没有画师标注资料。下载后可看 2.2 万位画师的例图和逐图画风标注（约 100 MB，不含图片，例图从 Danbooru 按需读取）。';
       action.textContent = '去下载'; action.hidden = false; banner.hidden = false;
+    } else if (installed > 0 && outdated && !updateDismissed) {
+      // 0.7.1: earlier data is still installed; the update replaces it only once verified.
+      text.textContent = outdated === 'catalog' ? '画师标注资料有更新：画师从约 1.3 万位增加到 2.2 万位（约 100 MB，不含图片）。' : '画风数据有更新：覆盖 2.1 万位画师，并可在画风面板选「依据」V5 出图（约 63 MB）。';
+      action.textContent = '去更新'; action.hidden = false; later.hidden = false; banner.hidden = false;
     } else if (installed > 0 && !style && !styleDismissed) {
-      text.textContent = '新增画风数据：下载后可按感觉找画师、找相似（约 24 MB）。';
+      text.textContent = '新增画风数据：下载后可按感觉找画师、找相似（约 63 MB）。';
       action.textContent = '去下载'; action.hidden = false; later.hidden = false; banner.hidden = false;
     } else if (failures >= 3) {
       text.textContent = `已有 ${failures} 张例图读取失败：可能无法连接 Danbooru 图片服务器（cdn.donmai.us）。当前网络无法访问时，标注和筛选仍可使用。`;
@@ -308,8 +321,13 @@ export function artistResourceNotice({ request, section, styleSection = null }) 
     } else banner.hidden = true;
   }
   async function refresh() {
-    try { installed = (await request('/api/artists/resources/sets')).sets.filter(row => row.kind !== 'examples').length; } catch { installed = null; }
-    try { style = Boolean((await request('/api/artists/style-pack')).installed); } catch { style = true; }
+    let sets = [], styleState = null;
+    try { sets = (await request('/api/artists/resources/sets')).sets.filter(row => row.kind !== 'examples'); installed = sets.length; } catch { installed = null; }
+    try { styleState = (await request('/api/artists/style-pack')).installed; style = Boolean(styleState); } catch { style = true; }
+    // Only the default packs are compared; a user's own packs have other ids.
+    const catalogOld = currentCatalogVersion && sets.some(row => /^artist-originals-[0-9a-f]{2}$/.test(row.id) && row.version !== currentCatalogVersion);
+    const styleOld = currentStyleVersion && styleState && styleState.version !== currentStyleVersion;
+    outdated = catalogOld ? 'catalog' : styleOld ? 'style' : '';
     if (installed) failures = 0;
     render();
   }

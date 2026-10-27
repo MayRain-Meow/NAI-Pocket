@@ -49,6 +49,8 @@ export function createLocalApi({ database, settings, providers, client, assets, 
     if (pathname === '/api/artists/style-pack/status' && method === 'GET') return references.stylePack.status();
     if (pathname === '/api/artists/style-pack/cancel' && method === 'POST') return references.stylePack.cancel();
     // 以图找画师: the picture is embedded on the phone; list requests then rank by image=<id>.
+    // The website starts its model when 以图 is tapped (1.9.35); on the phone the native model loads with the first picture.
+    if (pathname === '/api/artists/style-image/warm' && method === 'POST') return { warming: false };
     if (pathname === '/api/artists/style-image' && method === 'POST') return { image: await references.styleImages.embed(await bytes()) };
     if (pathname === '/api/artists/style-model' && method === 'GET') return references.styleImages.state();
     if (pathname === '/api/artists/style-model' && method === 'DELETE') return references.styleImages.remove();

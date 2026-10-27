@@ -1,4 +1,4 @@
-import { normalizeArtistIdentity } from './artist-index-v5.js?v=1.9.29';
+import { normalizeArtistIdentity } from './artist-index-v5.js?v=1.9.37';
 
 const round = (value, digits = 2) => {
   const scale = 10 ** digits;
@@ -170,14 +170,15 @@ export function buildArtistStormPlan(rawArtists, options = {}) {  if (Array.isAr
   } else if (mode === 'mix' && Number.isInteger(options.roll) && options.roll >= 0) {
     // A real roll (1.9.28): for each artist, one offset per stratum of the ±delta range (a batch still
     // reaches from low to high), at a random point inside the stratum, in a random order per artist.
-    // Steps of 0.05; the baseline (the editor's weights) stays as #1 for reference.
+    // Steps of 0.01 (1.9.34; 0.05 left one artist only ~12 distinct weights at ±0.3, so most of a large
+    // batch merged as duplicates); the baseline (the editor's weights) stays as #1 for reference.
     const delta = clamp(Math.abs(Number(options.delta) || 0.3), 0.01, 10);
     const n = clamp(Math.round(Number(options.count) || 7), 2, 10000) - 1;
     const random = mulberry32(options.roll >>> 0);
     const offsets = artists.map(() => {
       const order = Array.from({ length: n }, (_, index) => index);
       for (let index = n - 1; index > 0; index -= 1) { const swap = Math.floor(random() * (index + 1)); [order[index], order[swap]] = [order[swap], order[index]]; }
-      return order.map(stratum => clamp(Math.round((-delta + (2 * delta * (stratum + random())) / n) * 20) / 20, -delta, delta));
+      return order.map(stratum => clamp(Math.round((-delta + (2 * delta * (stratum + random())) / n) * 100) / 100, -delta, delta));
     });
     levels = [-delta, delta];
     baselineIndex = 0;

@@ -116,18 +116,27 @@ function chipRank(ix, id) {
 // artist (profile · chip, per-chip mean and spread computed once per index), plus the closest artists.
 // Strong words get bars; clearly-absent ones are named too ("不太像"). Nothing here is a verdict
 // on quality: it says which words describe this artist's images more than most.
+function chipStat(ix, chip) {
+  let sum = 0, squares = 0;
+  const scores = new Float32Array(ix.names.length);
+  for (let a = 0; a < ix.names.length; a++) { const s = dotProfile(ix, a, chip.vector); scores[a] = s; sum += s; squares += s * s; }
+  const mean = sum / ix.names.length;
+  return { mean, std: Math.sqrt(Math.max(1e-12, squares / ix.names.length - mean * mean)), scores };
+}
 function chipStats(ix) {
   if (ix.chipStats) return ix.chipStats;
-  const stats = new Map();
-  for (const [id, chip] of ix.chips) {
-    let sum = 0, squares = 0;
-    const scores = new Float32Array(ix.names.length);
-    for (let a = 0; a < ix.names.length; a++) { const s = dotProfile(ix, a, chip.vector); scores[a] = s; sum += s; squares += s * s; }
-    const mean = sum / ix.names.length;
-    stats.set(id, { mean, std: Math.sqrt(Math.max(1e-12, squares / ix.names.length - mean * mean)), scores });
-  }
-  ix.chipStats = stats;
+  const stats = ix.chipStatsPartial || new Map();
+  for (const [id, chip] of ix.chips) if (!stats.has(id)) stats.set(id, chipStat(ix, chip));
+  ix.chipStats = stats; delete ix.chipStatsPartial;
   return stats;
+}
+// The same statistics one word per call, for a warm-up that yields between words; true when complete.
+export function chipStatsStep(ix) {
+  if (ix.chipStats) return true;
+  const stats = ix.chipStatsPartial ||= new Map();
+  for (const [id, chip] of ix.chips) if (!stats.has(id)) { stats.set(id, chipStat(ix, chip)); return false; }
+  ix.chipStats = stats; delete ix.chipStatsPartial;
+  return true;
 }
 export function styleProfileOf(ix, artist, { strong = 6, weak = 3, similar = 6 } = {}) {
   const entry = ix.artists.get(artist);

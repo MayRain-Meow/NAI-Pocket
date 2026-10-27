@@ -17,7 +17,8 @@ import { createLocalApi } from './api.js';
 import { settings } from './settings.js';
 import { artistResourcesSection, artistResourceNotice, stylePackSection, styleModelSection, exampleImagesSection } from './artist-resources-section.js';
 import { createImageLoader } from './image-loader.js';
-import { DEFAULT_ARTIST_CATALOG_URL, V5_EXAMPLES_CATALOG_URL } from './artist-resource-source.js';
+import { DEFAULT_ARTIST_CATALOG_URL, V5_EXAMPLES_CATALOG_URL, CURRENT_ARTIST_CATALOG_VERSION, PREVIOUS_ARTIST_CATALOG_URLS } from './artist-resource-source.js';
+import { CURRENT_STYLE_VERSION } from './style-pack.js';
 import { createUpdater } from './updater.js';
 import { appUpdateSection } from './update-section.js';
 
@@ -133,12 +134,12 @@ try {
     const response = await api.fetch(path, { method, ...(body ? { body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } } : {}) });
     const data = await response.json(); if (!response.ok) throw new Error(data.error || '本机操作失败。'); return data;
   };
-  const resourcesSection = artistResourcesSection({ request, defaultCatalogUrl: DEFAULT_ARTIST_CATALOG_URL, notice });
+  const resourcesSection = artistResourcesSection({ request, defaultCatalogUrl: DEFAULT_ARTIST_CATALOG_URL, previousCatalogUrls: PREVIOUS_ARTIST_CATALOG_URLS, notice });
   const styleSection = stylePackSection({ request, notice });
   const updateSection = appUpdateSection({ updater: createUpdater({ fetch: http.fetch, state: queue.state, currentVersion: appVersion }),
     native: registerPlugin('AppUpdate'), currentVersion: appVersion });
   settingsBody?.append(await phoneAlbumSection(queue), resourcesSection, exampleImagesSection({ request, catalogUrl: V5_EXAMPLES_CATALOG_URL, notice }), styleSection, styleModelSection({ request, notice }), updateSection, aboutSection(appVersion, licenseButton));
-  document.getElementById('artistLibraryMount')?.before(artistResourceNotice({ request, section: resourcesSection, styleSection }));
+  document.getElementById('artistLibraryMount')?.before(artistResourceNotice({ request, section: resourcesSection, styleSection, currentCatalogVersion: CURRENT_ARTIST_CATALOG_VERSION, currentStyleVersion: CURRENT_STYLE_VERSION }));
   await media.registerAll();
   await import('../../public/app.js');
   // Keep the launch screen until the editor is actually shown (app.js reveals #appView).

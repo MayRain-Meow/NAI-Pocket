@@ -1,7 +1,7 @@
 // Shared vocabulary and evidence-based filtering; no browser or database state.
-import { normalizeArtistIdentity, identifyArtistTag } from './artist-index-v5.js?v=1.9.29';
-import { tokenizePrompt, parseTagToken } from './prompt-utils.js?v=1.9.29';
-import { attributesFromLegacy, legacyFromAttributes, validateStyleAttributes, parseAttributeQuery, matchesStyleAttributes, matchesAnyStyleAttribute, scoreStyleMatch, describeStyleAttributes, observationAttributes } from './artist-style-schema.js?v=1.9.29';
+import { normalizeArtistIdentity, identifyArtistTag } from './artist-index-v5.js?v=1.9.37';
+import { tokenizePrompt, parseTagToken } from './prompt-utils.js?v=1.9.37';
+import { attributesFromLegacy, legacyFromAttributes, validateStyleAttributes, parseAttributeQuery, matchesStyleAttributes, matchesAnyStyleAttribute, scoreStyleMatch, describeStyleAttributes, observationAttributes } from './artist-style-schema.js?v=1.9.37';
 
 const option = (value, label, ...aliases) => ({ value, label, aliases });
 export const STYLE_FACETS = Object.freeze([
@@ -56,7 +56,7 @@ export function deriveDanbooruStyleFacets(rawTags = []) {
   return { facets, provenance: { version: 1, matchedTags: rules.map(rule => rule.tag), rules: rules.map(rule => ({ ...rule })) } };
 }
 
-export { collectPositiveRecommendationTags } from './storm-utils.js?v=1.9.29';
+export { collectPositiveRecommendationTags } from './storm-utils.js?v=1.9.37';
 
 // Candidate mentions, not proof of single-artist attribution. Keep the full prompt
 // beside these summaries: free-form syntax and model interactions remain uncertain.

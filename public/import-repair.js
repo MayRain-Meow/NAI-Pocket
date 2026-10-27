@@ -1,4 +1,4 @@
-import { identifyArtistTag, NAX_V5_ARTISTS, normalizeArtistIdentity } from './artist-index-v5.js?v=1.9.29';
+import { identifyArtistTag, NAX_V5_ARTISTS, normalizeArtistIdentity } from './artist-index-v5.js?v=1.9.37';
 
 // Conservative local vocabulary used only when an entire comma-less phrase can
 // be segmented. Unknown text is never split. The artist index supplies the

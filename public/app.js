@@ -7,28 +7,28 @@ import {
   unwrapLegacyBrackets,
   parseStructuredPrompt as parseStructuredPromptUtil,
   cloneTagForStorage
-} from './prompt-utils.js?v=1.9.29';
-import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.9.29';
-import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.9.29';
-import { repairImportedPrompt } from './import-repair.js?v=1.9.29';
-import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.9.29';
-import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, isKnownArtistName, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity, suggestArtistNames } from './artist-index-v5.js?v=1.9.29';
-import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.9.29';
-import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.9.29';
-import { buildArtistStormPlan } from './storm-utils.js?v=1.9.29';
-import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.9.29';
-import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.9.29';
-import { MEDIUM_EFFORT, normalizeUcPreset, supportsMediumEffort, UC_PRESET_LABELS, ucPresetFromHint, usesMediumEffort } from './nai-presets.js?v=1.9.29';
-import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.9.29';
-import { focusedInpaintPlan, sanitizeInpaintRegion } from './focused-inpaint.js?v=1.9.29';
-import { observeToastClearance } from './toast-layout.js?v=1.9.29';
-import { installSelectSheets } from './select-sheet.js?v=1.9.29';
-import { attachWeightHighlight } from './weight-highlight.js?v=1.9.29';
-import { confirmAction, promptText } from './confirm-sheet.js?v=1.9.29';
-import { createTaggerPanel } from './tagger-panel.js?v=1.9.29';
-import { createCodexPanel } from './codex-panel.js?v=1.9.29';
-import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.29';
-import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.9.29';
+} from './prompt-utils.js?v=1.9.37';
+import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.9.37';
+import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.9.37';
+import { repairImportedPrompt } from './import-repair.js?v=1.9.37';
+import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.9.37';
+import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, isKnownArtistName, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity, suggestArtistNames } from './artist-index-v5.js?v=1.9.37';
+import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.9.37';
+import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.9.37';
+import { buildArtistStormPlan } from './storm-utils.js?v=1.9.37';
+import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.9.37';
+import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.9.37';
+import { MEDIUM_EFFORT, normalizeUcPreset, supportsMediumEffort, UC_PRESET_LABELS, ucPresetFromHint, usesMediumEffort } from './nai-presets.js?v=1.9.37';
+import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.9.37';
+import { focusedInpaintPlan, sanitizeInpaintRegion } from './focused-inpaint.js?v=1.9.37';
+import { observeToastClearance } from './toast-layout.js?v=1.9.37';
+import { installSelectSheets } from './select-sheet.js?v=1.9.37';
+import { attachWeightHighlight } from './weight-highlight.js?v=1.9.37';
+import { confirmAction, promptText } from './confirm-sheet.js?v=1.9.37';
+import { createTaggerPanel } from './tagger-panel.js?v=1.9.37';
+import { createCodexPanel } from './codex-panel.js?v=1.9.37';
+import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.37';
+import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.9.37';
 
 const GROUP_LABELS_BY_KEY = {
   scene: '场景',
@@ -310,6 +310,7 @@ let currentInspectionObjectUrl = '';
 let inspectBusy = false;
 let restoreBusy = false;
 let inspectStatusTimer = 0;
+let inspectAbort = null;
 let naiImportBusy = false;
 const selectedGalleryIds = new Set();
 const openTagGroups = new Set(['scene']);
@@ -1504,22 +1505,10 @@ function clearSemanticSelection() {
   updateSemanticSelectionSummary();
 }
 
-// Nothing searched yet: a few queries to tap (each runs a search), and for 联想 where it starts from.
-const SEMANTIC_EXAMPLES = ['雨夜霓虹街道', '逆光剪影', '水彩质感', '窗边看书的少女', '赛博朋克城市', '樱花飘落'];
+// Nothing searched yet: the result areas stay empty (1.9.35: the 试试 example queries are gone).
 function showSemanticEmptyStates() {
-  const examples = document.createElement('div');
-  examples.className = 'semantic-examples';
-  const label = document.createElement('span');
-  label.textContent = '试试';
-  examples.append(label, ...SEMANTIC_EXAMPLES.map(text => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.dataset.semanticExample = text;
-    button.textContent = text;
-    return button;
-  }));
   els.semanticResults.classList.add('empty-state');
-  els.semanticResults.replaceChildren(examples);
+  els.semanticResults.replaceChildren();
   els.semanticRecommendationResults.classList.add('empty-state');
   els.semanticRecommendationResults.textContent = '';
 }
@@ -1747,7 +1736,7 @@ function watchForUpdates() {
     if (!controlled) { controlled = true; return; } // first install, not an update
     showUpdateBanner();
   });
-  navigator.serviceWorker.register('/sw.js?v=1.9.29').then(registration => {
+  navigator.serviceWorker.register('/sw.js?v=1.9.37').then(registration => {
     let checkedAt = Date.now();
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible' || Date.now() - checkedAt < 10 * 60 * 1000) return;
@@ -7964,8 +7953,10 @@ function renderStormPlan() {
   }
   try {
     const plan = currentStormPlan();
-    if ($('#stormCountValue')) $('#stormCountValue').textContent = String(plan.count);
-    if (els.generateStormButton) els.generateStormButton.textContent = `生成 ${plan.count} 张`;
+    // The stepper shows what was asked for; the button what will be queued (fewer when rows merge).
+    const fixedCount = ['solo', 'add'].includes(plan.mode);
+    if ($('#stormCountValue')) $('#stormCountValue').textContent = String(fixedCount ? plan.count : plan.requestedCount);
+    if (els.generateStormButton) els.generateStormButton.textContent = `生成 ${plan.count} 张${!fixedCount && plan.count < plan.requestedCount ? `（${plan.requestedCount - plan.count} 张重复已合并）` : ''}`;
     els.stormArtistSummary?.classList.remove('is-error');
     if (els.stormArtistSummary) els.stormArtistSummary.textContent = `${plan.artists.length} 位 · ${plan.count} 张${plan.count < plan.requestedCount ? `（合并 ${plan.requestedCount - plan.count} 个重复组合）` : ''} · ±${plan.delta.toFixed(2)} · #${plan.baselineIndex} 原始基准`;
     if (els.stormPlanPreview) {
@@ -9054,6 +9045,7 @@ function stateFromInspection(inspection, restoreAll = true) {
 }
 
 function closeInspectDialog() {
+  inspectAbort?.abort();
   els.inspectDialog?.close();
   currentInspection = null;
   if (currentInspectionObjectUrl) URL.revokeObjectURL(currentInspectionObjectUrl);
@@ -9364,12 +9356,61 @@ function renderInspectionFieldMap(data) {
   els.inspectFieldMap.innerHTML = parts.join('');
 }
 
-function showInspection(data, file) {
-  currentInspection = data;
-  els.inspectActionStatus?.classList.add('hidden');
+// 1.9.35: the dialog opens as soon as a picture is chosen, showing it and how long the read has taken.
+function showInspectionPending(file) {
+  currentInspection = null;
   if (currentInspectionObjectUrl) URL.revokeObjectURL(currentInspectionObjectUrl);
   currentInspectionObjectUrl = URL.createObjectURL(file);
   els.inspectPreview.src = currentInspectionObjectUrl;
+  els.inspectSourceLabel.textContent = '正在读取图片参数…';
+  els.inspectSummary.innerHTML = '<p class="inspect-reading" role="status"><span class="inspect-reading-dot" aria-hidden="true"></span><span data-inspect-reading>读取中 · 1 秒</span></p>';
+  if (els.inspectPrompts) els.inspectPrompts.innerHTML = '';
+  els.inspectFieldMap.innerHTML = '';
+  els.inspectRawParameters.textContent = '';
+  els.inspectWarnings.classList.add('hidden');
+  els.inspectWarnings.innerHTML = '';
+  els.inspectActionStatus?.classList.add('hidden');
+  els.inspectDialog?.classList.remove('is-failed');
+  els.inspectDialog?.classList.add('is-reading');
+  if (!els.inspectDialog?.open) els.inspectDialog?.showModal();
+}
+// A failed read is told next to the picture, with a way to pick another.
+function showInspectionFailure(message) {
+  els.inspectDialog?.classList.remove('is-reading');
+  els.inspectDialog?.classList.add('is-failed');
+  els.inspectSourceLabel.textContent = '没有读到参数';
+  els.inspectSummary.innerHTML = `<div class="inspect-reading is-error" role="alert"><p>${escapeHtml(message)}</p><button type="button" class="ghost" data-inspect-another>换一张图</button></div>`;
+  els.inspectSummary.querySelector('[data-inspect-another]')?.addEventListener('click', () => { closeInspectDialog(); els.inspectImageFile?.click(); });
+}
+// JPEG cannot carry the alpha record, so its parameters all sit before the image data: send only that.
+async function inspectUploadBody(file) {
+  if (!/^image\/jpe?g$/.test(file.type || '') && !/\.jpe?g$/i.test(file.name || '')) return file;
+  try {
+    const head = new Uint8Array(await file.slice(0, Math.min(file.size, 2 * 1024 * 1024)).arrayBuffer());
+    if (head[0] !== 0xff || head[1] !== 0xd8) return file;
+    for (let offset = 2; offset + 4 <= head.length;) {
+      if (head[offset] !== 0xff) return file;
+      const marker = head[offset + 1];
+      if (marker === 0xff) { offset += 1; continue; }
+      if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd8)) { offset += 2; continue; }
+      if (marker === 0xda) return new Blob([file.slice(0, offset), new Uint8Array([0xff, 0xd9])], { type: 'image/jpeg' });
+      if (marker === 0xd9) return file;
+      offset += 2 + ((head[offset + 2] << 8) | head[offset + 3]);
+    }
+  } catch { /* unreadable here: let the server read the whole file */ }
+  return file;
+}
+
+function showInspection(data, file) {
+  currentInspection = data;
+  els.inspectDialog?.classList.remove('is-reading', 'is-failed');
+  els.inspectActionStatus?.classList.add('hidden');
+  if (!currentInspectionObjectUrl) {
+    currentInspectionObjectUrl = URL.createObjectURL(file);
+    els.inspectPreview.src = currentInspectionObjectUrl;
+  }
+  const promptOnlyButton = $('#inspectPromptOnly');
+  if (promptOnlyButton) promptOnlyButton.disabled = false;
   els.inspectSourceLabel.textContent = ({
     'png-text': 'PNG 文本元数据',
     'stealth': 'Alpha 隐写元数据',
@@ -9417,7 +9458,7 @@ function showInspection(data, file) {
   els.inspectWarnings.innerHTML = warnings.map(item => `<p>${escapeHtml(item)}</p>`).join('');
   // Inspection is a normal application dialog.  It must not inherit the
   // tutorial's non-modal stacking mode or move the tutorial card into it.
-  els.inspectDialog?.showModal();
+  if (!els.inspectDialog?.open) els.inspectDialog?.showModal();
 }
 
 async function inspectImageFile(file) {
@@ -9427,41 +9468,47 @@ async function inspectImageFile(file) {
   if (!/^image\/(png|webp|jpe?g)$/.test(file.type || '') && !/\.(png|webp|jpe?g)$/i.test(file.name || '')) throw new Error('只支持 PNG / WebP / JPEG 图片。');
   inspectBusy = true;
   if (els.inspectImageFile) els.inspectImageFile.disabled = true;
-  const restoreLabel = els.restoreToolLabel;
-  const restoreDefaultLabel = restoreLabel?.dataset.defaultLabel || restoreLabel?.textContent || '恢复';
-  if (restoreLabel) restoreLabel.dataset.defaultLabel = restoreDefaultLabel;
   if (els.restoreToolButton) {
     els.restoreToolButton.disabled = true;
     els.restoreToolButton.classList.add('is-loading');
     els.restoreToolButton.setAttribute('aria-busy', 'true');
   }
+  // The open dialog is where the read is reported (restoreToolLabel stays as it is underneath it).
+  showInspectionPending(file);
+  const controller = inspectAbort = new AbortController();
   const startedAt = Date.now();
   const updateRestoreStatus = () => {
     const seconds = Math.max(1, Math.floor((Date.now() - startedAt) / 1000));
-    if (restoreLabel) restoreLabel.textContent = `读取中 · ${seconds} 秒`;
+    const label = els.inspectSummary?.querySelector('[data-inspect-reading]');
+    if (label) label.textContent = `读取中 · ${seconds} 秒`;
   };
-  updateRestoreStatus();
   if (inspectStatusTimer) clearInterval(inspectStatusTimer);
   inspectStatusTimer = setInterval(updateRestoreStatus, 700);
   try {
+    const body = await inspectUploadBody(file);
+    if (controller.signal.aborted) return;
     const response = await fetch('/api/inspect-image', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },
-      body: file
+      body,
+      signal: controller.signal
     });
     let data = null;
     try { data = await response.json(); } catch {}
+    if (controller.signal.aborted) return;
     if (isAppUnauthenticated(response.status, data)) {
+      closeInspectDialog();
       showLogin();
-      throw new Error('登录已失效。');
+      return;
     }
-    if (!response.ok) throw new Error(data?.error || response.statusText || '图片参数读取失败。');
+    if (!response.ok) { showInspectionFailure(data?.error || response.statusText || '图片参数读取失败。'); return; }
     showInspection(data, file);
   } catch (error) {
-    throw error;
+    if (!controller.signal.aborted) showInspectionFailure(error?.message === 'Failed to fetch' ? '网络连接中断，图片没有读完，请再试一次。' : (error?.message || '图片参数读取失败。'));
   } finally {
     if (inspectStatusTimer) { clearInterval(inspectStatusTimer); inspectStatusTimer = 0; }
+    if (inspectAbort === controller) inspectAbort = null;
     inspectBusy = false;
     if (els.inspectImageFile) els.inspectImageFile.disabled = false;
     if (els.restoreToolButton) {
@@ -9469,7 +9516,6 @@ async function inspectImageFile(file) {
       els.restoreToolButton.classList.remove('is-loading');
       els.restoreToolButton.removeAttribute('aria-busy');
     }
-    if (restoreLabel) restoreLabel.textContent = restoreDefaultLabel;
   }
 }
 
@@ -11192,12 +11238,6 @@ function initBindings() {
     toast(added ? `已加入 ${added} 个 Tag，可撤销。` : '这些 Tag 已经都在了。', added ? 'success' : '');
     if (added) { agentPaste.value = ''; agentAdd.disabled = true; }
   });
-  els.semanticResults?.addEventListener('click', event => {
-    const example = event.target.closest('[data-semantic-example]');
-    if (!example) return;
-    els.semanticQuery.value = example.dataset.semanticExample;
-    runSemanticSearch();
-  });
   observeToastClearance($('#toastHost'), els.floatingGenerateBar);
   installSelectSheets({ isEnabled: () => !document.body.classList.contains('tag-layout-legacy') });
   for (const area of [els.promptPreview, $('#negativePrompt')]) attachWeightHighlight(area, { isEnabled: () => !document.body.classList.contains('tag-layout-legacy') });
@@ -12068,6 +12108,8 @@ function initBindings() {
     inspectImageFile(file).catch(error => toast(error.message, 'error'));
   });
   $('#closeInspectDialog')?.addEventListener('click', closeInspectDialog);
+  // Esc / the system back gesture close the dialog natively: a read still running is cancelled too.
+  els.inspectDialog?.addEventListener('close', () => inspectAbort?.abort());
   $('#inspectPromptOnly')?.addEventListener('click', () => {
     restoreInspection(false).catch(error => toast(error.message, 'error'));
   });

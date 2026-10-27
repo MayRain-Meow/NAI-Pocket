@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.1 — Preview
+
+- Artist data follows the website's library. The annotation packs list 22,865 artists with 56,667 g/s originals (was 12,866 / 29,464); about 10,000 new artists come with Danbooru picture links but no per-image annotations yet. 画风数据 covers 21,137 artists and 55,742 originals (was 10,984 / 28,966). With the earlier data installed, the artist page offers 去更新; the old data stays until the new one is verified.
+- 依据 (new in the app): the 画风 panel chooses what styles are compared on — 混合 (default), V5 出图 or 原作 — as on the website. 画风数据 now also carries the style vectors of the 12,779 V5 example pictures (about 63 MB in all, one download).
+- 画风 panel redone in three sections: 依据; 感觉词, with how to use it beside the title; 标注筛选, a list of 精确 / 只看有标注 / 只看已确认 switches followed by 画风特征 / 细化特征 / 构图与作品类型, which open in place. One footer: 清空 (only what this panel chose) and 收起.
+- 读取图片参数: the dialog opens as soon as a picture is chosen, showing it and 读取中 · N 秒; a picture without parameters is explained there, with 换一张图; closing it cancels. JPEG photos are read from their header only.
+- 以图找画师: a 像这张图 · 分析中 pill with the picture appears at once; tap it to cancel.
+- 语义工作台: the example searches are gone.
+
 ## 0.7.0 — Preview
 
 - 反推 has its own tab beside 编辑, one tap from every page. In the app it is the free WD Tagger: pick a picture (or one from the gallery), tap away the Tags you do not want, add the rest to the editor.
