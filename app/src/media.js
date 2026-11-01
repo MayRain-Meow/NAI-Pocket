@@ -47,7 +47,8 @@ export function openMedia(database, resourceStatus) {
     }
   } });
   async function registerAll() {
-    await registerRows(await serial(() => db.prepare('SELECT * FROM images').all()));
+    // Only the columns the routes need (0.7.5): reading every row's parameters held up the start on a big gallery.
+    await registerRows(await serial(() => db.prepare('SELECT id, original_name, thumb_name, preview_name, mime FROM images').all()));
     const assets = await serial(() => db.prepare('SELECT * FROM input_assets').all());
     for (const row of assets) await registerAsset(row);
   }

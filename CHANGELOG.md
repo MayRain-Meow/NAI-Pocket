@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.5 — Preview
+
+- Start-up never just hangs: the launch screen no longer waits for the whole gallery to be indexed (that now happens after the editor appears, and reads far less). If the editor still has not appeared after 15 seconds, a panel names the step it is on and offers 继续等待, 安全启动 (one start without the data-pack clean-up and the gallery preload) and 重新打开.
+- 设置 → 本机存储 (new): what the app keeps on the phone — generated pictures, reference images, artist data packs, the example-image cache, 画风数据, the picture-search model, records and settings — and the free space; 清理例图缓存 frees the cache (pictures are downloaded again when needed).
+- Please do not uninstall to fix a problem: uninstalling erases the gallery, schemes and accounts for good (the copies in the phone album stay). The start-up panel, the start-up error page and 本机存储 all say so.
+
 ## 0.7.4 — Preview
 
 - Fixed: every start went back to the official channel, so a relay user had to pick their relay again. Drafts and schemes carry no channel on purpose (a scheme must never hold an account), so a restored draft took the dropdown's default. The channel (and the chosen official account) is now remembered on the phone and applied before the draft is restored; switching back to the official channel is remembered too.

@@ -79,6 +79,48 @@ public class PocketNativePlugin extends Plugin {
         } catch (Exception error) { call.reject("本机图片路由无效。", error); }
     }
 
+    // 本机存储 (0.7.5): the size of each top-level app folder, the database and the cache, measured off the
+    // main thread; and clearing the example-image cache (re-downloadable Danbooru renditions).
+    private final ExecutorService storageThread = Executors.newSingleThreadExecutor();
+    private static long sizeOf(File file) {
+        if (file == null || !file.exists()) return 0;
+        if (file.isFile()) return file.length();
+        long total = 0; File[] children = file.listFiles();
+        if (children != null) for (File child : children) total += sizeOf(child);
+        return total;
+    }
+    private static void deleteTree(File file) {
+        File[] children = file.listFiles();
+        if (children != null) for (File child : children) deleteTree(child);
+        file.delete();
+    }
+    @PluginMethod public void storageUsage(PluginCall call) {
+        storageThread.execute(() -> {
+            try {
+                JSObject folders = new JSObject();
+                File[] entries = getContext().getFilesDir().listFiles();
+                if (entries != null) for (File entry : entries) folders.put(entry.getName(), sizeOf(entry));
+                android.os.StatFs stats = new android.os.StatFs(getContext().getFilesDir().getPath());
+                JSObject result = new JSObject();
+                result.put("folders", folders);
+                result.put("databaseBytes", sizeOf(getContext().getDatabasePath("probe").getParentFile()));
+                result.put("cacheBytes", sizeOf(getContext().getCacheDir()));
+                result.put("freeBytes", stats.getAvailableBytes()); result.put("totalBytes", stats.getTotalBytes());
+                call.resolve(result);
+            } catch (Exception error) { call.reject("本机存储读取失败。", error); }
+        });
+    }
+    @PluginMethod public void clearExampleCache(PluginCall call) {
+        storageThread.execute(() -> {
+            try {
+                File folder = new File(getContext().getFilesDir(), "artist-cache");
+                long freed = sizeOf(folder);
+                if (folder.exists()) deleteTree(folder);
+                JSObject result = new JSObject(); result.put("freedBytes", freed); call.resolve(result);
+            } catch (Exception error) { call.reject("例图缓存清理失败。", error); }
+        });
+    }
+
     @PluginMethod public void diskStatus(PluginCall call) {
         android.os.StatFs stats = new android.os.StatFs(getContext().getFilesDir().getPath());
         JSObject result = new JSObject(); result.put("freeBytes", stats.getAvailableBytes()); result.put("totalBytes", stats.getTotalBytes()); call.resolve(result);

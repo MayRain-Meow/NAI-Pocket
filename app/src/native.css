@@ -60,3 +60,13 @@ body.native-mode .artist-library-page { padding-top: 4px; }
 .native-about-section .native-about-actions { flex-wrap: wrap; align-items: center; }
 .native-about-section .native-star-button { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 22%, transparent), color-mix(in srgb, var(--accent) 10%, transparent)); color: var(--accent); font-weight: 700; font-size: 14px; text-decoration: none; }
 .native-about-section .native-star-button > span { font-size: 15px; }
+
+/* 本机存储 (0.7.5) */
+.native-storage-list { display: grid; gap: 2px; margin: 6px 0 10px; }
+.native-storage-row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line, #ffffff14); font-size: 13px; }
+.native-storage-row b { font-variant-numeric: tabular-nums; font-weight: 600; }
+.native-storage-warning { margin-top: 10px; color: var(--accent, #d8b48a); }
+
+/* Start-up watchdog (0.7.5): the slow-start panel sits above the launch screen. */
+.native-startup-slow { position: fixed; inset: 0; z-index: 2147483000; display: grid; align-content: center; gap: 12px; margin: 0; padding: 24px; background: var(--bg, #141412); color: var(--text, #eee); }
+.native-startup-slow button { min-height: 44px; }

@@ -30,6 +30,7 @@ const db = new DatabaseSync(path.join(dataRoot,'app.db'));
 const media = new Map(); let vault = '{}', failedVault = false;
 const albumCopies = []; let albumFailure = false;
 const generationCalls = [], encodingCalls = [], naxCalls = [], danbooruCalls = [];
+let exampleCacheBytes = 40*1024**2, slowVaultMs = 0;
 let packMode='valid',packSequence=0;const packStages=new Set(),discardedPacks=[];
 const recoveryCalls=[];
 // App update: GitHub Releases API through the fixture HTTP port, native download/install stubs.
@@ -172,12 +173,15 @@ async function rpc(name,args) {
     if(installBarrier&&args.sql.includes('INSERT INTO artist_resource_observations'))await installBarrier;
     return {changes:{changes:Number(db.prepare(args.sql).run(...args.values).changes)}};
   }
-  if(name==='PocketNative.readVault')return {value:vault};
+  if(name==='PocketNative.readVault'){if(slowVaultMs){const wait=slowVaultMs;slowVaultMs=0;await new Promise(resolve=>setTimeout(resolve,wait));}return {value:vault};}
   if(name==='PocketNative.writeVault'){
     if (preview && Object.values(JSON.parse(args.value).secrets || {}).some(value => !Object.values(demoTokens).includes(value))) throw new Error('体验预览只接受演示 Token；请勿填入真实凭据。');
     if(failedVault){failedVault=false;throw new Error('Synthetic vault commit failure');}vault=args.value;return {};
   }
   if(name==='PocketNative.diskStatus')return {freeBytes:1024**3,totalBytes:8*1024**3};
+  // 本机存储 (0.7.5): synthetic folder sizes; clearing empties the example-image cache.
+  if(name==='PocketNative.storageUsage')return {folders:{originals:5*1024**2,thumbnails:1024**2,'artist-cache':exampleCacheBytes,'style-index':3*1024**2,'artist-resources':2*1024**2},databaseBytes:2*1024**2,cacheBytes:0,freeBytes:1024**3,totalBytes:8*1024**3};
+  if(name==='PocketNative.clearExampleCache'){const freedBytes=exampleCacheBytes;exampleCacheBytes=0;return {freedBytes};}
   if(name==='PocketNative.queueActive'||name==='PocketNative.cancelRequest')return {};
   if(name==='PocketNative.registerMedia'){for(const item of args.entries){if(item.remove)media.delete(item.route);else media.set(item.route,item);}return {};}
   if(name==='PocketNative.requestGalleryAccess')return {granted:true};
@@ -472,6 +476,17 @@ try {
   await page.waitForFunction(()=>document.querySelector('#galleryGrid img')?.naturalWidth>0,{},{timeout:10000});
   await page.screenshot({path:path.join(temporary,'native-gallery.png'),fullPage:false});
   await page.locator('#openSettingsButton').click();
+  // 本机存储 (0.7.5): sizes by kind when 设置 opens, 清理例图缓存, and the do-not-reinstall note.
+  const storage=page.locator('.native-storage');
+  await page.waitForFunction(()=>document.querySelector('.native-storage p[role="status"]')?.textContent.includes('本机共占用'));
+  assert.equal(await storage.locator('[data-storage-kind="例图缓存"] b').textContent(),'40.0 MB');
+  assert.equal(await storage.locator('[data-storage-kind="生成的图"] b').textContent(),'6.0 MB');
+  assert.match(await storage.locator('.native-storage-warning').textContent(),/不要卸载重装/);
+  await storage.locator('[data-storage-clear]').click();
+  await page.waitForFunction(()=>document.querySelector('.native-storage p[role="status"]')?.textContent.startsWith('已清理例图缓存 40.0 MB'));
+  assert.equal(await storage.locator('[data-storage-kind="例图缓存"] b').textContent(),'0.0 MB');
+  assert.equal(await storage.locator('[data-storage-clear]').isDisabled(),true,'nothing left to clear');
+  await storage.scrollIntoViewIfNeeded();await page.screenshot({path:path.join(temporary,'native-storage.png'),fullPage:false});
   // Settings → 关于 carries the author and the repository, and opens the licence view.
   const about=page.locator('.native-about-section');
   assert.match(await about.textContent(),/MayRain-Meow/);
@@ -857,6 +872,15 @@ try {
   await page.locator('#closeSettingsButton').click();
   assert.equal(githubCalls.length,5);
   assert.deepEqual(errors,[]);
+  // Start-up watchdog (0.7.5): a start that takes long names its step instead of hanging on the launch screen,
+  // warns against uninstalling, and gives way to the editor by itself once the step finishes.
+  slowVaultMs=19000;
+  await page.reload();
+  await page.locator('.native-startup-slow').waitFor({timeout:20000});
+  assert.match(await page.locator('.native-startup-slow').textContent(),/正在：读取账号与通道/);
+  assert.match(await page.locator('.native-startup-slow').textContent(),/不要卸载重装/);
+  await page.screenshot({path:path.join(temporary,'native-startup-slow.png'),fullPage:false});
+  await page.waitForFunction(()=>!document.body.classList.contains('native-booting')&&!document.querySelector('.native-startup-slow'),{},{timeout:20000});
   console.log('Offline native wiring passed: UI token entry/rollback, dual-provider routing, Vibe consent/cache, gallery/export, public NAX preview, shared artist library (search/favourites/资料 notes/style filters/reload/Prompt insertion/backup import, no management), Settings resource packs (import/catalog/download/cancel/atomic commit), app update (12-hour throttle, check none/found, download/permission/install, skip, startup toast), native back through panels/detail/list and 360px layout. No upstream network used.');
   console.log(`Screenshot: ${path.join(temporary,'native-gallery.png')}`);
   }

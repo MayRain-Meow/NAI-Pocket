@@ -136,6 +136,9 @@ export function createLocalApi({ database, settings, providers, client, assets, 
       await media.registerIds([...result.jobs.map(job => job.image_id), ...result.completedImages.map(item => item.image.id)]);
       return result;
     }
+    // 本机存储 (0.7.5): what the app keeps on the phone, by kind; the example-image cache can be cleared.
+    if (pathname === '/api/storage/usage' && method === 'GET') return PocketNative.storageUsage();
+    if (pathname === '/api/storage/example-cache' && method === 'DELETE') return PocketNative.clearExampleCache();
     if (pathname === '/api/jobs/enqueue' && method === 'POST') { const data = await body(); return queue.enqueue(data.state, bounded(data.count, 1, settings.maxBatchSize)); }
     // Storm (0.7.3): the batch into the phone's queue; candidate artists from the installed 画风数据; 上一轮.
     if (pathname === '/api/jobs/enqueue-variants' && method === 'POST') { const data = await body(); return queue.enqueueStorm(data.state, data); }

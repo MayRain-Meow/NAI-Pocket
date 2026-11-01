@@ -65,6 +65,51 @@ function inviteStarLater(confirmAction) {
   } catch {}
 }
 
+// 本机存储 (0.7.5): what the app keeps on the phone and the one safe thing to clear, plus the warning that
+// uninstalling erases the gallery, schemes and accounts (a user reinstalled to fix a start-up problem).
+const STORAGE_KINDS = [
+  ['生成的图', ['originals', 'thumbnails', 'previews']], ['参考图', ['input-assets']],
+  ['画师资料与例图包', ['artist-resources']], ['例图缓存', ['artist-cache']], ['画风数据', ['style-index']], ['以图找画师模型', ['style-model']]
+];
+const megabytes = bytes => { const value = Math.max(0, Number(bytes) || 0); return value >= 1024 ** 3 ? `${(value / 1024 ** 3).toFixed(1)} GB` : `${(value / 1024 ** 2).toFixed(1)} MB`; };
+function storageSection({ request, notice }) {
+  const block = document.createElement('section'); block.className = 'settings-dialog-section native-storage';
+  const heading = document.createElement('div'); heading.className = 'settings-section-heading';
+  const eyebrow = document.createElement('span'); eyebrow.className = 'workspace-eyebrow'; eyebrow.textContent = 'Storage';
+  const title = document.createElement('h2'); title.textContent = '本机存储'; heading.append(eyebrow, title);
+  const status = document.createElement('p'); status.className = 'hint'; status.setAttribute('role', 'status'); status.textContent = '打开设置时统计…';
+  const list = document.createElement('div'); list.className = 'native-storage-list';
+  const clear = document.createElement('button'); clear.className = 'ghost'; clear.textContent = '清理例图缓存'; clear.dataset.storageClear = 'example-cache';
+  const warn = document.createElement('p'); warn.className = 'hint native-storage-warning';
+  warn.textContent = '遇到打不开、卡住或空间不够，先在这里清理例图缓存，或在下面删除、重新下载资料。不要卸载重装：卸载会清空图库、方案和账号，无法找回（相册里的原图除外）。';
+  block.append(heading, status, list, clear, warn);
+  let busy = false;
+  async function measure(outcome = '') {
+    if (busy) return; busy = true;
+    try {
+      const usage = await request('/api/storage/usage'), folders = usage.folders || {};
+      const known = new Set(STORAGE_KINDS.flatMap(([, names]) => names));
+      const other = Object.entries(folders).filter(([name]) => !known.has(name)).reduce((sum, [, bytes]) => sum + Number(bytes || 0), 0) + Number(usage.databaseBytes || 0) + Number(usage.cacheBytes || 0);
+      const rows = [...STORAGE_KINDS.map(([label, names]) => [label, names.reduce((sum, name) => sum + Number(folders[name] || 0), 0)]), ['任务记录、设置与其他', other]];
+      list.replaceChildren(...rows.map(([label, bytes]) => { const row = document.createElement('div'); row.className = 'native-storage-row'; row.dataset.storageKind = label;
+        const name = document.createElement('span'); name.textContent = label; const size = document.createElement('b'); size.textContent = megabytes(bytes); row.append(name, size); return row; }));
+      const total = rows.reduce((sum, [, bytes]) => sum + bytes, 0);
+      status.textContent = `${outcome ? `${outcome} ` : ''}本机共占用 ${megabytes(total)}，手机剩余 ${megabytes(usage.freeBytes)}。`;
+      clear.disabled = !Number(folders['artist-cache'] || 0);
+    } catch (error) { status.textContent = `本机存储读取失败：${error.message}`; }
+    finally { busy = false; }
+  }
+  clear.addEventListener('click', async () => {
+    clear.disabled = true;
+    try { const result = await request('/api/storage/example-cache', { method: 'DELETE' }); await measure(`已清理例图缓存 ${megabytes(result.freedBytes)}。`); }
+    catch (error) { notice(error.message); clear.disabled = false; }
+  });
+  // Measured when 设置 opens (never at start-up): walking the folders takes a moment on a large gallery.
+  const dialog = document.getElementById('settingsDialog');
+  if (dialog) new MutationObserver(() => { if (dialog.open) measure(); }).observe(dialog, { attributes: true, attributeFilter: ['open'] });
+  return block;
+}
+
 async function phoneAlbumSection(queue) {
   const section = document.createElement('section'); section.className = 'settings-dialog-section native-album-section';
   const heading = document.createElement('div'); heading.className = 'settings-section-heading';
@@ -99,8 +144,29 @@ const notice = (message, type = 'error') => {
   node.toastTimer = setTimeout(() => node.remove(), type === 'error' ? 8000 : 4200);
 };
 window.addEventListener('nai-runtime-error', event => notice(event.detail));
+// Start-up watchdog (0.7.5): the launch screen never just hangs. After 15 s without the editor, say which
+// step is running and offer 继续等待 / 安全启动 / 重新打开 — never an uninstall, which erases the gallery.
+const SAFE_START_KEY = 'nai-pocket-safe-start';
+let safeStart = false;
+try { safeStart = localStorage.getItem(SAFE_START_KEY) === '1'; localStorage.removeItem(SAFE_START_KEY); } catch { /* storage unavailable: a normal start */ }
+let bootStep = '打开本机数据库', bootStartedAt = Date.now(), bootWatchdog = 0;
+const bootStuckPanel = () => {
+  if (!document.body.classList.contains('native-booting') || document.querySelector('.native-startup-slow')) return;
+  const panel = document.createElement('main'); panel.className = 'native-startup-error native-startup-slow';
+  const title = document.createElement('h1'); title.textContent = '启动比平常慢';
+  const detail = document.createElement('p'); detail.textContent = `正在：${bootStep}（已 ${Math.round((Date.now() - bootStartedAt) / 1000)} 秒）。图库很大时第一次会慢一些。`;
+  const keep = document.createElement('p'); keep.textContent = '不要卸载重装：卸载会清空图库、方案和账号，无法找回。可以先「安全启动」，进去后在 设置 → 本机存储 清理。';
+  const wait = document.createElement('button'); wait.textContent = '继续等待';
+  wait.onclick = () => { panel.remove(); bootWatchdog = setTimeout(bootStuckPanel, 20000); };
+  const safe = document.createElement('button'); safe.textContent = '安全启动';
+  safe.onclick = () => { try { localStorage.setItem(SAFE_START_KEY, '1'); } catch {} location.reload(); };
+  const retry = document.createElement('button'); retry.className = 'ghost'; retry.textContent = '重新打开'; retry.onclick = () => location.reload();
+  panel.append(title, detail, keep, wait, safe, retry); document.body.append(panel);
+};
+bootWatchdog = setTimeout(bootStuckPanel, 15000);
 try {
   const database = await openDatabase(), http = { fetch: nativeFetch };
+  bootStep = '读取账号与通道';
   const providers = await openProviders(settings, http), assets = openAssets(database, settings, http, providers);
   const client = createNativeGenerationClient({ settings, assets, generationProvider: providers.generationProvider,
     ids: { request: () => crypto.randomUUID().slice(0, 6) }, http });
@@ -110,8 +176,12 @@ try {
   const schemes = createSchemesService({ store: database.store(createSchemesStore(database.db, database.transaction)),
     clock: { now: () => Date.now() }, ids: { next: () => crypto.randomUUID() }, sanitizeState: sanitizeGenerationState, includeArtistPreferences: true });
   const references = openReferences(database, settings, http);
-  try {await references.artistPacks.recover();}
-  catch {notice('旧资料清理未完成，现有资料仍可使用；下次启动会重试。');}
+  bootStep = '整理画师资料';
+  if (safeStart) setTimeout(() => notice('这次是安全启动：跳过了资料整理和图库预载。可在 设置 → 本机存储 清理，下次正常启动。', 'info'), 1200);
+  else {
+    try {await references.artistPacks.recover();}
+    catch {notice('旧资料清理未完成，现有资料仍可使用；下次启动会重试。');}
+  }
   const api = createLocalApi({ database, settings, providers, assets, media, queue, client, schemes, references });
   const browserFetch = window.fetch.bind(window);
   window.fetch = (input, options) => {
@@ -138,15 +208,18 @@ try {
   const styleSection = stylePackSection({ request, notice });
   const updateSection = appUpdateSection({ updater: createUpdater({ fetch: http.fetch, state: queue.state, currentVersion: appVersion }),
     native: registerPlugin('AppUpdate'), currentVersion: appVersion });
-  settingsBody?.append(await phoneAlbumSection(queue), resourcesSection, exampleImagesSection({ request, catalogUrl: V5_EXAMPLES_CATALOG_URL, notice }), styleSection, styleModelSection({ request, notice }), updateSection, aboutSection(appVersion, licenseButton));
+  settingsBody?.append(await phoneAlbumSection(queue), storageSection({ request, notice }), resourcesSection, exampleImagesSection({ request, catalogUrl: V5_EXAMPLES_CATALOG_URL, notice }), styleSection, styleModelSection({ request, notice }), updateSection, aboutSection(appVersion, licenseButton));
   document.getElementById('artistLibraryMount')?.before(artistResourceNotice({ request, section: resourcesSection, styleSection, currentCatalogVersion: CURRENT_ARTIST_CATALOG_VERSION, currentStyleVersion: CURRENT_STYLE_VERSION }));
-  await media.registerAll();
+  bootStep = '载入编辑器';
   await import('../../public/app.js');
   // Keep the launch screen until the editor is actually shown (app.js reveals #appView).
   const appView = document.getElementById('appView');
   const revealed = () => !appView || !appView.classList.contains('hidden');
-  if (revealed()) document.body.classList.remove('native-booting');
-  else new MutationObserver((_, observer) => { if (revealed()) { observer.disconnect(); document.body.classList.remove('native-booting'); } }).observe(appView, { attributes: true, attributeFilter: ['class'] });
+  const shown = () => { clearTimeout(bootWatchdog); document.querySelector('.native-startup-slow')?.remove(); document.body.classList.remove('native-booting');
+    // Every screen that shows pictures registers its own; the rest are registered after the editor is up.
+    if (!safeStart) media.registerAll().catch(() => {}); };
+  if (revealed()) shown();
+  else new MutationObserver((_, observer) => { if (revealed()) { observer.disconnect(); shown(); } }).observe(appView, { attributes: true, attributeFilter: ['class'] });
   await queue.start();
   // 回收站: pictures deleted more than 24 hours ago are deleted for good — after start, then hourly.
   const purgeTrash = () => media.gallery.purgeExpiredTrash().catch(() => {});
@@ -162,11 +235,13 @@ try {
     await App.minimizeApp();
   });
 } catch (error) {
+  clearTimeout(bootWatchdog); document.querySelector('.native-startup-slow')?.remove();
   document.getElementById('loginView')?.classList.add('hidden');
   document.body.classList.remove('native-booting');
   const panel = document.createElement('main'); panel.className = 'native-startup-error';
   const title = document.createElement('h1'); title.textContent = '本机数据未能打开';
   const detail = document.createElement('p'); detail.textContent = error.message;
+  const keep = document.createElement('p'); keep.textContent = '请先点「重新打开」或重启手机。不要卸载重装：卸载会清空图库、方案和账号，无法找回。';
   const retry = document.createElement('button'); retry.textContent = '重新打开'; retry.onclick = () => location.reload();
-  panel.append(title, detail, retry); document.body.append(panel);
+  panel.append(title, detail, keep, retry); document.body.append(panel);
 }
