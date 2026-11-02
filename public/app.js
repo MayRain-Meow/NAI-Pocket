@@ -7,28 +7,28 @@ import {
   unwrapLegacyBrackets,
   parseStructuredPrompt as parseStructuredPromptUtil,
   cloneTagForStorage
-} from './prompt-utils.js?v=1.9.42';
-import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.9.42';
-import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.9.42';
-import { repairImportedPrompt } from './import-repair.js?v=1.9.42';
-import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.9.42';
-import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, isKnownArtistName, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity, suggestArtistNames } from './artist-index-v5.js?v=1.9.42';
-import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.9.42';
-import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.9.42';
-import { buildArtistStormPlan } from './storm-utils.js?v=1.9.42';
-import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.9.42';
-import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.9.42';
-import { MEDIUM_EFFORT, normalizeUcPreset, supportsMediumEffort, UC_PRESET_LABELS, ucPresetFromHint, usesMediumEffort } from './nai-presets.js?v=1.9.42';
-import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.9.42';
-import { focusedInpaintPlan, sanitizeInpaintRegion } from './focused-inpaint.js?v=1.9.42';
-import { observeToastClearance } from './toast-layout.js?v=1.9.42';
-import { installSelectSheets } from './select-sheet.js?v=1.9.42';
-import { attachWeightHighlight } from './weight-highlight.js?v=1.9.42';
-import { confirmAction, promptText } from './confirm-sheet.js?v=1.9.42';
-import { createTaggerPanel } from './tagger-panel.js?v=1.9.42';
-import { createCodexPanel } from './codex-panel.js?v=1.9.42';
-import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.42';
-import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.9.42';
+} from './prompt-utils.js?v=1.9.43';
+import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.9.43';
+import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.9.43';
+import { repairImportedPrompt } from './import-repair.js?v=1.9.43';
+import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.9.43';
+import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, isKnownArtistName, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity, suggestArtistNames } from './artist-index-v5.js?v=1.9.43';
+import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.9.43';
+import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.9.43';
+import { buildArtistStormPlan } from './storm-utils.js?v=1.9.43';
+import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.9.43';
+import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.9.43';
+import { MEDIUM_EFFORT, normalizeUcPreset, supportsMediumEffort, UC_PRESET_LABELS, ucPresetFromHint, usesMediumEffort } from './nai-presets.js?v=1.9.43';
+import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.9.43';
+import { focusedInpaintPlan, sanitizeInpaintRegion } from './focused-inpaint.js?v=1.9.43';
+import { observeToastClearance } from './toast-layout.js?v=1.9.43';
+import { installSelectSheets } from './select-sheet.js?v=1.9.43';
+import { attachWeightHighlight } from './weight-highlight.js?v=1.9.43';
+import { confirmAction, promptText } from './confirm-sheet.js?v=1.9.43';
+import { createTaggerPanel } from './tagger-panel.js?v=1.9.43';
+import { createCodexPanel } from './codex-panel.js?v=1.9.43';
+import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.43';
+import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.9.43';
 
 const GROUP_LABELS_BY_KEY = {
   scene: '场景',
@@ -1757,7 +1757,7 @@ function watchForUpdates() {
     if (await pageIsCurrentRelease()) return; // the page already loaded this release (1.9.39)
     showUpdateBanner();
   });
-  navigator.serviceWorker.register('/sw.js?v=1.9.42').then(registration => {
+  navigator.serviceWorker.register('/sw.js?v=1.9.43').then(registration => {
     let checkedAt = Date.now();
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible' || Date.now() - checkedAt < 10 * 60 * 1000) return;
@@ -11193,6 +11193,96 @@ async function saveNote() {
   currentImage.note = els.dialogNote.value;
 }
 
+// 「能做什么」 (1.9.43): every feature by what the user wants to do, each with 「带我去」 — it opens the place and
+// highlights the control for a moment. Items for something this host or role does not offer are left out.
+const FEATURE_MAP_SEEN_KEY = 'nai-pocket-feature-map-seen';
+function spotlight(selector) {
+  requestAnimationFrame(() => setTimeout(() => {
+    const node = [...document.querySelectorAll(selector)].find(item => item.offsetParent !== null);
+    if (!node) return;
+    node.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    node.classList.remove('feature-spotlight'); void node.offsetWidth; node.classList.add('feature-spotlight');
+    setTimeout(() => node.classList.remove('feature-spotlight'), 2600);
+  }, 220));
+}
+// Pages such as the artist library build themselves after the tab opens: act once the control is there.
+function whenShown(selector, action, waitMs = 4000) {
+  const started = Date.now();
+  const attempt = () => {
+    const node = [...document.querySelectorAll(selector)].find(item => item.offsetParent !== null);
+    if (node) action(node); else if (Date.now() - started < waitMs) setTimeout(attempt, 120);
+  };
+  attempt();
+}
+const visibleTab = name => Boolean(document.querySelector(`.tab[data-tab="${name}"]`)) && !(authContext.role === 'visitor' && document.querySelector(`.tab[data-tab="${name}"]`)?.hasAttribute('data-owner-only'));
+const FEATURE_MAP = [
+  ['写提示词', [
+    { title: '四栏 Tag 积木', text: '粘贴整段 Prompt，自动分进场景 / 镜头 / 画风 / 其他四栏；点一下 Tag 调权重，按住拖动排序。', go: () => { switchTabTo('editor'); spotlight('.tag-section'); } },
+    { title: '文本模式', text: '想直接改文字就切到「文本」，改完会同步回卡片。', go: () => { switchTabTo('editor'); spotlight('[data-edit-text]'); } },
+    { title: '语义工作台', text: '用中文描述想要的画面（如「雨夜霓虹街道」），找到对应的 Tag，勾选后加入。', go: () => { switchTabTo('editor'); openSemanticSearch({ scope: 'global', groupKey: 'scene' }); } },
+    { title: '问秋月', text: '让 AI 把一个想法写成整段提示词，粘回来直接变成 Tag。', go: () => { switchTabTo('editor'); openSemanticSearch({ scope: 'global', groupKey: 'scene' }); setSemanticTab('agent'); } }
+  ]],
+  ['照着一张图来', [
+    { title: '反推', text: '任意一张图认出 Tag，挑着加进编辑器。', available: () => visibleTab('reverse'), go: () => switchTabTo('reverse') },
+    { title: '恢复参数', text: 'NovelAI 生成的原图（PNG / WebP / JPEG）一键还原 Prompt、角色和全部参数。', go: () => {
+      switchTabTo('editor');
+      // Phone layout: it lives in the editor's ⋯ menu — open the menu and point at it.
+      const menuButton = document.getElementById('commandMenuButton');
+      if (menuButton && menuButton.offsetParent !== null) {
+        if (menuButton.getAttribute('aria-expanded') !== 'true') menuButton.click();
+        spotlight('[data-proxy="#restoreToolButton"]');
+      } else spotlight('#restoreToolButton');
+    } },
+    { title: '用此图创作', text: '在图库点开一张图，用「用此图创作」做图生图、局部重绘、Vibe 参考。', go: () => switchTabTo('gallery') }
+  ]],
+  ['找画风、找画师', [
+    { title: '按感觉找画师', text: '画师页点「画风」，选「水彩」「厚涂」「特写」等感觉词，画师按画风接近程度排出来。', available: () => artistLibraryAvailable && visibleTab('artists'),
+      go: () => { switchTabTo('artists'); whenShown('.artist-library-filter-toggle', toggle => { if (toggle.getAttribute('aria-expanded') !== 'true') toggle.click(); spotlight('.artist-library-filter-toggle'); }); } },
+    { title: '以图找画师', text: '搜索框里的图片按钮：选一张喜欢的图，找画风最像的画师。', available: () => artistLibraryAvailable && visibleTab('artists'),
+      go: () => { switchTabTo('artists'); whenShown('.artist-library-search-row', () => spotlight('.artist-library-search-row')); } },
+    { title: '画师详情、找相似', text: '点开任意画师：原作例图、V5 出图、「找相似」和画风概览都在里面，一键加入画风。', available: () => artistLibraryAvailable && visibleTab('artists'), go: () => switchTabTo('artists') }
+  ]],
+  ['试配比、找灵感', [
+    { title: 'Storm', text: '同一个 Seed 一次出一批，只改各画师的权重（或加一位风格相近的画师），挑出最好的一组一键放回。', available: () => stormAvailable && authContext.role === 'owner', go: () => switchTabTo('storm') },
+    { title: '法典', text: '看图挑配方，一键用到编辑器；长栏目可以拖右边的滑轨跳到中间。', available: () => visibleTab('codex'), go: () => switchTabTo('codex') }
+  ]],
+  ['生成与管理', [
+    { title: '队列', text: '点生成后任务进队列，可暂停、取消、重试。', go: () => switchTabTo('queue') },
+    { title: '图库与回收站', text: '搜索、收藏、恢复参数；删掉的图在回收站留 24 小时。', go: () => switchTabTo('gallery') },
+    { title: '方案', text: '把常用设置存成方案，随时切换、导入导出。', available: () => visibleTab('scheme'), go: () => switchTabTo('scheme') },
+    { title: '设置', text: '账号与第三方中转、画师资料下载都在这里。', available: () => authContext.role === 'owner', go: () => document.getElementById('openSettingsButton')?.click() }
+  ]]
+];
+function renderFeatureMap() {
+  const body = document.getElementById('featureMapBody'); if (!body) return;
+  body.replaceChildren(...FEATURE_MAP.map(([heading, items]) => {
+    const shown = items.filter(item => !item.available || item.available());
+    if (!shown.length) return document.createDocumentFragment();
+    const section = document.createElement('section'); section.className = 'feature-map-group';
+    const title = document.createElement('h3'); title.textContent = heading; section.append(title);
+    for (const item of shown) {
+      const row = document.createElement('div'); row.className = 'feature-map-item';
+      const copy = document.createElement('div'); copy.className = 'feature-map-copy';
+      const name = document.createElement('strong'); name.textContent = item.title;
+      const text = document.createElement('p'); text.textContent = item.text;
+      copy.append(name, text);
+      const go = document.createElement('button'); go.type = 'button'; go.className = 'feature-map-go'; go.textContent = '带我去'; go.dataset.featureGo = item.title;
+      // After this tap is done: an outside-tap handler would otherwise close a menu that 带我去 opens.
+      go.addEventListener('click', () => { document.getElementById('featureMapDialog')?.close(); setTimeout(() => item.go(), 0); });
+      row.append(copy, go); section.append(row);
+    }
+    return section;
+  }));
+}
+function openFeatureMap() {
+  renderFeatureMap();
+  storageSet(FEATURE_MAP_SEEN_KEY, '1');
+  document.getElementById('openFeatureMapButton')?.classList.remove('is-new');
+  document.body.classList.remove('feature-map-new');
+  const dialog = document.getElementById('featureMapDialog');
+  if (dialog && !dialog.open) dialog.showModal();
+}
+
 function switchTabTo(name) {
   if (name === 'artists' && !artistLibraryAvailable) return toast('本机画师栏尚未接入。');
   if (name === 'storm' && !stormAvailable) return toast('此版本未包含 Storm 工作台。');
@@ -11325,6 +11415,13 @@ function initBindings() {
     if (authContext.role === 'owner' && artistAutomationAvailable) ensureArtistAutomation().refresh().catch(error => toast(error.message, 'error'));
   });
   $('#firstRunSettingsButton')?.addEventListener('click', () => $('#openSettingsButton')?.click());
+  // 「能做什么」: a labelled pill until the page has been opened once, then a small "?".
+  const featureMapButton = $('#openFeatureMapButton');
+  featureMapButton?.classList.toggle('is-new', storageGet(FEATURE_MAP_SEEN_KEY) !== '1');
+  document.body.classList.toggle('feature-map-new', featureMapButton?.classList.contains('is-new') === true);
+  featureMapButton?.addEventListener('click', openFeatureMap);
+  $('#closeFeatureMap')?.addEventListener('click', () => $('#featureMapDialog')?.close());
+  $('#featureMapDialog')?.addEventListener('click', event => { if (event.target === $('#featureMapDialog')) $('#featureMapDialog').close(); });
   $('#closeSettingsButton')?.addEventListener('click', () => $('#settingsDialog')?.close());
   // New layout: 退出 lives in settings, away from the everyday top-bar buttons.
   $('#settingsLogoutButton')?.addEventListener('click', () => { $('#settingsDialog')?.close(); $('#logoutButton')?.click(); });

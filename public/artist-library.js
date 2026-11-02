@@ -1,12 +1,12 @@
-import { EXACT_CHIPS, VIBE_GROUP_ORDER, chipForWord, attributesForChips } from './artist-vibe-chips.js?v=1.9.42';
-import { STYLE_FACETS, queryHasStyleTerms } from './artist-catalog.js?v=1.9.42';
-import { createArtistResultViewer } from './artist-result.js?v=1.9.42';
-import { observeFittedChips } from './artist-chip-layout.js?v=1.9.42';
-import { buildNaxV5ArtistSearchUrl } from './artist-index-v5.js?v=1.9.42';
-import { modelDisplayName } from './model-utils.js?v=1.9.42';
-import { normalizeProviderId } from './provider-route.js?v=1.9.42';
-import { confirmAction } from './confirm-sheet.js?v=1.9.42';
-import { STYLE_ATTRIBUTES, STYLE_SCHEMA_VERSION, validateStyleAttributes, attributesFromLegacy, legacyFromAttributes, summarizeStyleEvidence } from './artist-style-schema.js?v=1.9.42';
+import { EXACT_CHIPS, VIBE_GROUP_ORDER, chipForWord, attributesForChips } from './artist-vibe-chips.js?v=1.9.43';
+import { STYLE_FACETS, queryHasStyleTerms } from './artist-catalog.js?v=1.9.43';
+import { createArtistResultViewer } from './artist-result.js?v=1.9.43';
+import { observeFittedChips } from './artist-chip-layout.js?v=1.9.43';
+import { buildNaxV5ArtistSearchUrl } from './artist-index-v5.js?v=1.9.43';
+import { modelDisplayName } from './model-utils.js?v=1.9.43';
+import { normalizeProviderId } from './provider-route.js?v=1.9.43';
+import { confirmAction } from './confirm-sheet.js?v=1.9.43';
+import { STYLE_ATTRIBUTES, STYLE_SCHEMA_VERSION, validateStyleAttributes, attributesFromLegacy, legacyFromAttributes, summarizeStyleEvidence } from './artist-style-schema.js?v=1.9.43';
 
 // 画风依据 (1.9.17): 混合 / V5 出图 / 原作, remembered on this device; storage may be denied.
 const STYLE_SOURCE_KEY = 'nai-pocket-style-source';
@@ -3024,8 +3024,11 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
       // The popover hangs from the trigger's right edge; a trigger in the left column would
       // push it off the left of the screen, so it hangs from the left edge instead. (Phones
       // show it as a bottom sheet, see artist-library.css.)
+      // Measured against the card, not the window: on desktop the sidebar covers the window's left
+      // edge, and a first-column menu slid under it with 预览 / 删除 out of reach.
       const width = menuBody.offsetWidth || 232;
-      menu.classList.toggle('is-start', trigger.right - width < 8);
+      const left = Math.max(8, menu.closest('.artist-library-example-card')?.getBoundingClientRect().left ?? 0);
+      menu.classList.toggle('is-start', trigger.right - width < left);
     });
     show.addEventListener('click', () => { menu.open = false; });
     remove.addEventListener('click', () => { menu.open = false; });

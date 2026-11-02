@@ -8,10 +8,10 @@
   
   <link rel="icon" href="/icons/icon-flow-192.png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="/styles.css?v=1.9.42">
+  <link rel="stylesheet" href="/styles.css?v=1.9.43">
   <link rel="stylesheet" href="/artist-library.css">
-  <link rel="stylesheet" href="/workspace.css?v=1.9.42">
-  <link rel="stylesheet" href="/tag-chips.css?v=1.9.42">
+  <link rel="stylesheet" href="/workspace.css?v=1.9.43">
+  <link rel="stylesheet" href="/tag-chips.css?v=1.9.43">
 <link rel="stylesheet" href="/native.css">
 <link rel="stylesheet" href="/artist-browser.css">
 </head>
@@ -53,6 +53,7 @@
     </nav>
 
     <div class="workspace-nav-foot">
+      <button id="openFeatureMapButton" class="workspace-settings-button workspace-help-button" type="button" aria-label="能做什么" title="能做什么"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M9.6 9.3a2.5 2.5 0 014.9.7c0 1.7-2.5 2.2-2.5 3.8"></path><path d="M12 17.2v.1"></path></svg><span>能做什么</span></button>
       <button id="openSettingsButton" class="workspace-settings-button" type="button" aria-label="打开设置"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19 12a7 7 0 00-.1-1l2-1.5-2-3.4-2.4 1a8 8 0 00-1.7-1L14.5 3h-5L9 6.1a8 8 0 00-1.7 1l-2.4-1-2 3.4L5 11a7 7 0 000 2l-2.1 1.5 2 3.4 2.4-1a8 8 0 001.7 1l.5 3.1h5l.5-3.1a8 8 0 001.7-1l2.4 1 2-3.4L19 13a7 7 0 000-1z"></path></svg><span>设置</span></button>
     </div>
 
@@ -60,7 +61,7 @@
       <header class="topbar workspace-topbar">
         <div class="workspace-crumb"><span>Workspace</span><strong id="pageCrumb">编辑工作台</strong></div>
         <div class="top-actions">
-          <span id="connectionText" class="connection-text">连接中 · v1.9.42</span>
+          <span id="connectionText" class="connection-text">连接中 · v1.9.43</span>
           
           <button id="openNaiImportButton" class="ghost compact-button" type="button" title="导入 NAI / JSON">导入</button>
           
@@ -795,6 +796,11 @@
       </dialog>
     </div>
   </div>
+
+  <dialog id="featureMapDialog" class="feature-map-dialog" aria-labelledby="featureMapTitle">
+    <div class="dialog-header"><div><strong id="featureMapTitle">能做什么</strong><small>按你想做的事找，点「带我去」直接打开</small></div><button id="closeFeatureMap" class="icon-button" type="button" aria-label="关闭">×</button></div>
+    <div id="featureMapBody" class="feature-map-body"></div>
+  </dialog>
 
   <div id="onboardingTour" class="onboarding-tour hidden" aria-hidden="true">
     <div id="onboardingCard" class="onboarding-card" role="dialog" aria-live="polite" aria-label="快速上手">

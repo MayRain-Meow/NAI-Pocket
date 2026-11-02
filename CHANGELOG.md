@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.6 — Preview
+
+- 能做什么 (new): many people could not find the features. A labelled 能做什么 button (beside the settings gear; on the editor it sits under the gear) opens one page of everything the app does, grouped by what you want to do — 写提示词 / 照着一张图来 / 找画风、找画师 / 试配比、找灵感 / 生成与管理. Each line says what it does in one sentence, and 带我去 opens that place and highlights the button (opening the ⋯ menu first when it lives there). After the first visit the button shrinks to a small ?.
+- Fixed: on 360-wide phones the editor's top row did not fit and squeezed 文本 into a circle with its label spilling out.
+
 ## 0.7.5 — Preview
 
 - Start-up never just hangs: the launch screen no longer waits for the whole gallery to be indexed (that now happens after the editor appears, and reads far less). If the editor still has not appeared after 15 seconds, a panel names the step it is on and offers 继续等待, 安全启动 (one start without the data-pack clean-up and the gallery preload) and 重新打开.
