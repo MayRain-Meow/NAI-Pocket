@@ -150,6 +150,48 @@ const SAFE_START_KEY = 'nai-pocket-safe-start';
 let safeStart = false;
 try { safeStart = localStorage.getItem(SAFE_START_KEY) === '1'; localStorage.removeItem(SAFE_START_KEY); } catch { /* storage unavailable: a normal start */ }
 let bootStep = '打开本机数据库', bootStartedAt = Date.now(), bootWatchdog = 0;
+// Start-up record (0.7.7): each step is written to disk (natively, so it survives a crash) before it
+// runs. A start that never reached the editor — a crash, a dead WebView, the app killed — makes the next
+// start a safe start, with a card that says where it stopped and copies the diagnostics for the author.
+let bootRecord = null;
+try { bootRecord = await PocketNative.bootBegin({ version: appVersion }); } catch { /* older shell: no record */ }
+const lastStartFailed = Boolean(bootRecord?.previous && bootRecord.previous.done === false);
+if (lastStartFailed) safeStart = true;
+const markStep = async step => { bootStep = step; try { await PocketNative.bootMark({ step }); } catch {} };
+function bootDiagnostics() {
+  const d = bootRecord?.device || {}, gb = bytes => bytes ? `${(bytes / 1024 ** 3).toFixed(1)} GB` : '?';
+  const when = at => at ? new Date(at).toLocaleString('zh-CN', { hour12: false }) : '?';
+  const lines = [`NAI Pocket ${appVersion} · Android ${d.android || '?'} (SDK ${d.sdk || '?'}) · ${[d.manufacturer, d.model].filter(Boolean).join(' ') || '未知机型'}`,
+    `内存：可用 ${gb(d.availableMemory)} / 共 ${gb(d.totalMemory)}${d.lowMemory ? '（系统内存紧张）' : ''} · 单应用上限 ${d.memoryClass || '?'} MB（大内存 ${d.largeMemoryClass || '?'} MB）`,
+    `WebView：${d.webView || '?'}`];
+  if (bootRecord?.previous) lines.push(`上次启动：${bootRecord.previous.version || '?'} · 停在「${bootRecord.previous.step || '?'}」 · ${when(bootRecord.previous.startedAt)} · 连续未完成 ${bootRecord.failures || 0} 次`);
+  if (bootRecord?.crash) lines.push(`崩溃记录（${bootRecord.crash.type === 'renderer' ? '页面进程退出' : '原生异常'}，${when(bootRecord.crash.at)}）：`, bootRecord.crash.detail || '');
+  return lines.join('\n');
+}
+function recoveredCard({ hold = false } = {}) {
+  const card = document.createElement('section'); card.className = 'native-start-recovered'; card.setAttribute('role', 'status');
+  const title = document.createElement('strong'); title.textContent = '上次没有正常打开，这次用安全启动打开了';
+  const detail = document.createElement('p');
+  detail.textContent = `上次停在「${bootRecord.previous.step || '启动'}」${bootRecord.failures > 1 ? `，已连续 ${bootRecord.failures} 次` : ''}。这次跳过了资料整理和图库预载；图库、方案和账号都还在，请不要卸载重装。如果还是打不开，把诊断信息发给作者。`;
+  const actions = document.createElement('div'); actions.className = 'native-start-recovered-actions';
+  const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = '复制诊断信息';
+  copy.onclick = async () => {
+    const text = bootDiagnostics();
+    try { await navigator.clipboard.writeText(text); copy.textContent = '已复制'; }
+    catch { const area = document.createElement('textarea'); area.value = text; area.readOnly = true; card.append(area); area.select(); copy.textContent = '请长按复制'; }
+  };
+  const close = document.createElement('button'); close.type = 'button'; close.className = 'is-quiet'; close.textContent = hold ? '继续启动' : '知道了';
+  // Stopped twice or more in a row: the start waits here, so the diagnostics can be copied even when every
+  // start dies at the same step a moment later.
+  card.proceed = new Promise(resolve => { close.onclick = () => { if (hold) { close.textContent = '知道了'; hold = false; resolve(); } else card.remove(); }; if (!hold) resolve(); });
+  actions.append(copy, close); card.append(title, detail, actions);
+  return card;
+}
+if (lastStartFailed) {
+  const card = recoveredCard({ hold: bootRecord.failures >= 2 });
+  document.body.append(card);
+  await card.proceed;
+}
 const bootStuckPanel = () => {
   if (!document.body.classList.contains('native-booting') || document.querySelector('.native-startup-slow')) return;
   const panel = document.createElement('main'); panel.className = 'native-startup-error native-startup-slow';
@@ -163,10 +205,11 @@ const bootStuckPanel = () => {
   const retry = document.createElement('button'); retry.className = 'ghost'; retry.textContent = '重新打开'; retry.onclick = () => location.reload();
   panel.append(title, detail, keep, wait, safe, retry); document.body.append(panel);
 };
-bootWatchdog = setTimeout(bootStuckPanel, 15000);
+bootStartedAt = Date.now(); bootWatchdog = setTimeout(bootStuckPanel, 15000);
 try {
+  await markStep('打开本机数据库');
   const database = await openDatabase(), http = { fetch: nativeFetch };
-  bootStep = '读取账号与通道';
+  await markStep('读取账号与通道');
   const providers = await openProviders(settings, http), assets = openAssets(database, settings, http, providers);
   const client = createNativeGenerationClient({ settings, assets, generationProvider: providers.generationProvider,
     ids: { request: () => crypto.randomUUID().slice(0, 6) }, http });
@@ -176,8 +219,8 @@ try {
   const schemes = createSchemesService({ store: database.store(createSchemesStore(database.db, database.transaction)),
     clock: { now: () => Date.now() }, ids: { next: () => crypto.randomUUID() }, sanitizeState: sanitizeGenerationState, includeArtistPreferences: true });
   const references = openReferences(database, settings, http);
-  bootStep = '整理画师资料';
-  if (safeStart) setTimeout(() => notice('这次是安全启动：跳过了资料整理和图库预载。可在 设置 → 本机存储 清理，下次正常启动。', 'info'), 1200);
+  await markStep('整理画师资料');
+  if (safeStart && !lastStartFailed) setTimeout(() => notice('这次是安全启动：跳过了资料整理和图库预载。可在 设置 → 本机存储 清理，下次正常启动。', 'info'), 1200);
   else {
     try {await references.artistPacks.recover();}
     catch {notice('旧资料清理未完成，现有资料仍可使用；下次启动会重试。');}
@@ -210,12 +253,13 @@ try {
     native: registerPlugin('AppUpdate'), currentVersion: appVersion });
   settingsBody?.append(await phoneAlbumSection(queue), storageSection({ request, notice }), resourcesSection, exampleImagesSection({ request, catalogUrl: V5_EXAMPLES_CATALOG_URL, notice }), styleSection, styleModelSection({ request, notice }), updateSection, aboutSection(appVersion, licenseButton));
   document.getElementById('artistLibraryMount')?.before(artistResourceNotice({ request, section: resourcesSection, styleSection, currentCatalogVersion: CURRENT_ARTIST_CATALOG_VERSION, currentStyleVersion: CURRENT_STYLE_VERSION }));
-  bootStep = '载入编辑器';
+  await markStep('载入编辑器');
   await import('../../public/app.js');
   // Keep the launch screen until the editor is actually shown (app.js reveals #appView).
   const appView = document.getElementById('appView');
   const revealed = () => !appView || !appView.classList.contains('hidden');
   const shown = () => { clearTimeout(bootWatchdog); document.querySelector('.native-startup-slow')?.remove(); document.body.classList.remove('native-booting');
+    PocketNative.bootDone().catch(() => {});
     // Every screen that shows pictures registers its own; the rest are registered after the editor is up.
     if (!safeStart) media.registerAll().catch(() => {}); };
   if (revealed()) shown();

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.7 — Preview
+
+- Start-up crashes no longer mean reinstalling: every start step is recorded before it runs, a Java crash or a dead WebView renderer leaves a note, and a renderer that dies (most often out of memory) rebuilds the screen instead of closing the app. A start that never reached the editor makes the next start a safe start with a card that says where it stopped and copies the diagnostics (app and Android version, phone, memory, WebView, the step and the crash note) to send to the author; after two stops in a row the start waits on that card until 继续启动, so the diagnostics can always be copied.
+- Changed: the older dialogs' footers now match the confirmation sheet — 读取图片参数, 导入 NAI / JSON, 编辑 Tag, the artist-name check and plain notices: one row, labels never wrap, the gold main action is the widest, deleting is quiet red text. 读取图片参数 keeps its footer in view without scrolling to the bottom; 只恢复 Prompt / UC is now 只恢复提示词.
+- Changed: 导入 NAI / JSON drops 重新识别 (the paste is read automatically as you type); 自动翻译 in 编辑 Tag sits beside the field instead of taking a whole row; 选择输入图片 has the same rounded frame as the other dialogs, with a gold 从设备上传 and a small 刷新.
+
 ## 0.7.6 — Preview
 
 - 能做什么 (new): many people could not find the features. A labelled 能做什么 button (beside the settings gear; on the editor it sits under the gear) opens one page of everything the app does, grouped by what you want to do — 写提示词 / 照着一张图来 / 找画风、找画师 / 试配比、找灵感 / 生成与管理. Each line says what it does in one sentence, and 带我去 opens that place and highlights the button (opening the ⋯ menu first when it lives there). After the first visit the button shrinks to a small ?.

@@ -18,7 +18,25 @@ public class PocketMediaClient extends BridgeWebViewClient {
         final File file; final String mime;
         Entry(File file, String mime) { this.file = file; this.mime = mime; }
     }
-    public PocketMediaClient(Bridge bridge) { super(bridge); }
+    private final Bridge bridge;
+    public PocketMediaClient(Bridge bridge) { super(bridge); this.bridge = bridge; }
+    // The WebView's renderer died (most often out of memory). Left alone, Android closes the whole app —
+    // the "闪退" users saw. Instead: leave a note, drop the dead WebView and rebuild the screen; the next
+    // start sees the unfinished start and opens in safe mode.
+    @Override public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
+        android.app.Activity activity = bridge.getActivity();
+        try { BootRecord.crash(view.getContext(), "renderer", "didCrash=" + detail.didCrash() + " priorityAtExit=" + detail.rendererPriorityAtExit()); } catch (Throwable ignored) {}
+        try { if (view.getParent() instanceof android.view.ViewGroup) ((android.view.ViewGroup) view.getParent()).removeView(view); view.destroy(); } catch (Throwable ignored) {}
+        if (activity != null && !activity.isFinishing()) {
+            try { activity.recreate(); }
+            catch (Throwable error) {
+                android.content.Intent restart = activity.getPackageManager().getLaunchIntentForPackage(activity.getPackageName());
+                if (restart != null) { restart.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK | android.content.Intent.FLAG_ACTIVITY_NEW_TASK); activity.startActivity(restart); }
+                activity.finish();
+            }
+        }
+        return true;
+    }
     @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
         if ("https".equals(request.getUrl().getScheme()) && "localhost".equals(request.getUrl().getHost()) && request.getUrl().getPath().startsWith("/api/")) {
             Entry entry = media.get(request.getUrl().getPath());

@@ -31,6 +31,7 @@ const media = new Map(); let vault = '{}', failedVault = false;
 const albumCopies = []; let albumFailure = false;
 const generationCalls = [], encodingCalls = [], naxCalls = [], danbooruCalls = [];
 let exampleCacheBytes = 40*1024**2, slowVaultMs = 0;
+let bootRecord=null,bootCrash=null;const bootSteps=[];
 let packMode='valid',packSequence=0;const packStages=new Set(),discardedPacks=[];
 const recoveryCalls=[];
 // App update: GitHub Releases API through the fixture HTTP port, native download/install stubs.
@@ -178,6 +179,16 @@ async function rpc(name,args) {
     if (preview && Object.values(JSON.parse(args.value).secrets || {}).some(value => !Object.values(demoTokens).includes(value))) throw new Error('体验预览只接受演示 Token；请勿填入真实凭据。');
     if(failedVault){failedVault=false;throw new Error('Synthetic vault commit failure');}vault=args.value;return {};
   }
+  // Start-up record (0.7.7): the same rules as BootRecord.java, kept in memory.
+  if(name==='PocketNative.bootBegin'){
+    const known=Boolean(bootRecord),done=bootRecord?.done??true,failures=known&&!done?bootRecord.failures+1:0;
+    const result={failures,device:{manufacturer:'Fixture',model:'Phone',android:'14',sdk:34,totalMemory:8*1024**3,availableMemory:2*1024**3,lowMemory:false,memoryClass:256,largeMemoryClass:512,webView:'com.google.android.webview 130.0'}};
+    if(known)result.previous={step:bootRecord.step,startedAt:bootRecord.startedAt,version:bootRecord.version,done};
+    if(bootCrash)result.crash=bootCrash;
+    bootRecord={step:'启动',startedAt:Date.now(),version:args.version,done:false,failures};return result;
+  }
+  if(name==='PocketNative.bootMark'){bootRecord.step=args.step;bootSteps.push(args.step);return {};}
+  if(name==='PocketNative.bootDone'){bootRecord.done=true;bootRecord.failures=0;bootCrash=null;return {};}
   if(name==='PocketNative.diskStatus')return {freeBytes:1024**3,totalBytes:8*1024**3};
   // 本机存储 (0.7.5): synthetic folder sizes; clearing empties the example-image cache.
   if(name==='PocketNative.storageUsage')return {folders:{originals:5*1024**2,thumbnails:1024**2,'artist-cache':exampleCacheBytes,'style-index':3*1024**2,'artist-resources':2*1024**2},databaseBytes:2*1024**2,cacheBytes:0,freeBytes:1024**3,totalBytes:8*1024**3};
@@ -881,6 +892,46 @@ try {
   assert.match(await page.locator('.native-startup-slow').textContent(),/不要卸载重装/);
   await page.screenshot({path:path.join(temporary,'native-startup-slow.png'),fullPage:false});
   await page.waitForFunction(()=>!document.body.classList.contains('native-booting')&&!document.querySelector('.native-startup-slow'),{},{timeout:20000});
+  slowVaultMs=0;
+  // Start-up record (0.7.7): every step is recorded before it runs and a start that reaches the editor is done.
+  assert.equal(bootRecord.done,true,'a start that reached the editor is recorded as finished');
+  for(const step of ['打开本机数据库','读取账号与通道','整理画师资料','载入编辑器'])assert.ok(bootSteps.includes(step),`step recorded: ${step}`);
+  // A start that died (here: the WebView renderer during 整理画师资料) makes the next one a safe start that says so.
+  bootRecord.done=false;bootRecord.step='整理画师资料';bootCrash={type:'renderer',detail:'didCrash=false priorityAtExit=2',at:Date.now()};
+  await page.reload();
+  const recovered=page.locator('.native-start-recovered');
+  await recovered.waitFor();
+  assert.match(await recovered.textContent(),/上次停在「整理画师资料」/);
+  assert.match(await recovered.textContent(),/不要卸载重装/);
+  await page.waitForFunction(()=>!document.body.classList.contains('native-booting'),{},{timeout:20000});
+  assert.equal(await page.locator('.native-start-recovered').count(),1,'one card, not also the plain safe-start toast');
+  assert.equal(await page.getByText('这次是安全启动').count(),0,'the plain safe-start notice is not repeated');
+  await page.screenshot({path:path.join(temporary,'native-start-recovered.png'),fullPage:false});
+  const diagnostics=await page.evaluate(()=>new Promise(resolve=>{const original=navigator.clipboard?.writeText?.bind(navigator.clipboard);
+    try{Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{resolve(text);}}});}catch{resolve(null);}
+    document.querySelector('.native-start-recovered button').click();}));
+  assert.match(diagnostics,/NAI Pocket .* · Android 14 \(SDK 34\) · Fixture Phone/);
+  assert.match(diagnostics,/停在「整理画师资料」/);assert.match(diagnostics,/页面进程退出/);assert.match(diagnostics,/didCrash=false/);
+  assert.equal(await page.locator('.native-start-recovered button').first().textContent(),'已复制');
+  await page.locator('.native-start-recovered').getByRole('button',{name:'知道了',exact:true}).click();
+  assert.equal(await page.locator('.native-start-recovered').count(),0);
+  assert.deepEqual([bootRecord.done,bootCrash],[true,null],'reaching the editor clears the record and the crash note');
+  // Stopped twice in a row: the start waits on the card, so the diagnostics can be copied before it is tried again.
+  bootRecord.done=false;bootRecord.failures=1;bootRecord.step='打开本机数据库';
+  const stepsBefore=bootSteps.length;
+  await page.reload();
+  await recovered.waitFor();
+  assert.match(await recovered.textContent(),/已连续 2 次/);
+  const proceed=recovered.getByRole('button',{name:'继续启动',exact:true});
+  await proceed.waitFor();await page.waitForTimeout(1500);
+  assert.equal(bootSteps.length,stepsBefore,'nothing runs until 继续启动');
+  assert.equal(await page.evaluate(()=>document.body.classList.contains('native-booting')),true);
+  await proceed.click();
+  await page.waitForFunction(()=>!document.body.classList.contains('native-booting'),{},{timeout:20000});
+  assert.equal(bootRecord.done,true);
+  assert.equal(await recovered.getByRole('button',{name:'知道了',exact:true}).count(),1,'the card stays, now with 知道了');
+  await recovered.getByRole('button',{name:'知道了',exact:true}).click();
+  assert.deepEqual(errors,[]);
   console.log('Offline native wiring passed: UI token entry/rollback, dual-provider routing, Vibe consent/cache, gallery/export, public NAX preview, shared artist library (search/favourites/资料 notes/style filters/reload/Prompt insertion/backup import, no management), Settings resource packs (import/catalog/download/cancel/atomic commit), app update (12-hour throttle, check none/found, download/permission/install, skip, startup toast), native back through panels/detail/list and 360px layout. No upstream network used.');
   console.log(`Screenshot: ${path.join(temporary,'native-gallery.png')}`);
   }

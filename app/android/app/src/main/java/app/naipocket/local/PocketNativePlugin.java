@@ -121,6 +121,11 @@ public class PocketNativePlugin extends Plugin {
         });
     }
 
+    // Start-up record (0.7.7): see BootRecord.
+    @PluginMethod public void bootBegin(PluginCall call) { call.resolve(BootRecord.begin(getContext(), call.getString("version", ""))); }
+    @PluginMethod public void bootMark(PluginCall call) { BootRecord.mark(getContext(), call.getString("step", "")); call.resolve(); }
+    @PluginMethod public void bootDone(PluginCall call) { BootRecord.done(getContext()); call.resolve(); }
+
     @PluginMethod public void diskStatus(PluginCall call) {
         android.os.StatFs stats = new android.os.StatFs(getContext().getFilesDir().getPath());
         JSObject result = new JSObject(); result.put("freeBytes", stats.getAvailableBytes()); result.put("totalBytes", stats.getTotalBytes()); call.resolve(result);

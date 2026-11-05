@@ -1,4 +1,4 @@
-import { isV5GenerationModel } from './model-utils.js?v=1.9.43';
+import { isV5GenerationModel } from './model-utils.js?v=1.9.44';
 
 
 const V5_PROFILES = Object.freeze({

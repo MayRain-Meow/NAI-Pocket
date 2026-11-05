@@ -2587,3 +2587,29 @@ body:not(.tag-layout-legacy) .artist-library-page .filters-open .artist-filter-f
   body:not(.tag-layout-legacy) .editor-command-bar .command-quick .command-icon-button { width: 31px; min-width: 31px; }
 }
 body:not(.tag-layout-legacy) .workspace-help-button.is-new { border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: color-mix(in srgb, var(--accent) 14%, #1d1e1a); color: var(--accent); }
+body:not(.tag-layout-legacy) :where(.inspect-actions, .nai-import-actions, .tag-editor-actions, .artist-preview-actions, .workspace-choice-dialog > .dialog-actions) {
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; margin: 14px 0 0; }
+body:not(.tag-layout-legacy) :where(.inspect-actions, .nai-import-actions, .tag-editor-actions, .artist-preview-actions, .workspace-choice-dialog > .dialog-actions) > button, body:not(.tag-layout-legacy) #uploadWorkflowImageButton {
+  min-width: 0; min-height: 44px; margin: 0; padding: 0 12px; border: 1px solid #ffffff12; border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff12, #ffffff06); color: var(--text); font-size: 14px; font-weight: 650; line-height: 1.2;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: inset 0 1px 0 #ffffff12, 0 1px 2px #00000066; }
+body:not(.tag-layout-legacy) :where(.inspect-actions, .nai-import-actions, .tag-editor-actions, .artist-preview-actions, .workspace-choice-dialog > .dialog-actions) > button:active, body:not(.tag-layout-legacy) #uploadWorkflowImageButton:active { transform: translateY(1px); box-shadow: inset 0 1px 3px #00000080; }
+body:not(.tag-layout-legacy) :where(.inspect-actions, .nai-import-actions, .tag-editor-actions, .artist-preview-actions, .workspace-choice-dialog > .dialog-actions) > button.primary, body:not(.tag-layout-legacy) #uploadWorkflowImageButton {
+  border-color: #ecd6b8; background: linear-gradient(180deg, #e6caa5, #c99f6e); color: var(--on-accent);
+  box-shadow: inset 0 1px 0 #ffffff66, 0 4px 14px color-mix(in srgb, var(--accent) 24%, transparent); }
+body:not(.tag-layout-legacy) :where(.inspect-actions, .nai-import-actions, .tag-editor-actions, .artist-preview-actions, .workspace-choice-dialog > .dialog-actions) > button:disabled { opacity: .45; transform: none; }
+body:not(.tag-layout-legacy) :is(.inspect-actions, .nai-import-actions, .artist-preview-actions) { grid-auto-flow: row; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); }
+body:not(.tag-layout-legacy) .tag-editor-actions { grid-auto-flow: row; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.3fr); }
+body:not(.tag-layout-legacy) .tag-editor-actions > .danger { padding: 0 14px; border-color: transparent; background: none; box-shadow: none; color: #ff9aa8; font-weight: 600; }
+body:not(.tag-layout-legacy) #analyzeNaiImportButton { display: none; }
+body:not(.tag-layout-legacy) .inspect-actions { position: sticky; z-index: 2; bottom: 0; margin: 14px -2px 0; padding: 10px 2px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(180deg, transparent, var(--panel, #191a17) 14px); }
+body:not(.tag-layout-legacy) .inspect-dialog .inspect-raw-box > summary { font-size: 13px; color: var(--muted); }
+body:not(.tag-layout-legacy) .translation-edit-row { grid-template-columns: minmax(0, 1fr) auto; }
+body:not(.tag-layout-legacy) #tagEditorTranslateButton { min-height: 0; padding: 0 12px; border-radius: 10px; font-size: 13px; white-space: nowrap; }
+body:not(.tag-layout-legacy) #uploadWorkflowImageButton { width: 100%; min-height: 46px; font-size: 15px; }
+body:not(.tag-layout-legacy) #refreshImagePickerGallery { min-height: 30px; padding: 0 12px; border: 0; border-radius: 999px; background: #ffffff0d; color: var(--muted); font-size: 12.5px; box-shadow: none; }
+body:not(.tag-layout-legacy) .tag-editor-actions #tagEditorDelete, body:not(.tag-layout-legacy) .tag-editor-actions .primary { grid-column: auto; margin: 0; }
+.image-picker-dialog { padding: 0; border: 1px solid #47473f; border-radius: 18px; }
+body:not(.tag-layout-legacy) .nai-import-actions { grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr); }
+body:not(.tag-layout-legacy) .nai-import-actions > button { padding: 0 8px; font-size: 13.5px; }
