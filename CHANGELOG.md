@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.8 — Preview
+
+- New artist data: 画师资料 2026-11-15 (22,960 artists, 96,385 aliases including native-script names, so an artist can be found by their Japanese or Chinese name), V5 例图 2026-11-15 (22,886 pictures — every artist now has one, up from 12,779) and 画风数据 2026-11-15 (55,944 originals; the V5 part now covers 22,773 artists, so 按感觉找 by V5, 找相似 and Storm reach every artist). Settings offers the update; the data already on the phone keeps working until then.
+- Fixed (from the website): after the bulk alias import, ordinary tags such as solo, monochrome or ponytail stay ordinary tags instead of being turned into artist names when a prompt is pasted or split.
+
 ## 0.7.7 — Preview
 
 - Start-up crashes no longer mean reinstalling: every start step is recorded before it runs, a Java crash or a dead WebView renderer leaves a note, and a renderer that dies (most often out of memory) rebuilds the screen instead of closing the app. A start that never reached the editor makes the next start a safe start with a card that says where it stopped and copies the diagnostics (app and Android version, phone, memory, WebView, the step and the crash note) to send to the author; after two stops in a row the start waits on that card until 继续启动, so the diagnostics can always be copied.

@@ -12,8 +12,9 @@ import { nativeFiles } from './files.js';
 
 // 0.7.1: the 2026-10-27 release (the 2.25 万-artist library) also holds the V5 samples' index.
 // 0.7.2: 2026-10-27b adds 12 feel words (the retired annotation words CLIP can stand in for).
-export const DEFAULT_STYLE_MANIFEST_URL = 'https://github.com/MayRain-Meow/NAI-Pocket/releases/download/artist-style-2026-10-27b/style-index.json';
-export const CURRENT_STYLE_VERSION = '2026-10-27b';
+// 0.7.8: 2026-11-15 — the V5 part covers every artist (22,773).
+export const DEFAULT_STYLE_MANIFEST_URL = 'https://github.com/MayRain-Meow/NAI-Pocket/releases/download/artist-style-2026-11-15/style-index.json';
+export const CURRENT_STYLE_VERSION = '2026-11-15';
 const native = registerPlugin('ArtistResources');
 const STATE = 'style-index/installed.json';
 const busyError = () => Object.assign(new Error('画风数据正在下载。'), { status: 409 });

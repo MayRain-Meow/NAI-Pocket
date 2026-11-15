@@ -22,9 +22,16 @@ function remoteConfigured() {
 }
 
 function readCache(text, source, target) {
-  return mapResult(store.read(cleanText(text), source, target), row => row ? {
+  return mapResult(store.read(cleanText(text), source, target), row => row && !invalidMachineChinese(row.translated_text, row.provider, Boolean(row.is_manual), target) ? {
     text: row.translated_text, provider: row.provider, manual: Boolean(row.is_manual), cached: true, updatedAt: row.updated_at
   } : null);
+}
+
+// Old machine-cache entries sometimes contain unchanged English or a quota message.
+// Keep manual/builtin terms (e.g. 3D), but don't call those machine results Chinese.
+
+function invalidMachineChinese(text, provider, manual, target) {
+  return target === 'zh-CN' && !manual && ['mymemory', 'libretranslate'].includes(provider) && !hasCjk(text);
 }
 
 function writeCache(sourceText, source, target, translatedText, provider, manual = false, replaceManual = false) {
@@ -57,6 +64,7 @@ async function remoteMyMemory(text, source, target) {
   url.searchParams.set('mt', '1');
   if (settings.translationEmail) url.searchParams.set('de', settings.translationEmail);
   const data = await fetchJson(url);
+  if (data.responseStatus != null && Number(data.responseStatus) !== 200) throw new Error(`翻译服务暂不可用：${cleanText(data.responseDetails || `状态 ${data.responseStatus}`)}`);
   const result = cleanText(data?.responseData?.translatedText || '');
   if (!result || /MYMEMORY WARNING|AVAILABLE FREE TRANSLATION/i.test(result)) throw new Error('免费翻译额度暂时用尽。');
   return result;
@@ -110,6 +118,7 @@ async function translateText(rawText, rawSource = 'en', rawTarget = 'zh-CN', opt
   const task = (async () => {
     try {
       const translated = await remoteTranslate(text, source, target);
+      if (invalidMachineChinese(translated, settings.translationProvider, false, target)) throw new Error('翻译服务未返回中文释义，请稍后重试或手动编辑。');
       await writeCache(text, source, target, translated, settings.translationProvider, false, force);
       return { text: translated, source, target, sourceText: text, provider: settings.translationProvider, cached: false, status: 'remote' };
     } finally {

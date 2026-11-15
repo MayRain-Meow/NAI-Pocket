@@ -1,3 +1,5 @@
+import { PROMPT_AMBIGUOUS_ARTIST_ALIASES } from './artist-alias-ambiguities.js?v=1.9.46';
+
 // Snapshot of artist names with generated comparison images in the public NAX
 // “Danbooru Artist Tags 2 · V5” gallery. Preview images remain remote and are
 // fetched only after an explicit user action.
@@ -11872,7 +11874,10 @@ export function identifyArtistTag(value, overrides = null) {
     : null;
   const indexed = isNaxV5Artist(normalized);
   const rosterName = rosterCanonicalByKey.get(normalized) || '';
-  const aliasName = uniqueAliasCanonicalByKey.get(normalized) || '';
+  // A unique pen name can still be a normal prompt word (solo, monochrome).
+  // Keep library search / explicit artist lookup; only suppress implicit typing.
+  const aliasName = (explicit || override === true || !PROMPT_AMBIGUOUS_ARTIST_ALIASES.has(normalized))
+    ? uniqueAliasCanonicalByKey.get(normalized) || '' : '';
   const canonical = rosterName || aliasName;
   const recognized = explicit || override === true || (override !== false && (indexed || Boolean(canonical)));
   const source = explicit ? 'explicit'

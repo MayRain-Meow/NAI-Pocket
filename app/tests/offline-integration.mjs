@@ -122,7 +122,7 @@ async function rpc(name,args) {
     await fs.writeFile(target,styleMode==='corrupt'?source.subarray(0,40):source);
     return {path:`style-index/${args.sha256}.bin`,bytes:source.length};
   }
-  if(name==='ArtistResources.readCatalog'&&String(args.url).endsWith('/artist-v5-examples-2026-10-22/catalog.json')) {
+  if(name==='ArtistResources.readCatalog'&&String(args.url).endsWith('/artist-v5-examples-2026-11-15/catalog.json')) {
     if(preview)throw new Error('真实例图目录需在安卓手机上验证。');
     return {catalog:examplesCatalogFixture()};
   }

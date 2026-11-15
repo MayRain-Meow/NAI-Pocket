@@ -306,14 +306,14 @@ export function artistResourceNotice({ request, section, styleSection = null, cu
   function render() {
     later.hidden = true;
     if (installed === 0) {
-      text.textContent = '还没有画师资料。下载后可看 2.2 万位画师的原作例图（约 100 MB，不含图片，例图从 Danbooru 按需读取）。';
+      text.textContent = '还没有画师资料。下载后可看 2.3 万位画师的原作例图（约 100 MB，不含图片，例图从 Danbooru 按需读取）。';
       action.textContent = '去下载'; action.hidden = false; banner.hidden = false;
     } else if (installed > 0 && outdated && !updateDismissed) {
-      // 0.7.1: earlier data is still installed; the update replaces it only once verified.
-      text.textContent = outdated === 'catalog' ? '画师标注资料有更新：画师从约 1.3 万位增加到 2.2 万位（约 100 MB，不含图片）。' : '画风数据有更新：覆盖 2.1 万位画师，新增 12 个感觉词（特写、全身、漫画分格……）和「依据」V5 出图（约 63 MB）。';
+      // Earlier data stays installed; the update replaces it only once verified. The texts name what the current release adds (0.7.8).
+      text.textContent = outdated === 'catalog' ? '画师资料有更新：2.3 万位画师，新增 9.6 万个别名，可以用日文、中文原名搜到画师（约 100 MB，不含图片）。' : '画风数据有更新：V5 出图覆盖全部 2.3 万位画师，按感觉找、找相似和 Storm 更全（约 73 MB）。同一页的「V5 例图」也有新版：每位画师都有了。';
       action.textContent = '去更新'; action.hidden = false; later.hidden = false; banner.hidden = false;
     } else if (installed > 0 && !style && !styleDismissed) {
-      text.textContent = '新增画风数据：下载后可按感觉找画师、找相似（约 63 MB）。';
+      text.textContent = '新增画风数据：下载后可按感觉找画师、找相似（约 73 MB）。';
       action.textContent = '去下载'; action.hidden = false; later.hidden = false; banner.hidden = false;
     } else if (failures >= 3) {
       text.textContent = `已有 ${failures} 张例图读取失败：可能无法连接 Danbooru 图片服务器（cdn.donmai.us）。当前网络无法访问时，标注和筛选仍可使用。`;

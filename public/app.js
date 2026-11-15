@@ -7,28 +7,29 @@ import {
   unwrapLegacyBrackets,
   parseStructuredPrompt as parseStructuredPromptUtil,
   cloneTagForStorage
-} from './prompt-utils.js?v=1.9.44';
-import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.9.44';
-import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.9.44';
-import { repairImportedPrompt } from './import-repair.js?v=1.9.44';
-import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.9.44';
-import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, isKnownArtistName, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity, suggestArtistNames } from './artist-index-v5.js?v=1.9.44';
-import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.9.44';
-import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.9.44';
-import { buildArtistStormPlan } from './storm-utils.js?v=1.9.44';
-import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.9.44';
-import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.9.44';
-import { MEDIUM_EFFORT, normalizeUcPreset, supportsMediumEffort, UC_PRESET_LABELS, ucPresetFromHint, usesMediumEffort } from './nai-presets.js?v=1.9.44';
-import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.9.44';
-import { focusedInpaintPlan, sanitizeInpaintRegion } from './focused-inpaint.js?v=1.9.44';
-import { observeToastClearance } from './toast-layout.js?v=1.9.44';
-import { installSelectSheets } from './select-sheet.js?v=1.9.44';
-import { attachWeightHighlight } from './weight-highlight.js?v=1.9.44';
-import { confirmAction, promptText } from './confirm-sheet.js?v=1.9.44';
-import { createTaggerPanel } from './tagger-panel.js?v=1.9.44';
-import { createCodexPanel } from './codex-panel.js?v=1.9.44';
-import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.44';
-import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.9.44';
+} from './prompt-utils.js?v=1.9.46';
+import { needsTagMeaning, fillTagMeanings } from './tag-translation-batch.js?v=1.9.46';
+import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.9.46';
+import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.9.46';
+import { repairImportedPrompt } from './import-repair.js?v=1.9.46';
+import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.9.46';
+import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, isKnownArtistName, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity, suggestArtistNames } from './artist-index-v5.js?v=1.9.46';
+import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.9.46';
+import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.9.46';
+import { buildArtistStormPlan } from './storm-utils.js?v=1.9.46';
+import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.9.46';
+import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.9.46';
+import { MEDIUM_EFFORT, normalizeUcPreset, supportsMediumEffort, UC_PRESET_LABELS, ucPresetFromHint, usesMediumEffort } from './nai-presets.js?v=1.9.46';
+import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.9.46';
+import { focusedInpaintPlan, sanitizeInpaintRegion } from './focused-inpaint.js?v=1.9.46';
+import { observeToastClearance } from './toast-layout.js?v=1.9.46';
+import { installSelectSheets } from './select-sheet.js?v=1.9.46';
+import { attachWeightHighlight } from './weight-highlight.js?v=1.9.46';
+import { confirmAction, promptText } from './confirm-sheet.js?v=1.9.46';
+import { createTaggerPanel } from './tagger-panel.js?v=1.9.46';
+import { createCodexPanel } from './codex-panel.js?v=1.9.46';
+import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.46';
+import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.9.46';
 
 const GROUP_LABELS_BY_KEY = {
   scene: '场景',
@@ -1757,7 +1758,7 @@ function watchForUpdates() {
     if (await pageIsCurrentRelease()) return; // the page already loaded this release (1.9.39)
     showUpdateBanner();
   });
-  navigator.serviceWorker.register('/sw.js?v=1.9.44').then(registration => {
+  navigator.serviceWorker.register('/sw.js?v=1.9.46').then(registration => {
     let checkedAt = Date.now();
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible' || Date.now() - checkedAt < 10 * 60 * 1000) return;
@@ -4239,10 +4240,15 @@ function bindPositionSheet() {
 
 // Visible "补翻译" prompt above the Tags whenever some Tags lack a meaning.
 function missingTranslationCount() {
+  return editorTranslationTags().filter(tag => needsTagMeaning(tag, isArtistText)).length;
+}
+
+function editorTranslationTags() {
   return [
     ...GROUP_DEFS.flatMap(([key]) => appState.groups[key] || []),
-    ...appState.characters.flatMap(character => [...character.promptTags, ...character.ucTags])
-  ].filter(tag => tag.text && !tag.translation && !hasCjk(tag.text) && !isArtistText(tag.text)).length;
+    ...appState.characters.flatMap(character => [...character.promptTags, ...character.ucTags]),
+    ...ucChipTags()
+  ];
 }
 
 function updateTranslateHint() {
@@ -5314,28 +5320,21 @@ async function requestTagTranslation(groupKey, id, force = false) {
 }
 
 async function translateSpecificTags(tags) {
-  const pending = tags.filter(tag => tag?.text && !tag.translation && !hasCjk(tag.text) && !isArtistText(tag.text));
-  if (!pending.length) return { changed: 0, missing: 0, failed: 0 };
-  const results = await api('/api/translations/batch', { method: 'POST', body: { items: pending.map(tag => tag.text), source: 'en', target: 'zh-CN', remote: true } });
-  const map = new Map(results.map(item => [String(item.sourceText || '').toLowerCase(), item]));
-  let changed = 0, missing = 0, failed = 0;
-  for (const tag of pending) {
-    const result = map.get(tag.text.toLowerCase());
-    if (!result?.text) { if (result?.status === 'error') failed += 1; else missing += 1; continue; }
-    tag.translation = result.text;
-    translationCache.set(tag.text.toLowerCase(), result.text);
-    updateTagTranslationDom(tag.id, result.text);
-    changed += 1;
-  }
-  return { changed, missing, failed };
+  const result = await fillTagMeanings(tags, {
+    isArtist: isArtistText,
+    request: items => api('/api/translations/batch', { method: 'POST', body: { items, source: 'en', target: 'zh-CN', remote: true } }),
+    apply: (tag, text) => {
+      translationCache.set(tag.text.toLowerCase(), text);
+      updateTagTranslationDom(tag.id, text);
+    }
+  });
+  updateTranslateHint();
+  return result;
 }
 
 async function translateMissingTags() {
   if (translationBusy) return;
-  const missing = [
-    ...GROUP_DEFS.flatMap(([key]) => appState.groups[key] || []),
-    ...appState.characters.flatMap(character => [...character.promptTags, ...character.ucTags])
-  ].filter(tag => tag.text && !tag.translation && !hasCjk(tag.text));
+  const missing = editorTranslationTags().filter(tag => needsTagMeaning(tag, isArtistText));
   if (!missing.length) return toast('当前卡片都已有中文释义。');
   translationBusy = true;
   const button = $('#translateMissingButton');
@@ -5343,7 +5342,7 @@ async function translateMissingTags() {
   try {
     let done = 0, unresolved = 0, failed = 0;
     for (let index = 0; index < missing.length; index += 30) {
-      button.textContent = `翻译中 ${done}/${missing.length}`;
+      button.textContent = `翻译中 ${index}/${missing.length}`;
       const batch = await translateSpecificTags(missing.slice(index, index + 30));
       done += batch.changed; unresolved += batch.missing; failed += batch.failed;
       await sleep(120);
@@ -5352,7 +5351,7 @@ async function translateMissingTags() {
     updateTranslateHint();
     // Only successful results are cached; report the rest instead of implying it.
     const rest = [failed ? `${failed} 个翻译服务暂时失败` : '', unresolved ? `${unresolved} 个未取得释义` : ''].filter(Boolean).join('，');
-    toast(done ? `已补充 ${done} 个中文释义${rest ? `；${rest}，可稍后重试或选中 Tag 手动编辑` : '。'}` : `未补充释义：${rest || '没有可用结果'}`, done && !failed ? 'success' : '');
+    toast(done ? `已补充 ${done} 个中文释义${rest ? `；${rest}，可稍后重试或选中 Tag 手动编辑` : '。'}` : `未补充释义：${rest || '没有可用结果'}`, done && !failed && !unresolved ? 'success' : '');
     await refreshTranslationStatus();
   } catch (error) {
     toast(`翻译中断：${error.message}`, 'error');
