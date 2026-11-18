@@ -74,9 +74,53 @@ export function slimEntry(meta, entry, media) {
   };
 }
 
+// Compact form (1.9.47): a codex is kept and cached as file names plus the asset revision, and an
+// entry becomes slimEntry()'s shape only when a page is served. Image URLs (two per entry, ~110
+// characters each) were half of a normalised codex; NovelAI v5画师词典 reached 28.5 MB raw on
+// 2026-11-18 and the old 24 MB cap refused it. Empty fields are left out and restored on expansion.
+
+export const CODEX_DATA_FORMAT = 2;
+export function compactEntry(meta, entry) {
+  const characters = Array.isArray(entry.characterPrompts)
+    ? entry.characterPrompts.filter(c => c && typeof c.prompt === 'string' && c.prompt.trim()).map(c => ({ label: text(c.label), prompt: c.prompt.trim(), negative: text(c.negative).trim() }))
+    : [];
+  const image = text(entry.image);
+  const images = Array.isArray(entry.images) ? entry.images.filter(im => im && typeof im.path === 'string').map(im => im.path) : [];
+  const note = text(entry.note).trim().slice(0, 600), negative = text(entry.negative).trim(), params = parseCodexParams(entry.note);
+  const compact = { id: text(entry.id), title: text(entry.title), path: Array.isArray(entry.path) ? entry.path.map(String) : [], prompt: text(entry.tags).trim() };
+  if (characters.length) compact.characters = characters;
+  if (entry.isNew === true) compact.isNew = true;
+  if (negative) compact.negative = negative;
+  if (params) compact.params = params;
+  if (note) compact.note = note;
+  if (image) compact.image = image;
+  // `images` is left out when it is exactly [image], the usual case.
+  if (!(images.length === 1 && images[0] === image)) compact.images = images;
+  // Kept as the site wrote them: a non-string revision (true, 1) still goes into the URL as before.
+  if (entry.assetRev) compact.rev = String(entry.assetRev);
+  if (entry.assetCodexId && entry.assetCodexId !== meta.id) compact.codex = String(entry.assetCodexId);
+  compact.width = Number(entry.imageWidth) || 0; compact.height = Number(entry.imageHeight) || 0;
+  return compact;
+}
+const assetsOf = meta => ({ id: text(meta.id), assetPathMode: text(meta.assetPathMode), assetBaseUrl: text(meta.assetBaseUrl) });
+export function expandEntry(assets, compact, media) {
+  const asset = { assetRev: compact.rev || '', assetCodexId: compact.codex || '' };
+  const url = file => imageUrl(assets, asset, file, media);
+  return {
+    id: compact.id, title: compact.title, path: compact.path, prompt: compact.prompt, characters: compact.characters || [], isNew: compact.isNew === true,
+    negative: compact.negative || '', params: compact.params || null, note: compact.note || '',
+    image: url(compact.image || ''), images: (compact.images || (compact.image ? [compact.image] : [])).map(url),
+    width: compact.width || 0, height: compact.height || 0
+  };
+}
+
 export function normalizeCodexData(meta, raw, media) {
-  const entries = (Array.isArray(raw?.entries) ? raw.entries : []).filter(e => e && typeof e === 'object').map(e => slimEntry(meta, e, media));
-  return { meta: metaView(meta), tree: Array.isArray(raw?.tree) ? raw.tree : [], entries };
+  const entries = (Array.isArray(raw?.entries) ? raw.entries : []).filter(e => e && typeof e === 'object').map(e => compactEntry(meta, e));
+  return { format: CODEX_DATA_FORMAT, meta: metaView(meta), assets: assetsOf(meta), media: { ...MEDIA_FALLBACK, ...media }, tree: Array.isArray(raw?.tree) ? raw.tree : [], entries };
+}
+// A cached compact codex follows the current index: its meta, asset rules and media hosts.
+export function withCurrentIndex(data, meta, media) {
+  return { ...data, meta: metaView(meta), assets: assetsOf(meta), media: { ...MEDIA_FALLBACK, ...media } };
 }
 
 const slimTree = nodes => (Array.isArray(nodes) ? nodes : []).filter(n => n && typeof n.name === 'string')
@@ -87,8 +131,10 @@ export function queryCodexData(data, { path: rawPath = '', q = '', offset = 0, l
   const needle = String(q || '').trim().toLowerCase().slice(0, 100);
   const matches = data.entries.filter(entry => segments.every((segment, index) => entry.path[index] === segment)
     && (!needle || entry.title.toLowerCase().includes(needle) || entry.prompt.toLowerCase().includes(needle)
-      || entry.characters.some(c => c.prompt.toLowerCase().includes(needle))));
+      || (entry.characters || []).some(c => c.prompt.toLowerCase().includes(needle))));
   const start = Math.max(0, Math.min(Number(offset) || 0, matches.length));
   const size = Math.max(1, Math.min(Number(limit) || 40, 80));
-  return { meta: data.meta, tree: slimTree(data.tree), total: matches.length, offset: start, entries: matches.slice(start, start + size) };
+  // Only the served page is expanded to full entries (URLs included).
+  const page = matches.slice(start, start + size).map(entry => data.format === CODEX_DATA_FORMAT ? expandEntry(data.assets, entry, data.media) : entry);
+  return { meta: data.meta, tree: slimTree(data.tree), total: matches.length, offset: start, entries: page };
 }

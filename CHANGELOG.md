@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.9 — Preview
+
+- Fixed: after the 法典 update, NovelAI v5画师词典 (31,000 entries, 28.5 MB) and v5社区精选图包 (24.4 MB) were refused as too large. A codex file may now be up to 96 MB; it is parsed once and kept compact on the phone (file names only, image addresses built per page, empty fields left out), so the 画师词典 takes 20 MB instead of 28.5 MB and reopens at once. Codexes cached by an earlier version are converted the first time they are opened, offline too; what you see is unchanged.
+
 ## 0.7.8 — Preview
 
 - New artist data: 画师资料 2026-11-15 (22,960 artists, 96,385 aliases including native-script names, so an artist can be found by their Japanese or Chinese name), V5 例图 2026-11-15 (22,886 pictures — every artist now has one, up from 12,779) and 画风数据 2026-11-15 (55,944 originals; the V5 part now covers 22,773 artists, so 按感觉找 by V5, 找相似 and Storm reach every artist). Settings offers the update; the data already on the phone keeps working until then.

@@ -1,4 +1,4 @@
-import { CODEX_SITE, MEDIA_FALLBACK, normalizeCodexIndex, metaView, imageUrl, slimEntry, parseCodexParams, normalizeCodexData, queryCodexData } from '../public/codex-core.js';
+import { CODEX_SITE, MEDIA_FALLBACK, normalizeCodexIndex, metaView, imageUrl, slimEntry, parseCodexParams, normalizeCodexData, queryCodexData, withCurrentIndex, CODEX_DATA_FORMAT } from '../public/codex-core.js';
 export { CODEX_SITE, parseCodexParams } from '../public/codex-core.js';
 
 // Read-only access to the QuickTagCloud 法典 (community prompt codexes), used as
@@ -9,7 +9,8 @@ export { CODEX_SITE, parseCodexParams } from '../public/codex-core.js';
 export function createCodexService({ cache, http = { fetch: (...args) => globalThis.fetch(...args) }, clock = { now: () => Date.now() } }) {
 const DATA_HOSTS = new Set(['novelai.quicktagcloud.com', 'prompt-vault-gallery.pages.dev']);
 const INDEX_TTL_MS = 30 * 60 * 1000;
-const MAX_BYTES = 24 * 1024 * 1024;
+// Raw files are parsed once and kept compact (1.9.47); the cap only guards against a runaway file.
+const MAX_BYTES = 96 * 1024 * 1024;
 const MEMORY_SLOTS = 3;
 
 let indexCache = null;   // { at, codexes, media }
@@ -74,18 +75,25 @@ async function loadCodex(id) {
   if (hit && hit.version === version) { memory.delete(id); memory.set(id, hit); return hit.data; }
   if (inflight.has(id)) return inflight.get(id);
   const task = (async () => {
-    const file = `${safeName(id)}@${safeName(version)}.json`;
-    let raw = await cache.read(file);
-    if (!raw) {
-      const primary = meta.dataUrl ? String(meta.dataUrl) : `${CODEX_SITE}/data/${encodeURIComponent(id)}.json`;
-      try { raw = await fetchJson(primary, { timeoutMs: 60_000 }); }
-      catch (error) {
-        if (!meta.fallbackDataUrl) throw error;
-        raw = await fetchJson(new URL(String(meta.fallbackDataUrl), `${CODEX_SITE}/`).href, { timeoutMs: 60_000 });
+    // The disk keeps the compact form (`.c2.json`); a raw file cached by an earlier release is
+    // converted on first use instead of being downloaded again.
+    const file = `${safeName(id)}@${safeName(version)}.c2.json`;
+    let data = await cache.read(file);
+    if (data?.format !== CODEX_DATA_FORMAT) {
+      let raw = await cache.read(`${safeName(id)}@${safeName(version)}.json`);
+      if (!raw) {
+        const primary = meta.dataUrl ? String(meta.dataUrl) : `${CODEX_SITE}/data/${encodeURIComponent(id)}.json`;
+        try { raw = await fetchJson(primary, { timeoutMs: 90_000 }); }
+        catch (error) {
+          if (!meta.fallbackDataUrl) throw error;
+          raw = await fetchJson(new URL(String(meta.fallbackDataUrl), `${CODEX_SITE}/`).href, { timeoutMs: 90_000 });
+        }
       }
-      await cache.replace(`${safeName(id)}@`, file, raw);
+      data = normalizeCodexData(meta, raw, index.media);
+      raw = null;
+      await cache.replace(`${safeName(id)}@`, file, data);
     }
-    const data = normalizeCodexData(meta, raw, index.media);
+    data = withCurrentIndex(data, meta, index.media);
     memory.set(id, { version, data });
     while (memory.size > MEMORY_SLOTS) memory.delete(memory.keys().next().value);
     return data;
