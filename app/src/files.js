@@ -1,6 +1,7 @@
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Capacitor } from '@capacitor/core';
 import { Buffer } from 'buffer';
+import { v5ReferenceCrop } from '../../public/model-utils.js';
 
 const directory = Directory.Data;
 export function localPath(tier, name) {
@@ -74,5 +75,19 @@ export const nativeImages = {
     await nativeFiles.write(target, bytes); return { size: bytes.length };
   },
   async clean(source, format) { return encode(await canvasImage(source, { opaque: format === 'png' }), `image/${format}`, 0.9); },
-  async precise(source, target) { return encode(await canvasImage(source, { target }), 'image/png'); }
+  async precise(source, target) { return encode(await canvasImage(source, { target }), 'image/png'); },
+  // V5: scaled to cover NovelAI's nearest bucket and centre-cropped; a bucket-sized picture goes as it is.
+  // createImageBitmap turns the picture upright first, so the bucket follows what the user sees.
+  async preciseV5(source) {
+    const bytes = await nativeFiles.read(source);
+    const bitmap = await createImageBitmap(new Blob([bytes]));
+    try {
+      const crop = v5ReferenceCrop(bitmap.width, bitmap.height);
+      if (!crop) return bytes;
+      const canvas = document.createElement('canvas');
+      canvas.width = crop.width; canvas.height = crop.height;
+      canvas.getContext('2d').drawImage(bitmap, -crop.left, -crop.top, crop.resizeWidth, crop.resizeHeight);
+      return encode(canvas, 'image/png');
+    } finally { bitmap.close(); }
+  }
 };

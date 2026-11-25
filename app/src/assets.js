@@ -1,4 +1,5 @@
 import { isOfficialProvider } from '../../public/provider-route.js';
+import { isV5GenerationModel } from '../../public/model-utils.js';
 import { confirmAction } from '../../public/confirm-sheet.js';
 import { Buffer } from 'buffer';
 import { createAssetsService } from '../../service/assets.js';
@@ -40,8 +41,9 @@ export function openAssets(database, settings, http, providers) {
       }
     },
     async base64ForRef(ref, options) { return (await assets.resolve(ref, options)).buffer.toString('base64'); },
-    async preciseReferenceBase64(ref, { signal } = {}) {
+    async preciseReferenceBase64(ref, { signal, model = '' } = {}) {
       const resolved = await assets.resolve(ref, { signal });
+      if (isV5GenerationModel(model)) { const bytes = await nativeImages.preciseV5(resolved.filePath); signal?.throwIfAborted(); return bytes.toString('base64'); }
       const ratio = resolved.row.width / resolved.row.height || 1;
       const target = ratio < 0.84 ? [1024, 1536] : ratio > 1.19 ? [1536, 1024] : [1472, 1472];
       const bytes = await nativeImages.precise(resolved.filePath, target); signal?.throwIfAborted(); return bytes.toString('base64');

@@ -1,4 +1,4 @@
-import { PROMPT_AMBIGUOUS_ARTIST_ALIASES } from './artist-alias-ambiguities.js?v=1.9.47';
+import { PROMPT_AMBIGUOUS_ARTIST_ALIASES } from './artist-alias-ambiguities.js?v=1.9.48';
 
 // Snapshot of artist names with generated comparison images in the public NAX
 // “Danbooru Artist Tags 2 · V5” gallery. Preview images remain remote and are

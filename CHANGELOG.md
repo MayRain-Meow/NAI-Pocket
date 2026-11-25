@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.10 — Preview
+
+- Added: V5 Precise Reference (NovelAI, 2026-11-24). V5 Full and V5 Curated take precise references as on NovelAI's site: 角色+画风 / 角色 / 画风 / 服装 (服装 is V5-only), a 「偏好同款服装」 switch on the character types, strength up to 5 and no Fidelity. Reference pictures are cut the way NovelAI's client does (scaled to cover the nearest V5 size and centre-cropped; a picture already at a V5 size is sent as it is). V5 Full · Medium has no Precise Reference and switching to it turns it off; V5 inpainting does not send precise references (NovelAI does not either) and the panel says so. New references start as 角色+画风 at strength 1, like NovelAI's.
+- Fixed: V4.5 Precise Reference sent Fidelity the wrong way round; NovelAI sends 1 − Fidelity. Same result at the default 0.5; adjusted values now match NovelAI's site.
+
 ## 0.7.9 — Preview
 
 - Fixed: after the 法典 update, NovelAI v5画师词典 (31,000 entries, 28.5 MB) and v5社区精选图包 (24.4 MB) were refused as too large. A codex file may now be up to 96 MB; it is parsed once and kept compact on the phone (file names only, image addresses built per page, empty fields left out), so the 画师词典 takes 20 MB instead of 28.5 MB and reopens at once. Codexes cached by an earlier version are converted the first time they are opened, offline too; what you see is unchanged.

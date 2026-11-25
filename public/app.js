@@ -7,29 +7,29 @@ import {
   unwrapLegacyBrackets,
   parseStructuredPrompt as parseStructuredPromptUtil,
   cloneTagForStorage
-} from './prompt-utils.js?v=1.9.47';
-import { needsTagMeaning, fillTagMeanings } from './tag-translation-batch.js?v=1.9.47';
-import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.9.47';
-import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.9.47';
-import { repairImportedPrompt } from './import-repair.js?v=1.9.47';
-import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.9.47';
-import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, isKnownArtistName, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity, suggestArtistNames } from './artist-index-v5.js?v=1.9.47';
-import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.9.47';
-import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.9.47';
-import { buildArtistStormPlan } from './storm-utils.js?v=1.9.47';
-import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.9.47';
-import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.9.47';
-import { MEDIUM_EFFORT, normalizeUcPreset, supportsMediumEffort, UC_PRESET_LABELS, ucPresetFromHint, usesMediumEffort } from './nai-presets.js?v=1.9.47';
-import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.9.47';
-import { focusedInpaintPlan, sanitizeInpaintRegion } from './focused-inpaint.js?v=1.9.47';
-import { observeToastClearance } from './toast-layout.js?v=1.9.47';
-import { installSelectSheets } from './select-sheet.js?v=1.9.47';
-import { attachWeightHighlight } from './weight-highlight.js?v=1.9.47';
-import { confirmAction, promptText } from './confirm-sheet.js?v=1.9.47';
-import { createTaggerPanel } from './tagger-panel.js?v=1.9.47';
-import { createCodexPanel } from './codex-panel.js?v=1.9.47';
-import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.47';
-import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.9.47';
+} from './prompt-utils.js?v=1.9.48';
+import { needsTagMeaning, fillTagMeanings } from './tag-translation-batch.js?v=1.9.48';
+import { parseNaiImport, parsePromptTagsRobust, overlayImportOntoEditor } from './nai-import.js?v=1.9.48';
+import { canonicalAdvancedParameterKey, filterAdvancedOverrides, isNonAdvancedParameterKey } from './parameter-semantics.js?v=1.9.48';
+import { repairImportedPrompt } from './import-repair.js?v=1.9.48';
+import { normalizeProviderId, isOfficialProvider } from './provider-route.js?v=1.9.48';
+import { buildNaxV5ArtistSearchUrl, identifyArtistTag, installArtistIdentityIndex, isKnownArtistName, normalizeArtistIdentity, applyArtistPrefixToTagText, sameArtistIdentity, suggestArtistNames } from './artist-index-v5.js?v=1.9.48';
+import { collectPositiveRecommendationTags } from './storm-utils.js?v=1.9.48';
+import { createArtistLibrary, createArtistAutomation, artistLibraryAvailable, artistAutomationAvailable, stormAvailable } from './owner-features.js?v=1.9.48';
+import { buildArtistStormPlan } from './storm-utils.js?v=1.9.48';
+import { estimatePromptTokens, extractQuotedText, v5ModelProfile } from './v5-utils.js?v=1.9.48';
+import { fitGenerationDimensions, requiresSeedDecision, createTranslationDraft, editTranslationDraft, canApplyDraftTranslation, cleanArtistTranslation, stepTagWeight, characterPositionPadStyle, PARAMETER_HELP } from './editor-workspace.js?v=1.9.48';
+import { MEDIUM_EFFORT, normalizeUcPreset, supportsMediumEffort, UC_PRESET_LABELS, ucPresetFromHint, usesMediumEffort } from './nai-presets.js?v=1.9.48';
+import { workflowModeForState, workflowModeLabel } from './workflow-mode.js?v=1.9.48';
+import { focusedInpaintPlan, sanitizeInpaintRegion } from './focused-inpaint.js?v=1.9.48';
+import { observeToastClearance } from './toast-layout.js?v=1.9.48';
+import { installSelectSheets } from './select-sheet.js?v=1.9.48';
+import { attachWeightHighlight } from './weight-highlight.js?v=1.9.48';
+import { confirmAction, promptText } from './confirm-sheet.js?v=1.9.48';
+import { createTaggerPanel } from './tagger-panel.js?v=1.9.48';
+import { createCodexPanel } from './codex-panel.js?v=1.9.48';
+import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.48';
+import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, preciseStrengthMax, supportsReferenceFidelity, supportsOutfitReference, preciseReferenceWhileInpainting, preciseReferenceKind, preciseReferenceSameOutfit, preciseReferenceType, preciseReferenceTypeFor, PRECISE_REFERENCE_TYPES, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.9.48';
 
 const GROUP_LABELS_BY_KEY = {
   scene: '场景',
@@ -194,9 +194,12 @@ function characterLimitForModel(model = $('#model')?.value || appState?.model) {
   return sharedCharacterLimit(model);
 }
 
-function supportsPreciseReference(model = $('#model')?.value || appState?.model) {
-  return sharedPreciseReference(model);
+// Effort matters: V5 Full · Medium has no Precise Reference.
+function supportsPreciseReference(model = $('#model')?.value || appState?.model, effort = currentEffort()) {
+  return sharedPreciseReference(model, effort);
 }
+// A new Precise Reference starts as NovelAI's own client starts one: 角色+画风, strength 1, fidelity 1.
+const newPreciseReference = (image = null) => ({ image, type: 'character&style', strength: 1, fidelity: 1 });
 
 function supportsVibeTransfer(model = $('#model')?.value || appState?.model) {
   return sharedVibeTransfer(model);
@@ -1758,7 +1761,7 @@ function watchForUpdates() {
     if (await pageIsCurrentRelease()) return; // the page already loaded this release (1.9.39)
     showUpdateBanner();
   });
-  navigator.serviceWorker.register('/sw.js?v=1.9.47').then(registration => {
+  navigator.serviceWorker.register('/sw.js?v=1.9.48').then(registration => {
     let checkedAt = Date.now();
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible' || Date.now() - checkedAt < 10 * 60 * 1000) return;
@@ -6074,7 +6077,7 @@ function setGenerationMode(mode) {
 function setReferenceMode(mode) {
   if (!['none', 'precise', 'vibe'].includes(mode)) return;
   if (mode === 'precise' && !supportsPreciseReference()) {
-    toast('Precise Reference 当前仅支持 V4.5；请先切换模型。', 'error');
+    toast('精确参考只支持 V5（High）和 V4.5；请先切换模型。', 'error');
     return;
   }
   if (mode === 'vibe' && !supportsVibeTransfer()) {
@@ -6082,7 +6085,7 @@ function setReferenceMode(mode) {
     return;
   }
   appState.referenceControl.mode = mode;
-  if (mode === 'precise' && !appState.referenceControl.precise.length) appState.referenceControl.precise.push({ image: null, type: 'character', strength: 0.6, fidelity: 0.5 });
+  if (mode === 'precise' && !appState.referenceControl.precise.length) appState.referenceControl.precise.push(newPreciseReference());
   if (mode === 'vibe' && !appState.referenceControl.vibes.length) appState.referenceControl.vibes.push({ image: null, strength: 0.6, informationExtracted: 1 });
   renderImageWorkflow();
 }
@@ -6090,21 +6093,35 @@ function setReferenceMode(mode) {
 function renderPreciseReferences() {
   if (!els.preciseReferenceList) return;
   const list = appState.referenceControl.precise || [];
+  const note = $('#preciseReferenceModelNote');
+  if (note) note.textContent = isV5GenerationModel($('#model')?.value || appState.model) ? 'V5 · 强度可到 5 · 可参考服装' : 'V4.5 · 强度 0–1 · 带 Fidelity';
   if (!list.length) {
     els.preciseReferenceList.classList.add('empty-state');
     els.preciseReferenceList.textContent = '暂无参考图。';
     return;
   }
   els.preciseReferenceList.classList.remove('empty-state');
-  els.preciseReferenceList.innerHTML = list.map((item, index) => {
+  // The card follows the model: V5 has 服装, 「偏好同款服装」 and strength up to 5; V4.5 has Fidelity.
+  const model = $('#model')?.value || appState.model;
+  const strengthMax = preciseStrengthMax(model), outfits = supportsOutfitReference(model), fidelity = supportsReferenceFidelity(model);
+  const kinds = [['character&style', '角色+画风'], ['character', '角色'], ['style', '画风'], ['costume', '服装']];
+  const inpaintSkipped = appState.imageWorkflow?.mode === 'inpaint' && !preciseReferenceWhileInpainting(model);
+  els.preciseReferenceList.innerHTML = (inpaintSkipped ? '<p class="workflow-warning" data-pr-inpaint-note>V5 局部重绘不带精确参考（官网同样不发送）；关掉精确参考，或改用 V4.5 重绘。</p>' : '') + list.map((item, index) => {
     const url = workflowRefUrl(item.image);
+    const kind = preciseReferenceKind(item.type);
+    const strength = Math.min(strengthMax, Number(item.strength ?? 1));
+    const dropped = !preciseReferenceTypeFor(model, item.type);
+    const options = kinds.filter(([value]) => value !== 'costume' || outfits || kind === 'costume')
+      .map(([value, label]) => `<option value="${value}" ${kind === value ? 'selected' : ''}>${label}${value === 'costume' && !outfits ? '（仅 V5）' : ''}</option>`).join('');
     return `<article class="reference-card" data-pr-index="${index}">
-      <button class="reference-thumb" type="button" data-ref-pick>${url ? `<img src="${url}" alt="Precise Reference ${index + 1}">` : '<span>＋ 图片</span>'}</button>
+      <button class="reference-thumb" type="button" data-ref-pick>${url ? `<img src="${url}" alt="精确参考 ${index + 1}">` : '<span>＋ 图片</span>'}</button>
       <div class="reference-fields">
-        <div class="reference-card-head"><strong>PR ${index + 1}</strong><button class="ghost danger compact" type="button" data-ref-delete>删除</button></div>
-        <label>类型<select data-ref-type><option value="character" ${item.type === 'character' ? 'selected' : ''}>Character</option><option value="style" ${item.type === 'style' ? 'selected' : ''}>Style</option><option value="character&style" ${item.type === 'character&style' ? 'selected' : ''}>Character + Style</option></select></label>
-        <label>Strength <span>${Number(item.strength ?? .6).toFixed(2)}</span><input data-ref-strength type="range" min="0" max="1" step="0.01" value="${Number(item.strength ?? .6)}"></label>
-        <label>Fidelity <span>${Number(item.fidelity ?? .5).toFixed(2)}</span><input data-ref-fidelity type="range" min="0" max="1" step="0.01" value="${Number(item.fidelity ?? .5)}"></label>
+        <div class="reference-card-head"><strong>参考 ${index + 1}</strong><button class="ghost danger compact" type="button" data-ref-delete>删除</button></div>
+        <label>类型<select data-ref-type>${options}</select></label>
+        ${dropped ? '<p class="hint" data-ref-dropped>当前模型不读服装参考，这张不会发送。</p>' : ''}
+        ${outfits && (kind === 'character' || kind === 'character&style') ? `<label class="reference-check"><input data-ref-outfit type="checkbox" ${preciseReferenceSameOutfit(item.type) ? 'checked' : ''}> 偏好同款服装</label>` : ''}
+        <label>强度 <span>${strength.toFixed(2)}</span><input data-ref-strength type="range" min="0" max="${strengthMax}" step="${strengthMax > 1 ? '0.05' : '0.01'}" value="${strength}"></label>
+        ${fidelity ? `<label>Fidelity <span>${Number(item.fidelity ?? 1).toFixed(2)}</span><input data-ref-fidelity type="range" min="0" max="1" step="0.01" value="${Number(item.fidelity ?? 1)}"></label>` : ''}
       </div>
     </article>`;
   }).join('');
@@ -6116,7 +6133,17 @@ function renderPreciseReferences() {
       if (!appState.referenceControl.precise.length) appState.referenceControl.mode = 'none';
       renderImageWorkflow();
     });
-    card.querySelector('[data-ref-type]')?.addEventListener('change', event => { appState.referenceControl.precise[index].type = event.target.value; });
+    card.querySelector('[data-ref-type]')?.addEventListener('change', event => {
+      // The outfit switch carries over between 角色 and 角色+画风; it starts on for the others.
+      const item = appState.referenceControl.precise[index];
+      const carried = ['character', 'character&style'].includes(preciseReferenceKind(item.type)) ? preciseReferenceSameOutfit(item.type) : true;
+      item.type = preciseReferenceType(event.target.value, carried);
+      renderPreciseReferences();
+    });
+    card.querySelector('[data-ref-outfit]')?.addEventListener('change', event => {
+      const item = appState.referenceControl.precise[index];
+      item.type = preciseReferenceType(preciseReferenceKind(item.type), event.target.checked);
+    });
     card.querySelector('[data-ref-strength]')?.addEventListener('input', event => {
       appState.referenceControl.precise[index].strength = Number(event.target.value);
       event.target.closest('label').querySelector('span').textContent = Number(event.target.value).toFixed(2);
@@ -6375,7 +6402,7 @@ function applyWorkflowAsset(asset, expectedToken = imagePickerActionToken) {
     setWorkflowDimensionsFromAsset(asset);
   } else if (target.kind === 'precise') {
     const index = Number(target.index);
-    if (!appState.referenceControl.precise[index]) appState.referenceControl.precise[index] = { image: null, type: 'character', strength: .6, fidelity: .5 };
+    if (!appState.referenceControl.precise[index]) appState.referenceControl.precise[index] = newPreciseReference();
     appState.referenceControl.precise[index].image = structuredClone(asset.ref);
   } else if (target.kind === 'vibe') {
     const index = Number(target.index);
@@ -7043,12 +7070,15 @@ async function createFromCurrentGalleryImage(mode) {
     setWorkflowDimensionsFromAsset(asset);
   } else if (mode === 'precise') {
     if (!supportsPreciseReference()) {
-      $('#model').value = DEFAULT_NAI_MODEL;
-      appState.model = DEFAULT_NAI_MODEL;
+      // V5 Full · Medium goes back to V5 Full (High); older models go to the default model.
+      const model = $('#model').value === 'nai-diffusion-5-full' ? 'nai-diffusion-5-full' : DEFAULT_NAI_MODEL;
+      selectModelOption(model, 'high');
+      appState.model = model;
       syncSamplingOptions(appState.model, { sampler: $('#sampler').value, noiseSchedule: $('#noiseSchedule').value });
+      updateGenerateBar();
     }
     appState.referenceControl.mode = 'precise';
-    appState.referenceControl.precise.push({ image: structuredClone(asset.ref), type: 'character', strength: .6, fidelity: .5 });
+    appState.referenceControl.precise.push(newPreciseReference(structuredClone(asset.ref)));
   } else if (mode === 'vibe') {
     if (!supportsVibeTransfer()) {
       $('#model').value = DEFAULT_NAI_MODEL;
@@ -7252,8 +7282,8 @@ function normalizeStoredReferenceControl(raw, defaults) {
     const image = normalizeStoredAssetRef(item?.image);
     return image ? {
       image,
-      type: ['character', 'style'].includes(item?.type) ? item.type : 'character',
-      strength: storedNumber(item?.strength, 0.6, 0, 1),
+      type: PRECISE_REFERENCE_TYPES.includes(item?.type) ? item.type : 'character',
+      strength: storedNumber(item?.strength, 0.6, 0, 5),
       fidelity: storedNumber(item?.fidelity, 0.5, 0, 1)
     } : null;
   }).filter(Boolean) : [];
@@ -11620,7 +11650,7 @@ function initBindings() {
     let index = list.findIndex(item => !item?.image);
     if (index < 0) {
       if (list.length >= 16) return toast('这个 PWA 当前最多保留 16 个 Precise Reference 槽位。', 'error');
-      list.push({ image: null, type: 'character', strength: .6, fidelity: .5 });
+      list.push(newPreciseReference());
       index = list.length - 1;
     }
     renderImageWorkflow();
@@ -12021,7 +12051,7 @@ function initBindings() {
     appState.params.noiseSchedule = sampling.noiseSchedule;
     if (appState.referenceControl?.mode === 'precise' && !supportsPreciseReference(event.target.value)) {
       appState.referenceControl.mode = 'none';
-      toast('已关闭 Precise Reference：它当前只支持 V4.5。');
+      toast('已关闭精确参考：当前模型不支持（只支持 V5 High 和 V4.5）。');
     }
     if (appState.referenceControl?.mode === 'vibe' && !supportsVibeTransfer(event.target.value)) {
       appState.referenceControl.mode = 'none';

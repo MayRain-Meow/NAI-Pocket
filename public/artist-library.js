@@ -1,12 +1,12 @@
-import { EXACT_CHIPS, VIBE_GROUP_ORDER, chipForWord, attributesForChips } from './artist-vibe-chips.js?v=1.9.47';
-import { STYLE_FACETS, queryHasStyleTerms } from './artist-catalog.js?v=1.9.47';
-import { createArtistResultViewer } from './artist-result.js?v=1.9.47';
-import { observeFittedChips } from './artist-chip-layout.js?v=1.9.47';
-import { buildNaxV5ArtistSearchUrl } from './artist-index-v5.js?v=1.9.47';
-import { modelDisplayName } from './model-utils.js?v=1.9.47';
-import { normalizeProviderId } from './provider-route.js?v=1.9.47';
-import { confirmAction } from './confirm-sheet.js?v=1.9.47';
-import { STYLE_ATTRIBUTES, STYLE_SCHEMA_VERSION, validateStyleAttributes, attributesFromLegacy, legacyFromAttributes, summarizeStyleEvidence } from './artist-style-schema.js?v=1.9.47';
+import { EXACT_CHIPS, VIBE_GROUP_ORDER, chipForWord, attributesForChips } from './artist-vibe-chips.js?v=1.9.48';
+import { STYLE_FACETS, queryHasStyleTerms } from './artist-catalog.js?v=1.9.48';
+import { createArtistResultViewer } from './artist-result.js?v=1.9.48';
+import { observeFittedChips } from './artist-chip-layout.js?v=1.9.48';
+import { buildNaxV5ArtistSearchUrl } from './artist-index-v5.js?v=1.9.48';
+import { modelDisplayName } from './model-utils.js?v=1.9.48';
+import { normalizeProviderId } from './provider-route.js?v=1.9.48';
+import { confirmAction } from './confirm-sheet.js?v=1.9.48';
+import { STYLE_ATTRIBUTES, STYLE_SCHEMA_VERSION, validateStyleAttributes, attributesFromLegacy, legacyFromAttributes, summarizeStyleEvidence } from './artist-style-schema.js?v=1.9.48';
 
 // 画风依据 (1.9.17): 混合 / V5 出图 / 原作, remembered on this device; storage may be denied.
 const STYLE_SOURCE_KEY = 'nai-pocket-style-source';

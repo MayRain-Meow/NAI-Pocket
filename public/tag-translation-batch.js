@@ -1,4 +1,4 @@
-import { cleanText, hasCjk, getBuiltin } from './translation-core.js?v=1.9.47';
+import { cleanText, hasCjk, getBuiltin } from './translation-core.js?v=1.9.48';
 
 export const translationKey = text => cleanText(text).toLowerCase();
 export const hasTagMeaning = tag => Boolean(tag?.translation && (hasCjk(tag.translation) || getBuiltin(tag.text, 'en', 'zh-CN') === tag.translation));

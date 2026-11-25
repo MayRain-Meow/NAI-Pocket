@@ -3,14 +3,14 @@
 // Environment-specific values (API model names and tool endpoints) are set once by the
 // host through configureGenerationPayload(); the defaults are NovelAI's public ones.
 
-import { formatTag } from './prompt-utils.js?v=1.9.47';
-import { sanitizeInpaintRegion } from './focused-inpaint.js?v=1.9.47';
-import { normalizeProviderId } from './provider-route.js?v=1.9.47';
-import { extractQuotedText, prepareV5Prompt } from './v5-utils.js?v=1.9.47';
-import { DIRECTOR_TOOL_TYPES, filterAdvancedOverrides } from './parameter-semantics.js?v=1.9.47';
-import { DEFAULT_GENERATION_MODEL, DEFAULT_GENERATION_PARAMS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.47';
-import { characterLimitForModel, isV5GenerationModel, supportsPreciseReference, supportsVibeTransfer, supportsCharacterPrompt, V5_CHARACTER_LIMIT } from './model-utils.js?v=1.9.47';
-import { composeNegative, composePrompt, MEDIUM_EFFORT, normalizeUcPreset, usesMediumEffort } from './nai-presets.js?v=1.9.47';
+import { formatTag } from './prompt-utils.js?v=1.9.48';
+import { sanitizeInpaintRegion } from './focused-inpaint.js?v=1.9.48';
+import { normalizeProviderId } from './provider-route.js?v=1.9.48';
+import { extractQuotedText, prepareV5Prompt } from './v5-utils.js?v=1.9.48';
+import { DIRECTOR_TOOL_TYPES, filterAdvancedOverrides } from './parameter-semantics.js?v=1.9.48';
+import { DEFAULT_GENERATION_MODEL, DEFAULT_GENERATION_PARAMS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.48';
+import { characterLimitForModel, isV5GenerationModel, supportsPreciseReference, preciseReferenceTypeFor, preciseReferenceWhileInpainting, preciseStrengthMax, supportsReferenceFidelity, PRECISE_REFERENCE_TYPES, supportsVibeTransfer, supportsCharacterPrompt, V5_CHARACTER_LIMIT } from './model-utils.js?v=1.9.48';
+import { composeNegative, composePrompt, MEDIUM_EFFORT, normalizeUcPreset, usesMediumEffort } from './nai-presets.js?v=1.9.48';
 
 const settings = {
   v5FullModel: 'nai-diffusion-5-full',
@@ -165,11 +165,13 @@ function sanitizeCenters(value) {
 function sanitizePreciseReference(item) {
   const image = sanitizeImageRef(item?.image);
   if (!image) return null;
-  const type = ['character', 'style', 'character&style'].includes(item?.type) ? item.type : 'character';
+  // NovelAI's descriptions; V5 adds costume and the two outfit variants (see model-utils).
+  const type = PRECISE_REFERENCE_TYPES.includes(item?.type) ? item.type : 'character';
   return {
     image,
     type,
-    strength: number(item?.strength, 0.6, 0, 1),
+    // V5 reads strength up to 5; the payload clamps it to the model's range.
+    strength: number(item?.strength, 0.6, 0, 5),
     fidelity: number(item?.fidelity, 0.5, 0, 1)
   };
 }
@@ -500,8 +502,14 @@ export function sanitizeGenerationState(raw, { allowMissingMedia = false } = {})
     throw new Error('Prompt 不能为空；至少填写全局 Prompt 或一个角色 Prompt。');
   }
   if (referenceControl.mode === 'precise') {
-    if (!supportsPreciseReference(model)) throw new Error('Precise Reference 当前仅支持 NovelAI V4.5。');
-    if (!referenceControl.precise.length) throw new Error('Precise Reference 已开启，但没有参考图。');
+    if (!supportsPreciseReference(model, params.effort)) {
+      throw new Error(model === 'nai-diffusion-5-full' ? '精确参考不支持 V5 Full · Medium；请换回 V5 Full（High）或 V5 Curated。' : '精确参考只支持 NovelAI V5 和 V4.5。');
+    }
+    if (!referenceControl.precise.length) throw new Error('精确参考已开启，但没有参考图。');
+    if (!referenceControl.precise.some(item => preciseReferenceTypeFor(model, item.type))) throw new Error('服装参考只在 V5 可用；请换成角色或风格参考。');
+    if (imageWorkflow.mode === 'inpaint' && !preciseReferenceWhileInpainting(model)) {
+      throw new Error('V5 局部重绘不能带精确参考（NovelAI 官网同样不发送）；请关闭精确参考，或用 V4.5 重绘。');
+    }
   }
   if (referenceControl.mode === 'vibe') {
     if (!supportsVibeTransfer(model)) throw new Error('NovelAI V5 首发暂不支持 Vibe Transfer；请切回 V4/V4.5 或关闭 Vibe。');
@@ -697,14 +705,17 @@ export function buildPayload(state, seed, media = {}) {
   }
 
   const references = state.referenceControl || { mode: 'none' };
-  if (references.mode === 'precise' && media.precise?.length) {
-    parameters.director_reference_images = media.precise.map(item => item.image);
-    parameters.director_reference_descriptions = media.precise.map(item => ({
-      caption: { base_caption: item.type, char_captions: [] }, use_coords: false, use_order: true
-    }));
-    parameters.director_reference_information_extracted = media.precise.map(() => 1);
-    parameters.director_reference_strength_values = media.precise.map(item => item.strength);
-    parameters.director_reference_secondary_strength_values = media.precise.map(item => item.fidelity);
+  // Precise Reference as NovelAI's client sends it (2026-11-24): types the model cannot read are mapped
+  // or dropped, V5 has no Fidelity (sent as 1), and the secondary strength is 1 − Fidelity.
+  const precise = references.mode === 'precise' && (workflow.mode !== 'inpaint' || preciseReferenceWhileInpainting(state.model))
+    ? (media.precise || []).map(item => ({ ...item, type: preciseReferenceTypeFor(state.model, item.type) })).filter(item => item.type) : [];
+  if (precise.length) {
+    const strengthMax = preciseStrengthMax(state.model), fidelity = supportsReferenceFidelity(state.model);
+    parameters.director_reference_images = precise.map(item => item.image);
+    parameters.director_reference_descriptions = precise.map(item => ({ caption: { base_caption: item.type, char_captions: [] }, legacy_uc: false }));
+    parameters.director_reference_information_extracted = precise.map(() => 1);
+    parameters.director_reference_strength_values = precise.map(item => Math.min(strengthMax, Math.max(0, Number(item.strength) || 0)));
+    parameters.director_reference_secondary_strength_values = precise.map(item => fidelity ? 1 - Math.min(1, Math.max(0, Number(item.fidelity ?? 1))) : 0);
   } else if (references.mode === 'vibe' && media.vibes?.length) {
     parameters.reference_image_multiple = media.vibes.map(item => item.image);
     parameters.reference_strength_multiple = media.vibes.map(item => item.strength);

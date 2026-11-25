@@ -1553,6 +1553,8 @@ body.editor-focus-mode .settings-column .generation-panel { display: block; }
 .workflow-image-actions small { flex-basis: 100%; color: var(--muted); }
 .workflow-slider-grid { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; }
 .workflow-slider-grid label:not(.workflow-checkbox), .reference-fields > label { display: grid; grid-template-columns: 1fr auto; gap: 5px 8px; color: var(--muted); font-size: 12px; }
+.reference-fields > label.reference-check { display: flex; align-items: center; gap: 8px; min-height: 32px; color: var(--text-secondary); font-size: 13px; }
+.reference-fields > .hint { margin: 0; color: #f0b174; font-size: 12px; }
 .workflow-slider-grid input[type="range"], .reference-fields input[type="range"] { grid-column: 1 / -1; width: 100%; }
 .workflow-checkbox { min-height: 42px; align-self: end; }
 .workflow-warning { padding: 9px 11px; border: 1px solid #8b6b3855; border-radius: 10px; background: #5b3d171f; color: #ddc18d; font-size: 12px; line-height: 1.5; }

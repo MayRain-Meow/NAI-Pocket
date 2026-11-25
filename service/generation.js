@@ -98,7 +98,7 @@ async function resolveGenerationMedia(state, officialToken = '', { signal, prepa
     media.precise = [];
     for (const item of reference.precise || []) {
       media.precise.push({
-        image: await preciseReferenceBase64(item.image, { signal }),
+        image: await preciseReferenceBase64(item.image, { signal, model: state.model }),
         type: item.type,
         strength: item.strength,
         fidelity: item.fidelity
