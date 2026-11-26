@@ -18,6 +18,7 @@ import { stylePackFixture } from '../../tests/style-pack-fixtures.mjs';
 
 
 const preview = process.argv.includes('--preview');
+const experience = process.argv.includes('--experience');
 function option(name) {const index=process.argv.indexOf(name);if(index<0)return null;const value=process.argv[index+1];if(!value||value.startsWith('--')||process.argv.lastIndexOf(name)!==index)throw new Error(`Invalid ${name}`);return value;}
 const artistSource=option('--artist-source'),artistImages=option('--artist-images');
 if(Boolean(artistSource)!==Boolean(artistImages)||(artistSource&&!preview))throw new Error('Prepared artists require --preview --artist-source <json> --artist-images <directory>');
@@ -29,6 +30,7 @@ await fs.mkdir(dataRoot); await fs.mkdir(out);
 const db = new DatabaseSync(path.join(dataRoot,'app.db'));
 const media = new Map(); let vault = '{}', failedVault = false;
 const albumCopies = []; let albumFailure = false;
+const downloadEvents = []; let exportFolder = { configured:false, name:'' }, folderPickerCount = 0;
 const generationCalls = [], encodingCalls = [], naxCalls = [], danbooruCalls = [];
 let exampleCacheBytes = 40*1024**2, slowVaultMs = 0;
 let bootRecord=null,bootCrash=null;const bootSteps=[];
@@ -69,7 +71,7 @@ const sources = {
   '@capacitor/filesystem': `${rpcCode} export const Directory={Data:'DATA'};export const Filesystem=new Proxy({}, {get:(_,method)=>(args)=>rpc('Filesystem.'+String(method),args)});`,
   '@capacitor-community/sqlite': `${rpcCode} export const CapacitorSQLite={};export class SQLiteConnection {async createConnection(){return {open:async()=>{},execute:sql=>rpc('db.execute',{sql}),query:(sql,values)=>rpc('db.query',{sql,values}),run:(sql,values)=>rpc('db.run',{sql,values}),beginTransaction:()=>rpc('db.execute',{sql:'BEGIN'}),commitTransaction:()=>rpc('db.execute',{sql:'COMMIT'}),rollbackTransaction:()=>rpc('db.execute',{sql:'ROLLBACK'})};}}`
 };
-await build({absWorkingDir:appRoot,entryPoints:['src/main.js'],outdir:out,bundle:true,format:'esm',splitting:true,target:'chrome110',logLevel:'silent',plugins:[{name:'fixture-bridge',setup(build){
+await build({absWorkingDir:appRoot,entryPoints:['src/main.js'],outdir:out,bundle:true,format:'esm',splitting:true,target:'chrome110',logLevel:'silent',define:{__POCKET_EXPERIENCE__:String(experience)},plugins:[{name:'fixture-bridge',setup(build){
   build.onResolve({filter:/^@capacitor/},args=>sources[args.path]?{path:args.path,namespace:'fixture'}:undefined);
   build.onLoad({filter:/.*/,namespace:'fixture'},args=>({contents:sources[args.path],loader:'js'}));
   build.onResolve({filter:/owner-features\.js(?:\?|$)/},()=>({path:path.join(appRoot,'src/owner-features.js')}));
@@ -80,10 +82,22 @@ if (preview) {
   const html = await fs.readFile(path.join(out,'index.html'),'utf8');
   await fs.writeFile(path.join(out,'index.html'),html.replace('</body>','<script type="module" src="/fixture/seed.js"></script></body>'));
 }
-for(const name of ['styles.css','workspace.css','tag-chips.css','artist-browser.css','artist-library.css','native.css','licenses.txt'])await fs.copyFile(path.join(appRoot,'www',name),path.join(out,name));
+for(const name of ['styles.css','workspace.css','tag-chips.css','artist-browser.css','artist-library.css','gallery-enhancements.css','native.css','licenses.txt'])await fs.copyFile(path.join(appRoot,'www',name),path.join(out,name));
 await fs.cp(path.join(appRoot,'www/icons'),path.join(out,'icons'),{recursive:true});
+if (experience) await fs.cp(path.join(appRoot,'www/endfield'),path.join(out,'endfield'),{recursive:true});
 function local(name) { const file=path.resolve(dataRoot,String(name));if(!file.startsWith(dataRoot+path.sep))throw new Error('Fixture path escaped');return file; }
 async function rpc(name,args) {
+  if(name==='SystemBars.setStyle')return {};
+  if(name==='PocketNative.setAppearance')return {};
+  if(name==='PocketNative.getExportFolder')return exportFolder;
+  if(name==='PocketNative.chooseExportFolder'){
+    if(preview)throw new Error('文件夹授权需在安卓手机上验证。');
+    folderPickerCount++; return exportFolder={configured:true,name:'测试文件夹'};
+  }
+  if(name==='PocketNative.exportToFolder'){
+    if(preview)throw new Error('文件夹保存需在安卓手机上验证。');
+    downloadEvents.push({destination:'folder',...args,bytes:args.path?await fs.readFile(local(args.path)):Buffer.from(args.data,'base64')});return {saved:true};
+  }
   if(name==='ArtistResources.recover') {
     if(!resourceReview)assert.ok(args.activeDirectories.includes('fixture-v1'),'startup recovery must protect seeded legacy resources');
     else assert.ok(args.activeDirectories.length>0,'startup recovery must protect selected resource mappings');
@@ -198,13 +212,15 @@ async function rpc(name,args) {
   if(name==='PocketNative.requestGalleryAccess')return {granted:true};
   if(name==='PocketNative.saveToGallery'){
     if (preview) throw new Error('手机相册复制需在安卓手机上验证；此预览没有写入相册。');
-    albumCopies.push(args);await fs.access(local(args.path));
+    albumCopies.push(args);
+    const bytes=args.path?await fs.readFile(local(args.path)):Buffer.from(args.data,'base64');
+    downloadEvents.push({destination:'album',...args,bytes});
     if(albumFailure)throw new Error('Synthetic album write failure');
     return {saved:true,uri:'content://media/external/images/media/'+albumCopies.length};
   }
   if(name==='PocketNative.exportFile'){
     if (preview) throw new Error('系统文件导出需在安卓手机上确认；此预览没有保存文件。');
-    return {saved:true};
+    downloadEvents.push({destination:'ask',...args,bytes:args.path?await fs.readFile(local(args.path)):Buffer.from(args.data,'base64')});return {saved:true};
   }
   if(name==='PocketNative.request'){
     const url=new URL(args.url);
@@ -300,7 +316,12 @@ try {
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   await page.waitForFunction(()=>globalThis.NAI_RUNTIME&& !document.querySelector('#appView').classList.contains('hidden'),{},{timeout:15000});
   assert.deepEqual(errors,[],'native app boots the real UI without missing imports/ports');
-  if (process.argv.includes('--relay-settings-only')) {
+  if (process.argv.includes('--experience-checks')) {
+    const { runExperienceChecks } = await import('./experience-ui.test.mjs');
+    const experiencePng=previewImage({input:'synthetic fixture',parameters:{width:512,height:768,seed:42}},1);
+    await runExperienceChecks({page,db,dataRoot,png:experiencePng,downloadEvents,media,folderPickerCount:()=>folderPickerCount,temporary});
+    assert.deepEqual(errors,[],'experience UI has no uncaught browser errors');
+  } else if (process.argv.includes('--relay-settings-only')) {
     const { runRelaySettingsChecks } = await import('./relay-settings.test.mjs');
     await runRelaySettingsChecks({ page, getVault: () => JSON.parse(vault), generationCalls, temporary });
     assert.deepEqual(errors, [], 'relay settings UI has no uncaught browser errors');
