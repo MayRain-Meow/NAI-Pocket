@@ -14,8 +14,8 @@ android {
                                 pocketAppIcon: pocketExperience ? '@drawable/pocket_icon_experience' : '@drawable/pocket_icon']
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode pocketExperience ? 34 : 33
-        versionName pocketExperience ? "${pocketVersion}-endfield.2" : pocketVersion
+        versionCode pocketExperience ? 35 : 33
+        versionName pocketExperience ? "${pocketVersion}-endfield.3" : pocketVersion
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         // ONNX Runtime ships native code per ABI; phones only (emulators are not a target).
         ndk { abiFilters 'arm64-v8a', 'armeabi-v7a' }
