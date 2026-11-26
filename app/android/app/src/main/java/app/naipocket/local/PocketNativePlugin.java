@@ -65,7 +65,7 @@ public class PocketNativePlugin extends Plugin {
             for (int i = 0; i < entries.length(); i++) {
                 org.json.JSONObject item = entries.getJSONObject(i);
                 String route = item.getString("route");
-                if (!route.matches("/api/(images|assets)/[a-zA-Z0-9-]+/(original|preview|thumbnail)")) throw new IllegalArgumentException("Invalid media route");
+                if (!PocketMediaRoutes.isValid(route)) throw new IllegalArgumentException("Invalid media route");
                 if (item.optBoolean("remove", false)) { PocketMediaClient.media.remove(route); continue; }
                 String mime = item.getString("mime");
                 if (!mime.matches("image/(png|jpeg|webp)")) throw new IllegalArgumentException("Invalid media type");
