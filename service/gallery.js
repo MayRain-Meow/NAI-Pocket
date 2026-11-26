@@ -123,6 +123,7 @@ export function createGalleryService({ store, cursors, effects = {}, clock = { n
       if (!ids.length) throw new GalleryServiceError(400, '请选择要删除的图片。');
       if (trashSupported && !permanent) {
         const rows = await store.trashGalleryImages(ids, clock.now());
+        if (effects.afterTrash) await effects.afterTrash(rows);
         const result = await deleteResult(ids, rows);
         return { ...result, trashed: true, deletedBytes: 0, trashCount: await store.countTrash(), expiresAt: clock.now() + TRASH_KEEP_MS };
       }
@@ -144,12 +145,22 @@ export function createGalleryService({ store, cursors, effects = {}, clock = { n
       if (!trashSupported) return { supported: false, images: [], keepMs: TRASH_KEEP_MS };
       const rows = await store.listTrash();
       return { supported: true, keepMs: TRASH_KEEP_MS, images: rows.map(row => ({ id: row.id, bytes: Number(row.bytes) || 0, createdAt: row.created_at, deletedAt: row.deleted_at,
-        expiresAt: row.deleted_at + TRASH_KEEP_MS, thumbUrl: `/api/images/trash/${encodeURIComponent(row.id)}/thumbnail` })) };
+        expiresAt: row.deleted_at + TRASH_KEEP_MS, thumbUrl: `/api/images/trash/${encodeURIComponent(row.id)}/thumbnail`,
+        previewUrl: `/api/images/trash/${encodeURIComponent(row.id)}/preview` })) };
+    },
+    async getTrashImage(id) {
+      const entry = trashSupported ? await store.getTrashRow(String(id || '')) : null;
+      let row;
+      try { row = JSON.parse(entry?.row_json || 'null'); } catch {}
+      if (!row?.id || String(row.id) !== String(id)) throw new GalleryServiceError(404, '回收站里没有这张图片。');
+      return { ...row, deletedAt: entry.deleted_at, expiresAt: entry.deleted_at + TRASH_KEEP_MS };
     },
     async restoreTrash(values) {
       const ids = [...new Set(Array.isArray(values) ? values.map(String).filter(Boolean) : [])].slice(0, 200);
       if (!ids.length) throw new GalleryServiceError(400, '请选择要恢复的图片。');
-      const restored = await store.restoreTrash(await store.trashRows({ ids }));
+      const rows = await store.trashRows({ ids });
+      const restored = await store.restoreTrash(rows);
+      if (effects.afterRestore) await effects.afterRestore(rows);
       const latest = await store.getLatestGalleryImage();
       return { restored, galleryTotal: await store.countAllGalleryImages(), latestImage: cursors.galleryImageSummary(latest), trashCount: await store.countTrash() };
     },
