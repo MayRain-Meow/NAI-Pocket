@@ -2680,7 +2680,7 @@ function bindLongPressTagDrag(card, sourceRef, tag) {
 
   // Touch: a stationary 360 ms hold enters drag mode. Before that, normal vertical swipes still scroll the page.
   card.addEventListener('touchstart', event => {
-    if (event.touches.length !== 1 || !eligibleSurface(event.target) || activeTagDrag) return;
+    if (tagMultiSelect || event.touches.length !== 1 || !eligibleSurface(event.target) || activeTagDrag) return;
     const touch = event.touches[0];
     const pending = {
       dragging: false,
@@ -2726,7 +2726,7 @@ function bindLongPressTagDrag(card, sourceRef, tag) {
 
   // Desktop: the visible handle starts immediately, avoiding HTML5 drag-and-drop inconsistencies.
   card.querySelector('.drag-handle')?.addEventListener('pointerdown', event => {
-    if (event.pointerType !== 'mouse' || event.button !== 0 || activeTagDrag) return;
+    if (tagMultiSelect || event.pointerType !== 'mouse' || event.button !== 0 || activeTagDrag) return;
     event.preventDefault();
     const pending = { dragging: false, sourceRef, tagId: tag.id, originCard: card, startX: event.clientX, startY: event.clientY, lastX: event.clientX, lastY: event.clientY };
     activeTagDrag = pending;
@@ -2760,11 +2760,19 @@ function bindLongPressTagDrag(card, sourceRef, tag) {
 function renderTagGroups() {
   const active = document.activeElement?.dataset?.tagInput || null;
   const selection = active ? { start: document.activeElement.selectionStart, end: document.activeElement.selectionEnd, value: document.activeElement.value } : null;
+  // Background artist-index refreshes must not close an empty section while
+  // the user is entering Tags. Keep its open state along with the draft below.
+  const addingGroups = new Set([...els.tagGroups.querySelectorAll('.tag-section.adding')].map(section => section.dataset.group));
   els.tagGroups.innerHTML = '';
   const flowLayout = tagLayout() !== 'legacy';
   for (const [key, label] of GROUP_DEFS) {
     const tags = appState.groups[key] || [];
-    if (flowLayout) { els.tagGroups.append(createTagSection(key, label, tags)); continue; }
+    if (flowLayout) {
+      const section = createTagSection(key, label, tags);
+      if (addingGroups.has(key) || active === key) section.classList.add('adding');
+      els.tagGroups.append(section);
+      continue;
+    }
     const group = document.createElement('details');
     group.className = 'tag-group';
     group.dataset.group = key;
@@ -3480,6 +3488,53 @@ function clearTagSelection() {
   paintTagSelection();
 }
 
+function setTagMultiSelect(on) {
+  tagMultiSelect = Boolean(on);
+  if (tagMultiSelect) {
+    setQuickDelete(false);
+    if (editMode.text) setEditMode({ text: false });
+    if (activeTagDrag) finishTagDrag({ commit: false });
+    activeScrub = null;
+  } else tagSelection.clear();
+  paintTagSelection();
+}
+
+function renderTagBatchActions(entries) {
+  const host = $('#tagBatchActions');
+  const button = $('#tagMultiSelectButton');
+  document.body.classList.toggle('tag-multi-select', tagMultiSelect);
+  if (button) {
+    button.setAttribute('aria-pressed', String(tagMultiSelect));
+    button.textContent = tagMultiSelect ? '完成' : '多选';
+  }
+  if (!host) return;
+  host.hidden = !tagMultiSelect;
+  if (!tagMultiSelect) { host.replaceChildren(); return; }
+  host.innerHTML = `
+    <div class="tag-batch-summary">
+      <strong aria-live="polite">已选 ${entries.length} 个 Tag</strong>
+      <button type="button" data-tag-batch="all" title="选择当前展开区域内可见的 Tag">全选可见</button>
+      <button type="button" data-tag-batch="clear" ${entries.length ? '' : 'disabled'}>清空选择</button>
+    </div>
+    <div class="tag-batch-tools">
+      <label class="tag-batch-move"><span>移动到</span><select data-tag-batch="move" aria-label="批量移动到" ${entries.length ? '' : 'disabled'}><option value="">选择目标区域…</option>${tagMoveOptions()}</select></label>
+      <button type="button" data-tag-batch="delete" ${entries.length ? '' : 'disabled'}>删除所选</button>
+    </div>
+    ${entries.length ? '' : '<p>点选 Tag；可切换分区继续选择，再一起移动。</p>'}`;
+}
+
+function selectVisibleTags() {
+  document.querySelectorAll('#editorTab .tag-chip').forEach(node => {
+    if (!node.getClientRects().length || getComputedStyle(node).visibility === 'hidden') return;
+    const id = node.dataset.tagId;
+    const ref = node.dataset.ucChip ? { scope: 'uc', id }
+      : node.dataset.characterId ? { scope: 'character', characterId: node.dataset.characterId, kind: node.dataset.characterKind, id }
+      : { scope: 'global', groupKey: node.dataset.group, id };
+    tagSelection.set(tagRefKey(ref), ref);
+  });
+  paintTagSelection();
+}
+
 // Re-render a chip in place (weight/enable changes) without rebuilding lists.
 function refreshTagChip(entry) {
   const node = chipNode(entry.ref);
@@ -3522,13 +3577,14 @@ function renderTagDock() {
   const dock = els.tagSelectionDock;
   if (!dock) return;
   const entries = selectedTagEntries();
+  renderTagBatchActions(entries);
   document.body.classList.toggle('tag-selection-active', entries.length > 0);
-  dock.classList.toggle('hidden', !entries.length);
+  dock.classList.toggle('hidden', !entries.length || tagMultiSelect);
   paintChipQuickActions(entries);
   // With nothing selected the strip goes back to its home, so a list re-render
   // never leaves it detached from the page.
   tagDockHome ??= { parent: dock.parentElement, next: dock.nextSibling };
-  if (!entries.length) { dock.innerHTML = ''; tagDockMoreOpen = false; if (tagDockHome.parent && dock.parentElement !== tagDockHome.parent) tagDockHome.parent.insertBefore(dock, tagDockHome.next?.parentElement === tagDockHome.parent ? tagDockHome.next : null); return; }
+  if (!entries.length || tagMultiSelect) { dock.innerHTML = ''; tagDockMoreOpen = false; if (tagDockHome.parent && dock.parentElement !== tagDockHome.parent) tagDockHome.parent.insertBefore(dock, tagDockHome.next?.parentElement === tagDockHome.parent ? tagDockHome.next : null); return; }
   const single = entries.length === 1 ? entries[0] : null;
   const allDisabled = entries.every(entry => entry.tag.enabled === false);
   const hasUc = entries.some(entry => entry.ref.scope === 'uc');
@@ -3637,26 +3693,41 @@ function moveSelectedTags(value) {
   const target = scope === 'c' ? { scope: 'character', characterId: first, kind } : scope === 'g' ? { scope: 'global', groupKey: first } : scope === 'u' ? { scope: 'uc' } : null;
   const targetList = target && tagListForRef(target);
   if (!targetList) return;
+  // Use the source lists' order, not the order in which the user tapped Tags.
+  // Keep the original refs so moving *out* of global UC updates its text too.
+  const entries = selectedTagEntries();
+  const sourceLists = [...globalPromptOrder().map(key => appState.groups[key]), ...appState.characters.flatMap(ch => [ch.promptTags, ch.ucTags]), ucChipTags()];
+  entries.sort((a, b) => {
+    const aList = tagListForRef(a.ref), bList = tagListForRef(b.ref);
+    return sourceLists.indexOf(aList) - sourceLists.indexOf(bList) || aList.indexOf(a.tag) - bList.indexOf(b.tag);
+  });
   const moved = [];
-  for (const entry of selectedTagEntries()) {
-    if (entry.ref.scope === target.scope && (target.scope === 'uc' || sameDragRef(entry.ref, target))) { moved.push({ ...target, id: entry.tag.id }); continue; }
-    const sourceList = tagListForRef(entry.ref);
-    const index = sourceList?.findIndex(item => item.id === entry.tag.id) ?? -1;
-    if (index < 0) continue;
-    const [tag] = sourceList.splice(index, 1);
-    if (target.scope === 'global') {
-      if (appState.promptOrderMode === 'original' && finiteOriginalOrder(tag.originalOrder) === null) tag.originalOrder = nextGlobalOriginalOrder();
-      openTagGroups.add(target.groupKey);
-    } else if (entry.ref.scope === 'global') tag.originalOrder = null;
-    // Global UC is plain text and cannot keep a disabled Tag.
-    if (target.scope === 'uc') tag.enabled = true;
-    targetList.push(tag);
-    moved.push({ ...target, id: tag.id });
-  }
-  tagSelection.clear();
-  for (const ref of moved) tagSelection.set(tagRefKey(ref), ref);
-  syncUcChipsIfTouched([target, ...moved]);
-  refreshTagEditor();
+  let changed = 0;
+  asOneHistoryStep(() => {
+    for (const entry of entries) {
+      if (entry.ref.scope === target.scope && (target.scope === 'uc' || sameDragRef(entry.ref, target))) { moved.push({ ...target, id: entry.tag.id }); continue; }
+      const sourceList = tagListForRef(entry.ref);
+      const index = sourceList?.findIndex(item => item.id === entry.tag.id) ?? -1;
+      if (index < 0) continue;
+      const [tag] = sourceList.splice(index, 1);
+      if (target.scope === 'global') {
+        if (appState.promptOrderMode === 'original' && finiteOriginalOrder(tag.originalOrder) === null) tag.originalOrder = nextGlobalOriginalOrder();
+        openTagGroups.add(target.groupKey);
+      } else if (entry.ref.scope === 'global') tag.originalOrder = null;
+      // Global UC is plain text and cannot keep a disabled Tag.
+      if (target.scope === 'uc') tag.enabled = true;
+      targetList.push(tag);
+      moved.push({ ...target, id: tag.id });
+      changed += 1;
+    }
+    tagSelection.clear();
+    if (!tagMultiSelect) for (const ref of moved) tagSelection.set(tagRefKey(ref), ref);
+    if (changed) {
+      syncUcChipsIfTouched([target, ...entries.map(entry => entry.ref)]);
+      refreshTagEditor();
+    } else paintTagSelection();
+  });
+  toast(changed ? `已移动 ${changed} 个 Tag，可撤销。` : '所选 Tag 已在该区域。', changed ? 'success' : '');
 }
 
 function deleteSelectedTags() {
@@ -3736,7 +3807,7 @@ function handleTagDockClick(event) {
   if (action === 'close') return clearTagSelection();
   if (action === 'undo') return stepTagHistory(-1);
   if (action === 'redo') return stepTagHistory(1);
-  if (action === 'multi') { tagMultiSelect = !tagMultiSelect; return renderTagDock(); }
+  if (action === 'multi') return setTagMultiSelect(!tagMultiSelect);
   if (action === 'more') { tagDockMoreOpen = !tagDockMoreOpen; return renderTagDock(); }
   if (!entries.length) return;
   if (action === 'edit' && entries.length === 1) {
@@ -3955,8 +4026,10 @@ function applyEditMode() {
 }
 
 function setEditMode(patch) {
+  if (patch.text === true && tagMultiSelect) clearTagSelection();
   Object.assign(editMode, patch);
   applyEditMode();
+  if (tagMultiSelect) paintTagSelection();
 }
 
 // New layout: the image workflow is three flat tool rows (图生图 / Vibe /
@@ -4892,7 +4965,7 @@ function setQuickDelete(on) {
   quickDeleteMode = Boolean(on) && tagLayout() !== 'legacy';
   document.body.classList.toggle('quick-delete', quickDeleteMode);
   const button = $('#quickDeleteButton');
-  if (button) { button.setAttribute('aria-pressed', String(quickDeleteMode)); button.textContent = quickDeleteMode ? '完成' : '快删'; }
+  if (button) { button.setAttribute('aria-pressed', String(quickDeleteMode)); button.textContent = quickDeleteMode ? '结束快删' : '快删'; }
   if (quickDeleteMode) clearTagSelection();
 }
 
@@ -4907,10 +4980,10 @@ function quickDeleteTag(ref) {
 
 // Tapping anywhere that is not a chip, the control strip or another control
 // surface closes the selection.
-const SELECTION_KEEPERS = '.tag-chip, #tagSelectionDock, dialog, .command-menu, #commandMenuButton, [data-history], #tagUndoButton, #tagRedoButton, .tag-drag-ghost, .codex-detail, .params-sheet-open .sticky-settings, .position-sheet';
+const SELECTION_KEEPERS = '.tag-chip, #tagSelectionDock, #tagBatchActions, #tagMultiSelectButton, dialog, .command-menu, #commandMenuButton, [data-history], #tagUndoButton, #tagRedoButton, .tag-drag-ghost, .codex-detail, .params-sheet-open .sticky-settings, .position-sheet';
 function bindTapOutsideToClear() {
   document.addEventListener('click', event => {
-    if (!tagSelection.size || tagLayout() === 'legacy' || Date.now() < tagDragSuppressClickUntil) return;
+    if (tagMultiSelect || !tagSelection.size || tagLayout() === 'legacy' || Date.now() < tagDragSuppressClickUntil) return;
     // The path is fixed at dispatch time, so a strip button that re-rendered
     // the strip (and is now detached) still counts as inside it.
     if (event.composedPath().some(node => node instanceof Element && node.matches(SELECTION_KEEPERS))) return;
@@ -4951,7 +5024,7 @@ function scrubTarget() {
 
 function bindWeightScrub(card, ref, tag) {
   card.addEventListener('pointerdown', event => {
-    if (!card.classList.contains('selected') || quickDeleteMode || event.button > 0 || !event.target.closest('.tag-copy')) return;
+    if (tagMultiSelect || !card.classList.contains('selected') || quickDeleteMode || event.button > 0 || !event.target.closest('.tag-copy')) return;
     activeScrub = { id: event.pointerId, ref, tagId: tag.id, x: event.clientX, y: event.clientY, start: finiteTagWeight(tag.weight), steps: 0, active: false };
   });
 }
@@ -5005,6 +5078,16 @@ function bindNewLayoutControls() {
   bindTapOutsideToClear();
   bindWeightScrubDocument();
   $('#quickDeleteButton')?.addEventListener('click', () => setQuickDelete(!quickDeleteMode));
+  $('#tagMultiSelectButton')?.addEventListener('click', () => setTagMultiSelect(!tagMultiSelect));
+  $('#tagBatchActions')?.addEventListener('click', event => {
+    const action = event.target.closest('[data-tag-batch]')?.dataset.tagBatch;
+    if (action === 'all') selectVisibleTags();
+    if (action === 'clear') { tagSelection.clear(); paintTagSelection(); }
+    if (action === 'delete') asOneHistoryStep(deleteSelectedTags);
+  });
+  $('#tagBatchActions')?.addEventListener('change', event => {
+    if (event.target.matches('[data-tag-batch="move"]') && event.target.value) moveSelectedTags(event.target.value);
+  });
   document.addEventListener('keydown', event => { if (event.key === 'Escape' && quickDeleteMode) setQuickDelete(false); });
   document.querySelectorAll('[data-edit-side]').forEach(button => button.addEventListener('click', () => setEditMode({ side: button.dataset.editSide })));
   document.querySelectorAll('[data-edit-text]').forEach(button => button.addEventListener('click', () => setEditMode({ text: !editMode.text })));
@@ -5032,6 +5115,7 @@ function bindNewLayoutControls() {
   });
   // Menu items forward to the existing controls, so their behavior is unchanged.
   menu?.addEventListener('click', event => {
+    if (event.target.closest('#quickDeleteButton')) { closeMenu(); return; }
     if (event.target.closest('[data-menu-action="renewal"]')) { closeMenu(); openRenewalDialog(); return; }
     if (event.target.closest('[data-menu-action="brackets"]')) { closeMenu(); convertAllBracketWeights(); return; }
     if (event.target.closest('[data-menu-action="default-scheme"]')) { closeMenu(); loadDefaultScheme().catch(error => toast(error.message, 'error')); return; }
@@ -10560,65 +10644,29 @@ function galleryMasonryTargetCount() {
 
 function resetGalleryMasonryColumns(count = galleryMasonryTargetCount()) {
   galleryMasonryColumnCount = count;
-  galleryMasonryColumns = [];
+  // Cards share one row-major grid. Packing the shortest column made newer
+  // pictures appear below older ones, especially when inserting new results.
+  galleryMasonryColumns = [els.galleryGrid];
   els.galleryGrid.innerHTML = '';
   els.galleryGrid.classList.remove('empty-state');
   els.galleryGrid.style.setProperty('--gallery-column-count', String(count));
-  for (let index = 0; index < count; index += 1) {
-    const column = document.createElement('div');
-    column.className = 'gallery-column';
-    column.dataset.estimatedHeight = '0';
-    column.setAttribute('aria-label', `图库第 ${index + 1} 列`);
-    galleryMasonryColumns.push(column);
-    els.galleryGrid.append(column);
-  }
-}
-
-function galleryCardEstimatedHeight(image) {
-  const width = Math.max(1, Number(image?.width) || 1);
-  const height = Math.max(1, Number(image?.height) || width);
-  const gap = galleryMasonryColumnCount > 1 ? 10 * (galleryMasonryColumnCount - 1) : 0;
-  const columnWidth = Math.max(120, ((els.galleryGrid.getBoundingClientRect().width || 1100) - gap) / Math.max(1, galleryMasonryColumnCount));
-  return columnWidth * Math.max(0.25, Math.min(4, height / width)) + 35;
 }
 
 function appendGalleryMasonryCard(image) {
-  if (!galleryMasonryColumns.length || galleryMasonryColumns.some(column => !column.isConnected)) resetGalleryMasonryColumns();
+  if (els.galleryGrid.classList.contains('empty-state') || !galleryMasonryColumns.length || galleryMasonryColumns.some(column => !column.isConnected)) resetGalleryMasonryColumns();
   const card = createGalleryCard(image);
-  const estimatedHeight = galleryCardEstimatedHeight(image);
-  card.dataset.masonryHeight = String(estimatedHeight);
-  const column = galleryMasonryColumns.reduce((best, candidate) => (
-    Number(candidate.dataset.estimatedHeight || 0) < Number(best.dataset.estimatedHeight || 0) ? candidate : best
-  ), galleryMasonryColumns[0]);
-  column.append(card);
-  column.dataset.estimatedHeight = String(Number(column.dataset.estimatedHeight || 0) + estimatedHeight + 10);
+  els.galleryGrid.append(card);
   return card;
 }
 
 function prependGalleryMasonryCards(images) {
   if (!images.length) return;
-  if (!galleryMasonryColumns.length || galleryMasonryColumns.some(column => !column.isConnected)) {
+  if (els.galleryGrid.classList.contains('empty-state') || !galleryMasonryColumns.length || galleryMasonryColumns.some(column => !column.isConnected)) {
     resetGalleryMasonryColumns();
   }
-  const assignments = new Map(galleryMasonryColumns.map(column => [column, []]));
-  const projectedHeights = new Map(galleryMasonryColumns.map(column => [column, Number(column.dataset.estimatedHeight || 0)]));
-  for (const image of images) {
-    const column = galleryMasonryColumns.reduce((best, candidate) => (
-      projectedHeights.get(candidate) < projectedHeights.get(best) ? candidate : best
-    ), galleryMasonryColumns[0]);
-    const estimatedHeight = galleryCardEstimatedHeight(image);
-    assignments.get(column).push({ image, estimatedHeight });
-    projectedHeights.set(column, projectedHeights.get(column) + estimatedHeight + 10);
-  }
-  for (const column of galleryMasonryColumns) {
-    const assigned = assignments.get(column);
-    for (const { image, estimatedHeight } of [...assigned].reverse()) {
-      const card = createGalleryCard(image);
-      card.dataset.masonryHeight = String(estimatedHeight);
-      column.prepend(card);
-    }
-    column.dataset.estimatedHeight = String(projectedHeights.get(column));
-  }
+  const fragment = document.createDocumentFragment();
+  for (const image of images) fragment.append(createGalleryCard(image));
+  els.galleryGrid.prepend(fragment);
   els.galleryGrid.classList.remove('empty-state');
 }
 
@@ -10655,11 +10703,6 @@ function syncGalleryMasonryForViewport() {
 function detachGalleryCard(id) {
   const card = document.querySelector(`[data-gallery-id="${CSS.escape(id)}"]`);
   if (!card) return;
-  const column = card.closest('.gallery-column');
-  if (column) {
-    const nextHeight = Math.max(0, Number(column.dataset.estimatedHeight || 0) - Number(card.dataset.masonryHeight || 0) - 10);
-    column.dataset.estimatedHeight = String(nextHeight);
-  }
   card.remove();
 }
 
@@ -10753,7 +10796,7 @@ function renderGalleryResultSummary() {
   }
   const start = galleryWindowStart + 1;
   const end = galleryWindowStart + galleryLoaded;
-  els.galleryResultSummary.textContent = start === 1 ? `已载入 ${end} / ${galleryTotal}` : `第 ${start}–${end} / ${galleryTotal}`;
+  els.galleryResultSummary.textContent = `${start === 1 ? `已载入 ${end} / ${galleryTotal}` : `第 ${start}–${end} / ${galleryTotal}`} · 最新在前`;
 }
 
 function trimGalleryDomWindow() {
@@ -11580,7 +11623,7 @@ function initBindings() {
   $('#tagUndoButton')?.addEventListener('click', () => stepTagHistory(-1));
   $('#tagRedoButton')?.addEventListener('click', () => stepTagHistory(1));
   document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && tagSelection.size && !document.querySelector('dialog[open]')) { clearTagSelection(); return; }
+    if (event.key === 'Escape' && (tagSelection.size || tagMultiSelect) && !document.querySelector('dialog[open]')) { clearTagSelection(); return; }
     const typing = event.target.closest?.('input, textarea, select, [contenteditable="true"]') || document.querySelector('dialog[open]');
     if (!typing && tagSelection.size && (event.key === 'Delete' || event.key === 'Backspace')) { event.preventDefault(); deleteSelectedTags(); return; }
     if (typing || !(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z' || !$('#editorTab')?.classList.contains('active')) return;
@@ -12648,6 +12691,7 @@ function initBindings() {
 
 async function startApp(context = authContext) {
   applyAuthContext(context);
+  els.appView.setAttribute('aria-busy', 'true');
   showApp();
   syncGalleryTimeControls();
   syncGalleryScopeControls();
@@ -12668,7 +12712,8 @@ async function startApp(context = authContext) {
   updateEditorModuleCounts();
   const dataLoads = [refreshJobs(), refreshSystem(), resetGallery(false), refreshTranslationStatus(), loadArtistIdentityIndex()];
   if (authContext.role === 'owner') dataLoads.push(loadSchemes({ applyDefault: true }), refreshProviderStatus(), refreshVisitorPasswordStatus());
-  await Promise.all(dataLoads);
+  try { await Promise.all(dataLoads); }
+  finally { els.appView.setAttribute('aria-busy', 'false'); }
   draftReady = true;
   if (pollTimer) clearInterval(pollTimer);
   if (systemTimer) clearInterval(systemTimer);

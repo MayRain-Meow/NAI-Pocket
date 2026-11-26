@@ -82,6 +82,7 @@
             <button type="button" role="menuitem" data-proxy="#restoreToolButton">从图片恢复参数</button>
             <button type="button" role="menuitem" data-proxy="#translateMissingButton">补全缺失释义</button>
             <button type="button" role="menuitem" data-proxy="#showTranslations">显示 / 隐藏中文释义</button>
+            <button id="quickDeleteButton" type="button" role="menuitem" aria-pressed="false" title="快删：点 Tag 直接删除，可撤销">快删</button>
             
             <button type="button" role="menuitem" data-menu-action="brackets">括号权重转数字</button>
             <button type="button" role="menuitem" data-menu-action="default-scheme" data-owner-only="">载入默认方案</button>
@@ -100,8 +101,9 @@
         <div class="prompt-meter-line" data-new-layout-only="">
           <span class="prompt-meter-bar"><i id="promptMeterBar"></i></span>
           <span id="promptMeterText" class="prompt-meter-text"></span>
-          <button id="quickDeleteButton" class="quick-delete-button" type="button" aria-pressed="false" title="快删：点 Tag 直接删除，可撤销">快删</button>
+          <button id="tagMultiSelectButton" class="tag-multi-select-button" type="button" aria-pressed="false" title="选择多个 Tag，一起移动或删除">多选</button>
         </div>
+        <div id="tagBatchActions" class="tag-batch-actions" role="region" aria-label="批量 Tag 操作" hidden></div>
         <div class="module-nav" role="navigation" aria-label="Prompt 模块">
           <button type="button" class="module-nav-button active" data-editor-nav="all">全部</button>
           <button type="button" class="module-nav-button" data-editor-nav="characters">角色 <span data-module-count="characters">0</span></button>
