@@ -82,6 +82,12 @@ body:not(.tag-layout-legacy) #settingsDialog .settings-section-heading .workspac
 .edit-side-switch button[aria-pressed="true"],.segmented-control .active { background:var(--ef-ink)!important; color:var(--ef-surface)!important; }
 .tag-chip { background:color-mix(in srgb,var(--chip-hue,var(--ef-muted)) 10%,var(--ef-surface))!important; color:var(--ef-ink)!important; border-color:transparent!important; }
 .tag-chip.selected { background:color-mix(in srgb,var(--chip-hue,var(--ef-muted)) 22%,var(--ef-surface))!important; border-color:var(--chip-hue,var(--ef-ink))!important; }
+.tag-multi-select-button[aria-pressed="true"],body.tag-multi-select .tag-chip.selected::before { background:var(--ef-accent); color:#161616; border-color:var(--ef-ink); }
+.tag-batch-actions { background:var(--ef-paper); border-color:var(--ef-line); }
+.tag-batch-actions button,.tag-batch-move select { min-height:48px; background:var(--ef-surface); color:var(--ef-ink); border:1px solid var(--ef-line); }
+.tag-batch-actions [data-tag-batch="delete"] { color:var(--ef-delete); }
+.tag-batch-actions p { color:var(--ef-muted); }
+body.tag-multi-select .tag-chip:focus-within { outline-color:var(--ef-ink); }
 .tag-chip .tag-translation,.tag-chip small { color:var(--ef-muted)!important; }
 body:not(.tag-layout-legacy) .tag-group.tag-section::before { background:var(--hue,var(--ef-muted)); }
 body:not(.tag-layout-legacy) .character-card { border-left:3px solid var(--hue,var(--ef-character)); }
