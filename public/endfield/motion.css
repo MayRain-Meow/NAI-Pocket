@@ -1,0 +1,55 @@
+/* Small, interruptible feedback; no layout animation or persistent layers. */
+:root {
+  --ef-motion-enter:cubic-bezier(.16,1,.3,1);
+  --ef-motion-exit:cubic-bezier(.7,0,.2,1);
+}
+
+@media (prefers-reduced-motion:no-preference) {
+  .ef-motion-ready :is(.workspace-nav .tab,.ef-more-grid button,.module-nav-button,.floating-generate-button,.floating-queue-button) {
+    transition:transform 100ms var(--ef-motion-exit);
+  }
+  .ef-motion-ready :is(.workspace-nav .tab,.ef-more-grid button,.module-nav-button,.floating-generate-button,.floating-queue-button):active:not(:disabled) {
+    transform:translateY(1px);
+  }
+
+  /* Newer WebViews can keep the top-layer visual during native close().
+     Older WebViews retain immediate native opening/closing. There are no
+     delayed handlers, cloned dialogs, or changes to Android Back behavior.
+     Opacity alone also preserves fixed-position children inside a dialog. */
+  @supports (transition-behavior:allow-discrete) {
+    .ef-motion-ready dialog {
+      opacity:0;
+      transition:opacity 160ms var(--ef-motion-exit),display 160ms allow-discrete,overlay 160ms allow-discrete;
+    }
+    .ef-motion-ready dialog[open] {
+      opacity:1;
+      transition-duration:240ms;
+      transition-timing-function:var(--ef-motion-enter);
+    }
+    .ef-motion-ready dialog:not([open]),
+    .ef-motion-ready dialog:not([open])::backdrop { pointer-events:none; }
+    .ef-motion-ready dialog::backdrop {
+      opacity:0;
+      transition:opacity 120ms var(--ef-motion-exit),display 160ms allow-discrete,overlay 160ms allow-discrete;
+    }
+    .ef-motion-ready dialog[open]::backdrop {
+      opacity:1;
+      transition-duration:180ms;
+    }
+    @starting-style {
+      .ef-motion-ready dialog[open],
+      .ef-motion-ready dialog[open]::backdrop { opacity:0; }
+    }
+  }
+}
+
+@media (prefers-reduced-motion:reduce) {
+  .ef-motion-ready *,
+  .ef-motion-ready *::before,
+  .ef-motion-ready *::after,
+  .ef-motion-ready dialog::backdrop {
+    animation:none!important;
+    transition:none!important;
+    scroll-behavior:auto!important;
+  }
+}
