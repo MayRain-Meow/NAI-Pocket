@@ -177,13 +177,17 @@ export function createLocalApi({ database, settings, providers, client, assets, 
     if (pathname === '/api/images' && method === 'GET') { const result = await media.gallery.list(query); await media.registerIds(result.images.map(image => image.id)); return result; }
     if (pathname === '/api/images/batch-delete' && method === 'POST') { const data = await body(); return media.gallery.deleteImages(data.ids, { permanent: data.permanent === true }); }
     // 回收站 (1.8.4 / 0.6.1): as on the server.
-    if (pathname === '/api/images/trash' && method === 'GET') return media.gallery.listTrash();
+    if (pathname === '/api/images/trash' && method === 'GET') {
+      const result = await media.gallery.listTrash();
+      await media.registerTrashIds(result.images.map(image => image.id));
+      return result;
+    }
     if (pathname === '/api/images/trash/restore' && method === 'POST') { const result = await media.gallery.restoreTrash((await body()).ids); await media.registerIds(result.restored); return result; }
     if (pathname === '/api/images/trash/purge' && method === 'POST') { const data = await body(); return media.gallery.purgeTrash({ ids: data.ids, all: data.all === true }); }
-    match = pathname.match(/^\/api\/images\/trash\/([^/]+)\/thumbnail$/);
+    match = pathname.match(/^\/api\/images\/trash\/([^/]+)\/(thumbnail|preview|original)$/);
     if (match && ['GET', 'HEAD'].includes(method)) {
-      const name = await media.gallery.trashThumbnailName(decodeURIComponent(match[1]));
-      return new Response(method === 'HEAD' ? null : await nativeFiles.read(localPath('thumbnails', name)), { headers: { 'Content-Type': 'image/webp', 'Cache-Control': 'no-store' } });
+      const descriptor = await media.trashMedia(decodeURIComponent(match[1]), match[2]);
+      return new Response(method === 'HEAD' ? null : await nativeFiles.read(descriptor.file), { headers: { 'Content-Type': descriptor.mime, 'Cache-Control': 'no-store' } });
     }
     match = pathname.match(/^\/api\/images\/([^/]+)(?:\/(payload|thumbnail|preview|original|clean|favorite|note))?$/);
     if (match) {
@@ -236,17 +240,24 @@ export function createLocalApi({ database, settings, providers, client, assets, 
         return Response.json({ error: error.message || '本机操作失败。', source: 'local-runtime' }, { status, headers: { 'Cache-Control': 'no-store', ...(error.retryAfterMs ? { 'Retry-After': String(Math.ceil(error.retryAfterMs / 1000)) } : {}) } });
       }
     },
-    async download(url) {
+    async download(url, { destination = 'ask' } = {}) {
       const parsed = new URL(url, location.origin), match = parsed.pathname.match(/^\/api\/images\/([^/]+)\/(original|clean)$/);
+      const save = async options => {
+        const result = match && destination === 'album' ? await PocketNative.saveToGallery(options)
+          : match && destination === 'folder' ? await PocketNative.exportToFolder(options)
+            : await PocketNative.exportFile(options);
+        if (!result.saved && result.reason) throw new Error(result.reason === 'permission-denied' ? '没有保存权限，请到系统设置中授权，或更换下载位置。' : '图片未保存，请检查下载位置和权限。');
+        return Boolean(result.saved);
+      };
       if (match?.[2] === 'original') {
         const descriptor = await media.media.original(match[1], true);
         const name = descriptor.options.headers['Content-Disposition'].match(/filename="([^"]+)"/)?.[1] || 'nai-image.png';
-        return (await PocketNative.exportFile({ path: descriptor.file, mime: descriptor.mime, name })).saved;
+        return save({ path: descriptor.file, mime: descriptor.mime, name });
       }
       const response = await this.fetch(parsed.href);
       if (!response.ok) throw new Error((await response.json()).error);
       const name = response.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] || `nai-pocket-backup-${new Date().toISOString().slice(0, 10)}.json`;
-      return (await PocketNative.exportFile({ data: Buffer.from(await response.arrayBuffer()).toString('base64'), name, mime: response.headers.get('content-type') || 'application/octet-stream' })).saved;
+      return save({ data: Buffer.from(await response.arrayBuffer()).toString('base64'), name, mime: response.headers.get('content-type') || 'application/octet-stream' });
     }
   };
 }
