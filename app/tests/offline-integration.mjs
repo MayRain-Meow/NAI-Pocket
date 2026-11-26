@@ -24,6 +24,11 @@ const artistSource=option('--artist-source'),artistImages=option('--artist-image
 if(Boolean(artistSource)!==Boolean(artistImages)||(artistSource&&!preview))throw new Error('Prepared artists require --preview --artist-source <json> --artist-images <directory>');
 if (!preview && !process.env.PLAYWRIGHT_MODULE) throw new Error('Set PLAYWRIGHT_MODULE to an existing Playwright index.mjs.');
 const appRoot = path.resolve(import.meta.dirname, '..'), project = path.dirname(appRoot);
+// Read the production Java allowlist: a permissive bridge mock hid the trash-route regression.
+const mediaRouteSource = await fs.readFile(path.join(appRoot, 'android/app/src/main/java/app/naipocket/local/PocketMediaRoutes.java'), 'utf8');
+const mediaRoutePattern = mediaRouteSource.match(/ROUTE_PATTERN = "([^"]+)";/)?.[1];
+assert.ok(mediaRoutePattern, 'native media route contract is available to the bridge fixture');
+const nativeMediaRoute = new RegExp(`^(?:${mediaRoutePattern})$`);
 const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'nai-native-integration-'));
 const out = path.join(temporary, 'www'), dataRoot = path.join(temporary, 'data');
 await fs.mkdir(dataRoot); await fs.mkdir(out);
@@ -208,7 +213,7 @@ async function rpc(name,args) {
   if(name==='PocketNative.storageUsage')return {folders:{originals:5*1024**2,thumbnails:1024**2,'artist-cache':exampleCacheBytes,'style-index':3*1024**2,'artist-resources':2*1024**2},databaseBytes:2*1024**2,cacheBytes:0,freeBytes:1024**3,totalBytes:8*1024**3};
   if(name==='PocketNative.clearExampleCache'){const freedBytes=exampleCacheBytes;exampleCacheBytes=0;return {freedBytes};}
   if(name==='PocketNative.queueActive'||name==='PocketNative.cancelRequest')return {};
-  if(name==='PocketNative.registerMedia'){for(const item of args.entries){if(item.remove)media.delete(item.route);else media.set(item.route,item);}return {};}
+  if(name==='PocketNative.registerMedia'){for(const item of args.entries){if(!nativeMediaRoute.test(item.route)||/[\r\n]/.test(item.route))throw new Error('本机图片路由无效。');if(item.remove)media.delete(item.route);else media.set(item.route,item);}return {};}
   if(name==='PocketNative.requestGalleryAccess')return {granted:true};
   if(name==='PocketNative.saveToGallery'){
     if (preview) throw new Error('手机相册复制需在安卓手机上验证；此预览没有写入相册。');
@@ -316,7 +321,15 @@ try {
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   await page.waitForFunction(()=>globalThis.NAI_RUNTIME&& !document.querySelector('#appView').classList.contains('hidden'),{},{timeout:15000});
   assert.deepEqual(errors,[],'native app boots the real UI without missing imports/ports');
-  if (process.argv.includes('--experience-checks')) {
+  if (process.argv.includes('--prompt-selection-checks')) {
+    const { runPromptSelectionChecks } = await import('./prompt-selection-ui.test.mjs');
+    await runPromptSelectionChecks({ page, temporary });
+    assert.deepEqual(errors, [], 'prompt batch selection has no uncaught browser errors');
+  } else if (process.argv.includes('--gallery-checks')) {
+    const { runGalleryRegressionChecks } = await import('./gallery-regressions.test.mjs');
+    await runGalleryRegressionChecks({ page, db, dataRoot, media, temporary });
+    assert.deepEqual(errors, [], 'gallery ordering and native trash routes have no uncaught browser errors');
+  } else if (process.argv.includes('--experience-checks')) {
     const { runExperienceChecks } = await import('./experience-ui.test.mjs');
     const experiencePng=previewImage({input:'synthetic fixture',parameters:{width:512,height:768,seed:42}},1);
     await runExperienceChecks({page,db,dataRoot,png:experiencePng,downloadEvents,media,folderPickerCount:()=>folderPickerCount,temporary});
@@ -427,7 +440,7 @@ try {
   await page.locator('#generationProvider').selectOption('rbq');
   await page.locator('#officialAccountSelect').selectOption(accountId);
   assert.equal(await page.locator('#nativePhoneAlbumToggle').isChecked(),true,'phone album copy defaults to on');
-  await page.getByText('保存到手机相册',{exact:true}).click();
+  await page.getByText('生成完成后，自动保存原图',{exact:true}).click();
   await page.waitForFunction(()=>!document.querySelector('#nativePhoneAlbumToggle').checked);
   const albumSetting=()=>db.prepare("SELECT value FROM app_state WHERE key='phone_gallery_copy'").get()?.value;
   { const deadline=Date.now()+3000;while(albumSetting()!=='0'&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,50)); }
@@ -915,6 +928,12 @@ try {
   await page.waitForFunction(()=>!document.body.classList.contains('native-booting')&&!document.querySelector('.native-startup-slow'),{},{timeout:20000});
   slowVaultMs=0;
   // Start-up record (0.7.7): every step is recorded before it runs and a start that reaches the editor is done.
+  // The editor is revealed before the asynchronous native bootDone RPC has completed.
+  const waitForBootRecord = async () => {
+    const deadline=Date.now()+3000;
+    while(!bootRecord.done&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,25));
+  };
+  await waitForBootRecord();
   assert.equal(bootRecord.done,true,'a start that reached the editor is recorded as finished');
   for(const step of ['打开本机数据库','读取账号与通道','整理画师资料','载入编辑器'])assert.ok(bootSteps.includes(step),`step recorded: ${step}`);
   // A start that died (here: the WebView renderer during 整理画师资料) makes the next one a safe start that says so.
@@ -936,6 +955,7 @@ try {
   assert.equal(await page.locator('.native-start-recovered button').first().textContent(),'已复制');
   await page.locator('.native-start-recovered').getByRole('button',{name:'知道了',exact:true}).click();
   assert.equal(await page.locator('.native-start-recovered').count(),0);
+  await waitForBootRecord();
   assert.deepEqual([bootRecord.done,bootCrash],[true,null],'reaching the editor clears the record and the crash note');
   // Stopped twice in a row: the start waits on the card, so the diagnostics can be copied before it is tried again.
   bootRecord.done=false;bootRecord.failures=1;bootRecord.step='打开本机数据库';
@@ -949,6 +969,7 @@ try {
   assert.equal(await page.evaluate(()=>document.body.classList.contains('native-booting')),true);
   await proceed.click();
   await page.waitForFunction(()=>!document.body.classList.contains('native-booting'),{},{timeout:20000});
+  await waitForBootRecord();
   assert.equal(bootRecord.done,true);
   assert.equal(await recovered.getByRole('button',{name:'知道了',exact:true}).count(),1,'the card stays, now with 知道了');
   await recovered.getByRole('button',{name:'知道了',exact:true}).click();
