@@ -1,3 +1,4 @@
+import { readDownloadPreferences, writeDownloadPreferences, saveGalleryImages } from './download-preferences.js';
 import {
   tokenizePrompt as tokenizePromptUtil,
   parseTagToken,
@@ -1730,7 +1731,10 @@ async function renderTrashView() {
   const list = document.createElement('div'); list.className = 'gallery-trash-grid';
   list.append(...images.map(image => {
     const card = document.createElement('div'); card.className = 'gallery-trash-card'; card.dataset.trashId = image.id;
-    const img = document.createElement('img'); img.src = image.thumbUrl; img.alt = ''; img.loading = 'lazy'; img.decoding = 'async';
+    const img = document.createElement('img'); img.src = image.thumbUrl; img.alt = '回收站图片，点击查看'; img.loading = 'lazy'; img.decoding = 'async';
+    const view = document.createElement('button'); view.type = 'button'; view.className = 'gallery-trash-preview';
+    view.setAttribute('aria-label', '查看回收站图片'); view.append(img);
+    view.addEventListener('click', () => openTrashImage(image));
     const meta = document.createElement('small'); meta.textContent = left(image);
     const restore = document.createElement('button'); restore.type = 'button'; restore.className = 'ghost restore'; restore.textContent = '恢复';
     restore.addEventListener('click', async () => { restore.disabled = true; if (!(await restoreTrashedImages([image.id]))) restore.disabled = false; });
@@ -1743,10 +1747,34 @@ async function renderTrashView() {
       await renderTrashView();
     });
     const row = document.createElement('div'); row.className = 'gallery-trash-card-actions'; row.append(restore, purge);
-    card.append(img, meta, row);
+    card.append(view, meta, row);
     return card;
   }));
   grid.replaceChildren(list);
+}
+
+function openTrashImage(image) {
+  const dialog = $('#trashImageDialog'), preview = $('#trashImagePreview'), status = $('#trashImageStatus');
+  if (!dialog || !preview) return;
+  preview.src = image.thumbUrl;
+  status.textContent = '正在读取预览…';
+  const original = `/api/images/trash/${encodeURIComponent(image.id)}/original`;
+  const large = new Image();
+  large.onload = () => { if (dialog.dataset.imageId === image.id && dialog.open) { preview.src = large.src; status.textContent = '图片仍在回收站，查看不会恢复或延长保留时间。'; } };
+  large.onerror = () => { if (dialog.dataset.imageId === image.id) status.textContent = '无法读取大图；图片可能已到期，请刷新回收站。'; };
+  dialog.dataset.imageId = image.id;
+  large.src = image.previewUrl || original;
+  $('#trashLoadOriginal').onclick = () => { preview.src = original; status.textContent = '已请求原图。'; };
+  $('#trashRestoreImage').onclick = async () => { if (await restoreTrashedImages([image.id])) dialog.close(); };
+  $('#trashDeleteImage').onclick = async () => {
+    if (!await confirmAction('彻底删除这张图片？之后无法恢复。', { confirmLabel: '彻底删除', danger: true })) return;
+    try {
+      const result = await api('/api/images/trash/purge', { method: 'POST', body: { ids: [image.id] } });
+      noteGalleryExamplesDeleted(result); dialog.close(); await renderTrashView();
+    } catch (error) { toast(error.message, 'error'); }
+  };
+  $('#closeTrashImageDialog').onclick = () => dialog.close();
+  dialog.showModal();
 }
 
 // A release takes over open pages (its worker skips waiting and claims them),
@@ -9654,6 +9682,8 @@ function updateGallerySelectionUi() {
   els.gallerySelectNonFavorites?.classList.toggle('hidden', !gallerySelectionMode);
   els.galleryClearSelection?.classList.toggle('hidden', !gallerySelectionMode);
   els.galleryDeleteSelected?.classList.toggle('hidden', !gallerySelectionMode);
+  $('#galleryDownloadSelected')?.classList.toggle('hidden', !gallerySelectionMode || !globalThis.NAI_RUNTIME?.download);
+  if ($('#galleryDownloadSelected')) $('#galleryDownloadSelected').disabled = !selected || imageDownloadBusy;
   els.gallerySelectionText?.classList.toggle('hidden', !gallerySelectionMode);
   els.galleryExitSelection?.classList.toggle('hidden', !gallerySelectionMode);
   if (els.gallerySelectionText) els.gallerySelectionText.textContent = `已选择 ${selected} 张`;
@@ -10902,9 +10932,64 @@ function triggerBrowserDownload(url) {
   link.remove();
 }
 
-function openDownloadChoice() {
-  if (!currentImage?.id || !currentImage?.originalUrl) return toast('当前图片没有可下载的原图。', 'error');
+let pendingDownloadIds = [], imageDownloadBusy = false, imageDownloadCancelled = false;
+function openDownloadChoice(ids) {
+  if (imageDownloadBusy) return toast('正在保存图片，请等待完成或停止批量下载。');
+  pendingDownloadIds = Array.isArray(ids) ? [...ids] : currentImage?.id && currentImage?.originalUrl ? [currentImage.id] : [];
+  if (!pendingDownloadIds.length) return toast('请选择要下载的图片。');
+  const mode = readDownloadPreferences().metadata;
+  if (globalThis.NAI_RUNTIME?.download && mode !== 'ask') {
+    runImageDownloads(mode).catch(error => toast(error.message, 'error')); return;
+  }
+  const title = els.downloadChoiceDialog?.querySelector('.dialog-header strong');
+  if (title) title.textContent = pendingDownloadIds.length > 1 ? `下载 ${pendingDownloadIds.length} 张图片` : '下载图片';
   els.downloadChoiceDialog?.showModal();
+}
+
+async function runImageDownloads(mode) {
+  if (imageDownloadBusy || !pendingDownloadIds.length) return;
+  const ids = [...pendingDownloadIds]; pendingDownloadIds = [];
+  if (!globalThis.NAI_RUNTIME?.download) {
+    ids.forEach(id => triggerBrowserDownload(`/api/images/${encodeURIComponent(id)}/${mode}${mode === 'original' ? '?download=1' : ''}`));
+    return;
+  }
+  imageDownloadBusy = true; imageDownloadCancelled = false;
+  const cancel = $('#galleryCancelDownload'), progress = $('#galleryDownloadProgress');
+  if (cancel) cancel.disabled = false;
+  const batch = ids.length > 1;
+  let { destination } = readDownloadPreferences();
+  cancel?.classList.toggle('hidden', !batch);
+  if (progress) { progress.hidden = false; progress.textContent = `准备保存 0 / ${ids.length}`; }
+  updateGallerySelectionUi();
+  try {
+    if (destination === 'folder' || (batch && destination === 'ask')) {
+      const folder = await globalThis.NAI_RUNTIME.downloads.getFolder();
+      if (!folder.configured || destination === 'ask') {
+        const selected = await globalThis.NAI_RUNTIME.downloads.chooseFolder();
+        if (selected.cancelled || !selected.configured) { if (progress) progress.textContent = '未保存，已取消选择文件夹。'; return; }
+      }
+      destination = 'folder';
+    }
+    cancel?.classList.toggle('hidden', !batch);
+    if (progress) { progress.hidden = false; progress.textContent = `正在保存 0 / ${ids.length}`; }
+    const result = await saveGalleryImages({
+      ids, mode, destination, download: (url, options) => globalThis.NAI_RUNTIME.download(url, options),
+      cancelled: () => imageDownloadCancelled,
+      onProgress: ({ saved, total }) => { if (progress) progress.textContent = `已保存 ${saved.length} / ${total}`; }
+    });
+    result.saved.forEach(id => selectedGalleryIds.delete(id));
+    const remaining = ids.length - result.saved.length;
+    const message = `已保存 ${result.saved.length} / ${ids.length} 张${result.cancelled ? '，已停止' : ''}${result.failed.length ? `，${remaining} 张未保存：${result.failed[0].message}` : ''}`;
+    if (progress) progress.textContent = message;
+    toast(message, result.failed.length ? 'error' : 'success');
+  } catch (error) {
+    if (progress) progress.textContent = `保存未完成：${error.message}`;
+    throw error;
+  } finally {
+    imageDownloadBusy = false;
+    cancel?.classList.add('hidden');
+    updateGallerySelectionUi();
+  }
 }
 
 function imageSourceHasStructuredGroups(raw) {
@@ -12239,6 +12324,8 @@ function initBindings() {
   });
   els.galleryClearSelection?.addEventListener('click', () => { selectedGalleryIds.clear(); updateGallerySelectionUi(); });
   els.galleryDeleteSelected?.addEventListener('click', () => deleteSelectedGallery().catch(error => toast(error.message, 'error')));
+  $('#galleryDownloadSelected')?.addEventListener('click', () => openDownloadChoice([...selectedGalleryIds]));
+  $('#galleryCancelDownload')?.addEventListener('click', () => { imageDownloadCancelled = true; $('#galleryCancelDownload').disabled = true; });
   els.cleanupUndoButton?.addEventListener('click', () => undoCleanupDelete().catch(error => toast(error.message, 'error')));
   els.cleanupDeleteButton?.addEventListener('click', () => deleteCleanupCurrentImage().catch(error => toast(error.message, 'error')));
   els.cleanupKeepButton?.addEventListener('click', () => cleanupKeepAndNext().catch(error => toast(error.message, 'error')));
@@ -12418,17 +12505,16 @@ function initBindings() {
   }));
   $('#closeDownloadChoiceDialog')?.addEventListener('click', () => els.downloadChoiceDialog?.close());
   els.downloadChoiceDialog?.addEventListener('click', event => { if (event.target === els.downloadChoiceDialog) els.downloadChoiceDialog.close(); });
-  $('#downloadOriginalButton')?.addEventListener('click', () => {
-    if (!currentImage?.originalUrl) return;
-    triggerBrowserDownload(`${currentImage.originalUrl}?download=1`);
-    els.downloadChoiceDialog?.close();
-  });
-  $('#downloadCleanButton')?.addEventListener('click', () => {
-    if (!currentImage?.id) return;
-    triggerBrowserDownload(`/api/images/${encodeURIComponent(currentImage.id)}/clean`);
-    els.downloadChoiceDialog?.close();
-    toast('正在下载净图；该文件不能再用于恢复 NovelAI 元数据。', 'success');
-  });
+  for (const [id, mode] of [['downloadOriginalButton', 'original'], ['downloadCleanButton', 'clean']]) {
+    $(`#${id}`)?.addEventListener('click', () => {
+      if ($('#rememberDownloadChoice')?.checked) {
+        writeDownloadPreferences({ metadata: mode });
+        document.dispatchEvent(new Event('nai-download-preferences-changed'));
+      }
+      els.downloadChoiceDialog?.close();
+      runImageDownloads(mode).catch(error => toast(error.message, 'error'));
+    });
+  }
 
   $('#dialogReuse').addEventListener('click', restoreImageState);
   $('#dialogReuseMenu')?.addEventListener('click', openImageRestoreOptions);

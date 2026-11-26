@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="/tag-chips.css?v=1.9.48">
 <link rel="stylesheet" href="/native.css">
 <link rel="stylesheet" href="/artist-browser.css">
+<link rel="stylesheet" href="/gallery-enhancements.css">
 </head>
 <body class="native-mode native-booting">
   <div id="toastHost" class="toast-host" aria-live="polite"></div>
@@ -600,10 +601,13 @@
             <button id="gallerySelectAll" class="ghost hidden" type="button" title="选中已载入的全部图片">全选</button>
             <button id="gallerySelectNonFavorites" class="ghost hidden" type="button" title="选中已载入的未收藏图片">非收藏</button>
             <button id="galleryClearSelection" class="ghost hidden" type="button">清空</button>
+            <button id="galleryDownloadSelected" class="primary hidden" type="button">下载所选</button>
+            <button id="galleryCancelDownload" class="ghost hidden" type="button">停止下载</button>
             <button id="galleryDeleteSelected" class="ghost danger hidden" type="button" data-owner-only="">删除</button>
             <span id="gallerySelectionText" class="hint hidden">已选择 0 张</span>
             <button id="galleryExitSelection" class="ghost hidden" type="button">完成</button>
           </div>
+          <p id="galleryDownloadProgress" class="hint" role="status" hidden=""></p>
         </div>
         <div class="gallery-filter-row">
           <input id="gallerySearch" type="search" autocomplete="off" spellcheck="false" placeholder="搜索 Prompt / 备注 / Seed">
@@ -1096,6 +1100,7 @@
       <button id="closeDownloadChoiceDialog" class="icon-button" type="button" aria-label="关闭">×</button>
     </div>
     <div class="action-choice-body">
+      <label class="check-label"><input id="rememberDownloadChoice" type="checkbox" checked="">记住选择，可在设置 → 图片下载中更改</label>
       <button id="downloadOriginalButton" class="action-choice-card" type="button">
         <strong>原图</strong>
         <span>保留 NovelAI Prompt、Seed、生成参数等元数据，方便以后恢复。</span>
@@ -1105,6 +1110,13 @@
         <span>重新编码为 PNG，移除文本 / EXIF 与 NovelAI alpha 隐写元数据；适合外发。</span>
       </button>
     </div>
+  </dialog>
+
+  <dialog id="trashImageDialog" class="trash-image-dialog" aria-labelledby="trashImageTitle">
+    <div class="dialog-header"><strong id="trashImageTitle">回收站图片</strong><button id="closeTrashImageDialog" type="button" aria-label="关闭">关闭</button></div>
+    <div class="trash-image-stage"><img id="trashImagePreview" alt="回收站图片预览"></div>
+    <p id="trashImageStatus" class="hint" role="status"></p>
+    <div class="trash-image-actions dialog-actions"><button id="trashLoadOriginal" class="ghost" type="button">查看原图</button><button id="trashDeleteImage" class="ghost danger" type="button">彻底删除</button><button id="trashRestoreImage" class="primary" type="button">恢复图片</button></div>
   </dialog>
 
   <dialog id="imageRestoreDialog" class="action-choice-dialog image-restore-dialog">
