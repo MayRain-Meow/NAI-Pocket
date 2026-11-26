@@ -258,7 +258,7 @@ try {
     native: registerPlugin('AppUpdate'), currentVersion: appVersion });
   if (experience) {
     updateSection.className = 'settings-dialog-section';
-    updateSection.innerHTML = '<div class="settings-section-heading"><span class="workspace-eyebrow">// ENDFIELD</span><h2>Endfield 独立版</h2></div><p class="hint">版本 0.7.10-endfield.2，基于 NAI Pocket 0.7.10。此为独立修改版，并非原作者的官方发布。不接收原版自动更新；源码与修改说明随安装包提供。</p>';
+    updateSection.innerHTML = `<div class="settings-section-heading"><span class="workspace-eyebrow">// ENDFIELD</span><h2>Endfield 独立版</h2></div><p class="hint">版本 ${appVersion}-endfield.3，基于 NAI Pocket ${appVersion}。此为独立修改版，并非原作者的官方发布。不接收原版自动更新；源码与修改说明随安装包提供。</p>`;
   }
   settingsBody?.append(downloadSettingsSection({ native: PocketNative, notice, experience: typeof __POCKET_EXPERIENCE__ !== 'undefined' && __POCKET_EXPERIENCE__ }),
     await phoneAlbumSection(queue), storageSection({ request, notice }), resourcesSection, exampleImagesSection({ request, catalogUrl: V5_EXAMPLES_CATALOG_URL, notice }), styleSection, styleModelSection({ request, notice }), updateSection, aboutSection(appVersion, licenseButton));
