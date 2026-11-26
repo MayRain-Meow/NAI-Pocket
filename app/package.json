@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "build:experience": "node scripts/build.mjs --experience",
+    "android:experience": "node scripts/android.mjs release --experience",
+    "test:experience": "node ../tests/download-preferences.test.mjs && node ../tests/trash-preview.test.mjs && npm run build:experience && node tests/offline-integration.mjs --experience --experience-checks",
     "sync": "npm run build && cap sync android",
     "android": "node scripts/android.mjs",
     "android:release": "node scripts/android.mjs release",
