@@ -24,7 +24,7 @@ const result = await build({ absWorkingDir: root, entryPoints: ['src/main.js'], 
 const forbidden = /(?:artist-automation|deepseek|artist-ingestion|artist-annotation|nax-preview-mirror|customer-relay|src[\/]artist-library)/i;
 const forbiddenInputs = Object.keys(result.metafile.inputs).filter(input => forbidden.test(input));
 if (forbiddenInputs.length) throw new Error(`Private modules entered native build: ${forbiddenInputs.join(', ')}`);
-for (const name of ['styles.css','workspace.css','tag-chips.css','artist-browser.css','artist-library.css','gallery-enhancements.css']) await fs.writeFile(path.join(out,name),publicCss(await fs.readFile(path.join(project,'public',name),'utf8')));
+for (const name of ['styles.css','workspace.css','tag-chips.css','artist-browser.css','artist-library.css','gallery-enhancements.css','booru.css']) await fs.writeFile(path.join(out,name),publicCss(await fs.readFile(path.join(project,'public',name),'utf8')));
 await fs.copyFile(path.join(root,'src/native.css'),path.join(out,'native.css'));
 await fs.mkdir(path.join(out,'icons'),{recursive:true});
 for (const name of ['icon-flow-192.png','icon-flow-512.png','apple-touch-icon.png']) await fs.copyFile(path.join(project,'public/icons',name),path.join(out,'icons',name));
