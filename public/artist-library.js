@@ -1581,8 +1581,12 @@ export function createArtistLibrary({ api, toast, addArtist, previewArtist, isRe
     return true;
   }
   function findSimilarStyle(artist) {
-    // Starting from an artist page means "like this artist", so earlier chips do not leak into it.
-    state.filters.like = cleanText(artist, 160); state.filters.vibe = []; state.filters.image = null; state.page = 1;
+    // Starting from a detail page is a fresh similarity search. A retained name
+    // query otherwise admits only the seed, which similarity ranking excludes.
+    const source = state.filters.source;
+    state.filters = { ...createLibraryState().filters, source, like: cleanText(artist, 160) };
+    state.sortTouched = false;
+    state.page = 1;
     loadList({ scroll: 0 });
   }
   // 以图找画师 (1.8.0): the picture is shrunk here (the model only sees 224 px, and phone photos are

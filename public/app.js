@@ -1,3 +1,6 @@
+import { readDownloadPreferences, writeDownloadPreferences, saveGalleryImages } from './download-preferences.js';
+import { installImageViewer } from './image-viewer.js';
+import { tagDragEdgeSpeed, tagDragScrollStep } from './tag-drag-scroll.js';
 import {
   tokenizePrompt as tokenizePromptUtil,
   parseTagToken,
@@ -28,6 +31,8 @@ import { attachWeightHighlight } from './weight-highlight.js?v=1.9.48';
 import { confirmAction, promptText } from './confirm-sheet.js?v=1.9.48';
 import { createTaggerPanel } from './tagger-panel.js?v=1.9.48';
 import { createCodexPanel } from './codex-panel.js?v=1.9.48';
+import { createReferenceHub } from './booru-panel.js';
+import { booruKey } from './booru-core.js';
 import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.48';
 import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, preciseStrengthMax, supportsReferenceFidelity, supportsOutfitReference, preciseReferenceWhileInpainting, preciseReferenceKind, preciseReferenceSameOutfit, preciseReferenceType, preciseReferenceTypeFor, PRECISE_REFERENCE_TYPES, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.9.48';
 
@@ -1730,7 +1735,10 @@ async function renderTrashView() {
   const list = document.createElement('div'); list.className = 'gallery-trash-grid';
   list.append(...images.map(image => {
     const card = document.createElement('div'); card.className = 'gallery-trash-card'; card.dataset.trashId = image.id;
-    const img = document.createElement('img'); img.src = image.thumbUrl; img.alt = ''; img.loading = 'lazy'; img.decoding = 'async';
+    const img = document.createElement('img'); img.src = image.thumbUrl; img.alt = '回收站图片，点击查看'; img.loading = 'lazy'; img.decoding = 'async';
+    const view = document.createElement('button'); view.type = 'button'; view.className = 'gallery-trash-preview';
+    view.setAttribute('aria-label', '查看回收站图片'); view.append(img);
+    view.addEventListener('click', () => openTrashImage(image));
     const meta = document.createElement('small'); meta.textContent = left(image);
     const restore = document.createElement('button'); restore.type = 'button'; restore.className = 'ghost restore'; restore.textContent = '恢复';
     restore.addEventListener('click', async () => { restore.disabled = true; if (!(await restoreTrashedImages([image.id]))) restore.disabled = false; });
@@ -1743,10 +1751,34 @@ async function renderTrashView() {
       await renderTrashView();
     });
     const row = document.createElement('div'); row.className = 'gallery-trash-card-actions'; row.append(restore, purge);
-    card.append(img, meta, row);
+    card.append(view, meta, row);
     return card;
   }));
   grid.replaceChildren(list);
+}
+
+function openTrashImage(image) {
+  const dialog = $('#trashImageDialog'), preview = $('#trashImagePreview'), status = $('#trashImageStatus');
+  if (!dialog || !preview) return;
+  preview.src = image.thumbUrl;
+  status.textContent = '正在读取预览…';
+  const original = `/api/images/trash/${encodeURIComponent(image.id)}/original`;
+  const large = new Image();
+  large.onload = () => { if (dialog.dataset.imageId === image.id && dialog.open) { preview.src = large.src; status.textContent = '图片仍在回收站，查看不会恢复或延长保留时间。'; } };
+  large.onerror = () => { if (dialog.dataset.imageId === image.id) status.textContent = '无法读取大图；图片可能已到期，请刷新回收站。'; };
+  dialog.dataset.imageId = image.id;
+  large.src = image.previewUrl || original;
+  $('#trashLoadOriginal').onclick = () => { preview.src = original; status.textContent = '已请求原图。'; };
+  $('#trashRestoreImage').onclick = async () => { if (await restoreTrashedImages([image.id])) dialog.close(); };
+  $('#trashDeleteImage').onclick = async () => {
+    if (!await confirmAction('彻底删除这张图片？之后无法恢复。', { confirmLabel: '彻底删除', danger: true })) return;
+    try {
+      const result = await api('/api/images/trash/purge', { method: 'POST', body: { ids: [image.id] } });
+      noteGalleryExamplesDeleted(result); dialog.close(); await renderTrashView();
+    } catch (error) { toast(error.message, 'error'); }
+  };
+  $('#closeTrashImageDialog').onclick = () => dialog.close();
+  dialog.showModal();
 }
 
 // A release takes over open pages (its worker skips waiting and claims them),
@@ -2515,20 +2547,25 @@ function updateTagDragPosition(x, y) {
   const overTrash = Boolean(trashBox && y <= trashBox.bottom + 6 && x >= trashBox.left && x <= trashBox.right);
   drag.target = overTrash ? { trash: true, highlight: drag.trash, zone: null, viaNav: true } : resolveTagDragTarget(x, y);
   paintTagDragTarget(drag.target);
-  if (overTrash) { drag.autoScroll = 0; return; }
-
-  const topBand = Math.max(86, (els.editorCommandBar?.getBoundingClientRect().bottom || 0) + 18);
-  const bottomBand = window.innerHeight - Math.max(105, (els.floatingGenerateBar?.getBoundingClientRect().height || 0) + 28);
-  if (y < topBand) drag.autoScroll = -Math.min(22, Math.max(4, (topBand - y) * 0.24));
-  else if (y > bottomBand) drag.autoScroll = Math.min(22, Math.max(4, (y - bottomBand) * 0.24));
-  else drag.autoScroll = 0;
 }
 
-function runTagDragAutoScroll() {
+function runTagDragAutoScroll(now) {
   const drag = activeTagDrag;
   if (!drag?.dragging) return;
-  if (drag.autoScroll && !drag.target?.trash) {
-    window.scrollBy(0, drag.autoScroll);
+  const viewport = window.visualViewport;
+  let top = viewport?.offsetTop || 0;
+  let bottom = top + (viewport?.height || window.innerHeight);
+  for (const element of [els.editorCommandBar, els.floatingGenerateBar, document.querySelector('.workspace-nav')]) {
+    if (!element || getComputedStyle(element).display === 'none') continue;
+    const rect = element.getBoundingClientRect();
+    if (rect.width < window.innerWidth * .5 || !rect.height) continue;
+    if (element === els.editorCommandBar && rect.top <= 100) top = Math.max(top, rect.bottom);
+    else if (element !== els.editorCommandBar && rect.top > window.innerHeight / 2) bottom = Math.min(bottom, rect.top);
+  }
+  const speed = drag.target?.trash ? 0 : tagDragEdgeSpeed(drag.lastY, top, bottom);
+  const distance = tagDragScrollStep(drag.scrollState, speed, now);
+  if (distance) {
+    window.scrollBy(0, distance);
     drag.target = resolveTagDragTarget(drag.lastX, drag.lastY);
     paintTagDragTarget(drag.target);
   }
@@ -2573,7 +2610,7 @@ function beginTagDrag(card, sourceRef, tag, x, y) {
     trash,
     lastX: x,
     lastY: y,
-    autoScroll: 0,
+    scrollState: {},
     target: null,
     raf: 0
   };
@@ -2652,7 +2689,7 @@ function bindLongPressTagDrag(card, sourceRef, tag) {
 
   // Touch: a stationary 360 ms hold enters drag mode. Before that, normal vertical swipes still scroll the page.
   card.addEventListener('touchstart', event => {
-    if (event.touches.length !== 1 || !eligibleSurface(event.target) || activeTagDrag) return;
+    if (tagMultiSelect || event.touches.length !== 1 || !eligibleSurface(event.target) || activeTagDrag) return;
     const touch = event.touches[0];
     const pending = {
       dragging: false,
@@ -2698,7 +2735,7 @@ function bindLongPressTagDrag(card, sourceRef, tag) {
 
   // Desktop: the visible handle starts immediately, avoiding HTML5 drag-and-drop inconsistencies.
   card.querySelector('.drag-handle')?.addEventListener('pointerdown', event => {
-    if (event.pointerType !== 'mouse' || event.button !== 0 || activeTagDrag) return;
+    if (tagMultiSelect || event.pointerType !== 'mouse' || event.button !== 0 || activeTagDrag) return;
     event.preventDefault();
     const pending = { dragging: false, sourceRef, tagId: tag.id, originCard: card, startX: event.clientX, startY: event.clientY, lastX: event.clientX, lastY: event.clientY };
     activeTagDrag = pending;
@@ -2732,11 +2769,19 @@ function bindLongPressTagDrag(card, sourceRef, tag) {
 function renderTagGroups() {
   const active = document.activeElement?.dataset?.tagInput || null;
   const selection = active ? { start: document.activeElement.selectionStart, end: document.activeElement.selectionEnd, value: document.activeElement.value } : null;
+  // Background artist-index refreshes must not close an empty section while
+  // the user is entering Tags. Keep its open state along with the draft below.
+  const addingGroups = new Set([...els.tagGroups.querySelectorAll('.tag-section.adding')].map(section => section.dataset.group));
   els.tagGroups.innerHTML = '';
   const flowLayout = tagLayout() !== 'legacy';
   for (const [key, label] of GROUP_DEFS) {
     const tags = appState.groups[key] || [];
-    if (flowLayout) { els.tagGroups.append(createTagSection(key, label, tags)); continue; }
+    if (flowLayout) {
+      const section = createTagSection(key, label, tags);
+      if (addingGroups.has(key) || active === key) section.classList.add('adding');
+      els.tagGroups.append(section);
+      continue;
+    }
     const group = document.createElement('details');
     group.className = 'tag-group';
     group.dataset.group = key;
@@ -3452,6 +3497,53 @@ function clearTagSelection() {
   paintTagSelection();
 }
 
+function setTagMultiSelect(on) {
+  tagMultiSelect = Boolean(on);
+  if (tagMultiSelect) {
+    setQuickDelete(false);
+    if (editMode.text) setEditMode({ text: false });
+    if (activeTagDrag) finishTagDrag({ commit: false });
+    activeScrub = null;
+  } else tagSelection.clear();
+  paintTagSelection();
+}
+
+function renderTagBatchActions(entries) {
+  const host = $('#tagBatchActions');
+  const button = $('#tagMultiSelectButton');
+  document.body.classList.toggle('tag-multi-select', tagMultiSelect);
+  if (button) {
+    button.setAttribute('aria-pressed', String(tagMultiSelect));
+    button.textContent = tagMultiSelect ? '完成' : '多选';
+  }
+  if (!host) return;
+  host.hidden = !tagMultiSelect;
+  if (!tagMultiSelect) { host.replaceChildren(); return; }
+  host.innerHTML = `
+    <div class="tag-batch-summary">
+      <strong aria-live="polite">已选 ${entries.length} 个 Tag</strong>
+      <button type="button" data-tag-batch="all" title="选择当前展开区域内可见的 Tag">全选可见</button>
+      <button type="button" data-tag-batch="clear" ${entries.length ? '' : 'disabled'}>清空选择</button>
+    </div>
+    <div class="tag-batch-tools">
+      <label class="tag-batch-move"><span>移动到</span><select data-tag-batch="move" aria-label="批量移动到" ${entries.length ? '' : 'disabled'}><option value="">选择目标区域…</option>${tagMoveOptions()}</select></label>
+      <button type="button" data-tag-batch="delete" ${entries.length ? '' : 'disabled'}>删除所选</button>
+    </div>
+    ${entries.length ? '' : '<p>点选 Tag；可切换分区继续选择，再一起移动。</p>'}`;
+}
+
+function selectVisibleTags() {
+  document.querySelectorAll('#editorTab .tag-chip').forEach(node => {
+    if (!node.getClientRects().length || getComputedStyle(node).visibility === 'hidden') return;
+    const id = node.dataset.tagId;
+    const ref = node.dataset.ucChip ? { scope: 'uc', id }
+      : node.dataset.characterId ? { scope: 'character', characterId: node.dataset.characterId, kind: node.dataset.characterKind, id }
+      : { scope: 'global', groupKey: node.dataset.group, id };
+    tagSelection.set(tagRefKey(ref), ref);
+  });
+  paintTagSelection();
+}
+
 // Re-render a chip in place (weight/enable changes) without rebuilding lists.
 function refreshTagChip(entry) {
   const node = chipNode(entry.ref);
@@ -3494,13 +3586,14 @@ function renderTagDock() {
   const dock = els.tagSelectionDock;
   if (!dock) return;
   const entries = selectedTagEntries();
+  renderTagBatchActions(entries);
   document.body.classList.toggle('tag-selection-active', entries.length > 0);
-  dock.classList.toggle('hidden', !entries.length);
+  dock.classList.toggle('hidden', !entries.length || tagMultiSelect);
   paintChipQuickActions(entries);
   // With nothing selected the strip goes back to its home, so a list re-render
   // never leaves it detached from the page.
   tagDockHome ??= { parent: dock.parentElement, next: dock.nextSibling };
-  if (!entries.length) { dock.innerHTML = ''; tagDockMoreOpen = false; if (tagDockHome.parent && dock.parentElement !== tagDockHome.parent) tagDockHome.parent.insertBefore(dock, tagDockHome.next?.parentElement === tagDockHome.parent ? tagDockHome.next : null); return; }
+  if (!entries.length || tagMultiSelect) { dock.innerHTML = ''; tagDockMoreOpen = false; if (tagDockHome.parent && dock.parentElement !== tagDockHome.parent) tagDockHome.parent.insertBefore(dock, tagDockHome.next?.parentElement === tagDockHome.parent ? tagDockHome.next : null); return; }
   const single = entries.length === 1 ? entries[0] : null;
   const allDisabled = entries.every(entry => entry.tag.enabled === false);
   const hasUc = entries.some(entry => entry.ref.scope === 'uc');
@@ -3609,26 +3702,41 @@ function moveSelectedTags(value) {
   const target = scope === 'c' ? { scope: 'character', characterId: first, kind } : scope === 'g' ? { scope: 'global', groupKey: first } : scope === 'u' ? { scope: 'uc' } : null;
   const targetList = target && tagListForRef(target);
   if (!targetList) return;
+  // Use the source lists' order, not the order in which the user tapped Tags.
+  // Keep the original refs so moving *out* of global UC updates its text too.
+  const entries = selectedTagEntries();
+  const sourceLists = [...globalPromptOrder().map(key => appState.groups[key]), ...appState.characters.flatMap(ch => [ch.promptTags, ch.ucTags]), ucChipTags()];
+  entries.sort((a, b) => {
+    const aList = tagListForRef(a.ref), bList = tagListForRef(b.ref);
+    return sourceLists.indexOf(aList) - sourceLists.indexOf(bList) || aList.indexOf(a.tag) - bList.indexOf(b.tag);
+  });
   const moved = [];
-  for (const entry of selectedTagEntries()) {
-    if (entry.ref.scope === target.scope && (target.scope === 'uc' || sameDragRef(entry.ref, target))) { moved.push({ ...target, id: entry.tag.id }); continue; }
-    const sourceList = tagListForRef(entry.ref);
-    const index = sourceList?.findIndex(item => item.id === entry.tag.id) ?? -1;
-    if (index < 0) continue;
-    const [tag] = sourceList.splice(index, 1);
-    if (target.scope === 'global') {
-      if (appState.promptOrderMode === 'original' && finiteOriginalOrder(tag.originalOrder) === null) tag.originalOrder = nextGlobalOriginalOrder();
-      openTagGroups.add(target.groupKey);
-    } else if (entry.ref.scope === 'global') tag.originalOrder = null;
-    // Global UC is plain text and cannot keep a disabled Tag.
-    if (target.scope === 'uc') tag.enabled = true;
-    targetList.push(tag);
-    moved.push({ ...target, id: tag.id });
-  }
-  tagSelection.clear();
-  for (const ref of moved) tagSelection.set(tagRefKey(ref), ref);
-  syncUcChipsIfTouched([target, ...moved]);
-  refreshTagEditor();
+  let changed = 0;
+  asOneHistoryStep(() => {
+    for (const entry of entries) {
+      if (entry.ref.scope === target.scope && (target.scope === 'uc' || sameDragRef(entry.ref, target))) { moved.push({ ...target, id: entry.tag.id }); continue; }
+      const sourceList = tagListForRef(entry.ref);
+      const index = sourceList?.findIndex(item => item.id === entry.tag.id) ?? -1;
+      if (index < 0) continue;
+      const [tag] = sourceList.splice(index, 1);
+      if (target.scope === 'global') {
+        if (appState.promptOrderMode === 'original' && finiteOriginalOrder(tag.originalOrder) === null) tag.originalOrder = nextGlobalOriginalOrder();
+        openTagGroups.add(target.groupKey);
+      } else if (entry.ref.scope === 'global') tag.originalOrder = null;
+      // Global UC is plain text and cannot keep a disabled Tag.
+      if (target.scope === 'uc') tag.enabled = true;
+      targetList.push(tag);
+      moved.push({ ...target, id: tag.id });
+      changed += 1;
+    }
+    tagSelection.clear();
+    if (!tagMultiSelect) for (const ref of moved) tagSelection.set(tagRefKey(ref), ref);
+    if (changed) {
+      syncUcChipsIfTouched([target, ...entries.map(entry => entry.ref)]);
+      refreshTagEditor();
+    } else paintTagSelection();
+  });
+  toast(changed ? `已移动 ${changed} 个 Tag，可撤销。` : '所选 Tag 已在该区域。', changed ? 'success' : '');
 }
 
 function deleteSelectedTags() {
@@ -3708,7 +3816,7 @@ function handleTagDockClick(event) {
   if (action === 'close') return clearTagSelection();
   if (action === 'undo') return stepTagHistory(-1);
   if (action === 'redo') return stepTagHistory(1);
-  if (action === 'multi') { tagMultiSelect = !tagMultiSelect; return renderTagDock(); }
+  if (action === 'multi') return setTagMultiSelect(!tagMultiSelect);
   if (action === 'more') { tagDockMoreOpen = !tagDockMoreOpen; return renderTagDock(); }
   if (!entries.length) return;
   if (action === 'edit' && entries.length === 1) {
@@ -3927,8 +4035,10 @@ function applyEditMode() {
 }
 
 function setEditMode(patch) {
+  if (patch.text === true && tagMultiSelect) clearTagSelection();
   Object.assign(editMode, patch);
   applyEditMode();
+  if (tagMultiSelect) paintTagSelection();
 }
 
 // New layout: the image workflow is three flat tool rows (图生图 / Vibe /
@@ -4718,10 +4828,44 @@ const taggerPanel = createTaggerPanel({
 
 const codexPanel = createCodexPanel({
   api, toast,
-  isActive: () => activeMainTab === 'codex',
+  isActive: () => activeMainTab === 'codex' && referenceHub.isCodex(),
   tags: { parse: codexTags, key: codexTagKey, format: formatTag, formatWeight: formatTagWeight, hasCjk },
   editor: codexEditor
 });
+const referenceHub = createReferenceHub({ api, toast, codex: codexPanel, editor: {
+  open: () => switchTabTo('editor'),
+  targets: () => [
+    ...GROUP_DEFS.map(([key, label]) => [key, `全局 · ${label}`]),
+    ['negative', '负面提示词'],
+    ...appState.characters.map((character, index) => [`character:${character.id}`, `角色 ${index + 1}${character.name ? ` · ${character.name}` : ''}`])
+  ].sort((a, b) => (a[0] === 'misc' ? -1 : b[0] === 'misc' ? 1 : 0)),
+  import(items, { target, replace }) {
+    const character = target.startsWith('character:') ? appState.characters.find(x => x.id === target.slice(10)) : null;
+    if (!(target in GROUP_LABELS) && target !== 'negative' && !character) throw new Error('这个导入位置已不存在，请重新打开图片。');
+    // Do not reinterpret text mode behind the user's back: synchronize it using
+    // the same editor restore path before adding a new undoable operation.
+    if (directPromptEdited) throw new Error('请先在编辑器将文本提示词转回标签模式，再导入画廊标签。');
+    let count = 0;
+    asOneHistoryStep(() => {
+      const current = target === 'negative' ? ucChipTags() : character ? character.promptTags : appState.groups[target];
+      const next = replace ? [] : [...current];
+      const have = new Set(next.map(tag => booruKey(tag.text.replace(/\\([()])/g, '$1'))));
+      for (const item of items) {
+        const key = booruKey(item.raw);
+        if (have.has(key)) continue;
+        have.add(key);
+        const text = item.category === 'artist' && target === 'style' ? `artist:${item.text}` : item.text;
+        next.push(hydrateTag({ text, weight: 1, enabled: true, id: uid() })); count++;
+      }
+      clearTagSelection();
+      if (target === 'negative') { ucChipState.tags = next; commitUcChips(); if (editMode.side === 'negative') renderUcChips(); }
+      else if (character) { character.promptTags = next; renderCharacters(); }
+      else { appState.groups[target] = next; openTagGroups.add(target); renderTagGroups(); }
+      compilePromptToPreview(true);
+    });
+    return count;
+  }
+} });
 
 // 清空 in the section headers and over the negative list, and the 画风 header
 // link to Storm (its bottom tab is dropped in the new layout).
@@ -4864,7 +5008,7 @@ function setQuickDelete(on) {
   quickDeleteMode = Boolean(on) && tagLayout() !== 'legacy';
   document.body.classList.toggle('quick-delete', quickDeleteMode);
   const button = $('#quickDeleteButton');
-  if (button) { button.setAttribute('aria-pressed', String(quickDeleteMode)); button.textContent = quickDeleteMode ? '完成' : '快删'; }
+  if (button) { button.setAttribute('aria-pressed', String(quickDeleteMode)); button.textContent = quickDeleteMode ? '结束快删' : '快删'; }
   if (quickDeleteMode) clearTagSelection();
 }
 
@@ -4879,10 +5023,10 @@ function quickDeleteTag(ref) {
 
 // Tapping anywhere that is not a chip, the control strip or another control
 // surface closes the selection.
-const SELECTION_KEEPERS = '.tag-chip, #tagSelectionDock, dialog, .command-menu, #commandMenuButton, [data-history], #tagUndoButton, #tagRedoButton, .tag-drag-ghost, .codex-detail, .params-sheet-open .sticky-settings, .position-sheet';
+const SELECTION_KEEPERS = '.tag-chip, #tagSelectionDock, #tagBatchActions, #tagMultiSelectButton, dialog, .command-menu, #commandMenuButton, [data-history], #tagUndoButton, #tagRedoButton, .tag-drag-ghost, .codex-detail, .params-sheet-open .sticky-settings, .position-sheet';
 function bindTapOutsideToClear() {
   document.addEventListener('click', event => {
-    if (!tagSelection.size || tagLayout() === 'legacy' || Date.now() < tagDragSuppressClickUntil) return;
+    if (tagMultiSelect || !tagSelection.size || tagLayout() === 'legacy' || Date.now() < tagDragSuppressClickUntil) return;
     // The path is fixed at dispatch time, so a strip button that re-rendered
     // the strip (and is now detached) still counts as inside it.
     if (event.composedPath().some(node => node instanceof Element && node.matches(SELECTION_KEEPERS))) return;
@@ -4923,7 +5067,7 @@ function scrubTarget() {
 
 function bindWeightScrub(card, ref, tag) {
   card.addEventListener('pointerdown', event => {
-    if (!card.classList.contains('selected') || quickDeleteMode || event.button > 0 || !event.target.closest('.tag-copy')) return;
+    if (tagMultiSelect || !card.classList.contains('selected') || quickDeleteMode || event.button > 0 || !event.target.closest('.tag-copy')) return;
     activeScrub = { id: event.pointerId, ref, tagId: tag.id, x: event.clientX, y: event.clientY, start: finiteTagWeight(tag.weight), steps: 0, active: false };
   });
 }
@@ -4977,6 +5121,16 @@ function bindNewLayoutControls() {
   bindTapOutsideToClear();
   bindWeightScrubDocument();
   $('#quickDeleteButton')?.addEventListener('click', () => setQuickDelete(!quickDeleteMode));
+  $('#tagMultiSelectButton')?.addEventListener('click', () => setTagMultiSelect(!tagMultiSelect));
+  $('#tagBatchActions')?.addEventListener('click', event => {
+    const action = event.target.closest('[data-tag-batch]')?.dataset.tagBatch;
+    if (action === 'all') selectVisibleTags();
+    if (action === 'clear') { tagSelection.clear(); paintTagSelection(); }
+    if (action === 'delete') asOneHistoryStep(deleteSelectedTags);
+  });
+  $('#tagBatchActions')?.addEventListener('change', event => {
+    if (event.target.matches('[data-tag-batch="move"]') && event.target.value) moveSelectedTags(event.target.value);
+  });
   document.addEventListener('keydown', event => { if (event.key === 'Escape' && quickDeleteMode) setQuickDelete(false); });
   document.querySelectorAll('[data-edit-side]').forEach(button => button.addEventListener('click', () => setEditMode({ side: button.dataset.editSide })));
   document.querySelectorAll('[data-edit-text]').forEach(button => button.addEventListener('click', () => setEditMode({ text: !editMode.text })));
@@ -5004,6 +5158,7 @@ function bindNewLayoutControls() {
   });
   // Menu items forward to the existing controls, so their behavior is unchanged.
   menu?.addEventListener('click', event => {
+    if (event.target.closest('#quickDeleteButton')) { closeMenu(); return; }
     if (event.target.closest('[data-menu-action="renewal"]')) { closeMenu(); openRenewalDialog(); return; }
     if (event.target.closest('[data-menu-action="brackets"]')) { closeMenu(); convertAllBracketWeights(); return; }
     if (event.target.closest('[data-menu-action="default-scheme"]')) { closeMenu(); loadDefaultScheme().catch(error => toast(error.message, 'error')); return; }
@@ -5023,6 +5178,7 @@ function bindNewLayoutControls() {
   bindEmptySections();
   bindPositionSheet();
   codexPanel.bind();
+  referenceHub.bind();
   bindSectionHeaderActions();
   bindRenewalDialog();
   $('#ucChipAddButton')?.addEventListener('click', submitUcChipInput);
@@ -8239,7 +8395,9 @@ function bindQueueInteractions() {
     if (!button || !item) return;
     const jobId = item.dataset.queueId;
     const action = button.dataset.queueAction;
-    const run = action === 'cancel'
+    const run = action === 'delete'
+      ? deleteFailedQueueRecords(jobId)
+      : action === 'cancel'
       ? api(`/api/jobs/${jobId}/cancel`, { method: 'POST' })
       : action === 'retry'
         ? api(`/api/jobs/${jobId}/retry`, { method: 'POST' })
@@ -8824,6 +8982,8 @@ function renderQueueControl(data) {
     note.classList.toggle('warn', data.pauseReason?.kind === 'account');
   }
   const waiting = Number(data.counts?.pending || 0);
+  const clearFailed = $('#queueClearFailedButton');
+  if (clearFailed) clearFailed.disabled = !Number(data.counts?.failed || 0);
   const cancel = $('#queueCancelAllButton');
   if (cancel) {
     cancel.disabled = !waiting;
@@ -8898,6 +9058,14 @@ async function cancelAllQueued() {
   refreshJobs();
 }
 
+async function deleteFailedQueueRecords(jobId = null) {
+  if (!await confirmAction(jobId ? '删除这条失败记录及其日志？删除后不能重试这条记录。' : '清理所有失败记录及其日志？关联图片的记录会保留。', { confirmLabel: '清理', danger: true })) return;
+  const result = await api(jobId ? `/api/jobs/${encodeURIComponent(jobId)}` : '/api/jobs/failed', { method: 'DELETE' });
+  if (jobId) expandedJobLogs.delete(jobId);
+  toast(`已清理 ${result.deleted} 条失败记录。${result.skipped ? `另有 ${result.skipped} 条仍在收尾或关联图片，已保留。` : ''}`, 'success');
+  await refreshJobs();
+}
+
 function renderJobs(data) {
   bindQueueInteractions();
   const jobs = Array.isArray(data.jobs) ? data.jobs : [];
@@ -8957,7 +9125,7 @@ function renderJobs(data) {
       </div>
       <div class="inline-actions queue-actions">
         ${['pending', 'running'].includes(job.status) ? `<button class="ghost danger" data-cancel data-queue-action="cancel">${job.status === 'running' ? '停止' : '取消'}</button>` : ''}
-        ${job.status === 'failed' ? '<button class="ghost" data-retry data-queue-action="retry">重试</button>' : ''}
+        ${job.status === 'failed' ? '<button class="ghost" data-retry data-queue-action="retry">重试</button><button class="ghost danger" data-queue-action="delete">删除记录</button>' : ''}
         ${job.image_id ? '<button class="ghost" data-open data-queue-action="open">查看</button>' : ''}
         <button class="ghost" data-logs data-queue-action="logs">${logsOpen ? '收起日志' : '日志'}</button>
       </div>
@@ -9654,6 +9822,8 @@ function updateGallerySelectionUi() {
   els.gallerySelectNonFavorites?.classList.toggle('hidden', !gallerySelectionMode);
   els.galleryClearSelection?.classList.toggle('hidden', !gallerySelectionMode);
   els.galleryDeleteSelected?.classList.toggle('hidden', !gallerySelectionMode);
+  $('#galleryDownloadSelected')?.classList.toggle('hidden', !gallerySelectionMode || !globalThis.NAI_RUNTIME?.download);
+  if ($('#galleryDownloadSelected')) $('#galleryDownloadSelected').disabled = !selected || imageDownloadBusy;
   els.gallerySelectionText?.classList.toggle('hidden', !gallerySelectionMode);
   els.galleryExitSelection?.classList.toggle('hidden', !gallerySelectionMode);
   if (els.gallerySelectionText) els.gallerySelectionText.textContent = `已选择 ${selected} 张`;
@@ -10185,8 +10355,10 @@ function renderDialogMetadata(image, detailReady = true) {
   $('#dialogRegenerate').disabled = !detailReady || !image.params;
 }
 
+let imageViewer = null;
 function showDialogImageInstant(image, { loadPreview = true, detailReady = Boolean(image?.params) } = {}) {
   if (!image) return;
+  imageViewer?.setImage(image.id);
   cancelScheduledPreviewPrefetch();
   currentImage = image;
   const thumb = image.thumbUrl || '';
@@ -10530,65 +10702,29 @@ function galleryMasonryTargetCount() {
 
 function resetGalleryMasonryColumns(count = galleryMasonryTargetCount()) {
   galleryMasonryColumnCount = count;
-  galleryMasonryColumns = [];
+  // Cards share one row-major grid. Packing the shortest column made newer
+  // pictures appear below older ones, especially when inserting new results.
+  galleryMasonryColumns = [els.galleryGrid];
   els.galleryGrid.innerHTML = '';
   els.galleryGrid.classList.remove('empty-state');
   els.galleryGrid.style.setProperty('--gallery-column-count', String(count));
-  for (let index = 0; index < count; index += 1) {
-    const column = document.createElement('div');
-    column.className = 'gallery-column';
-    column.dataset.estimatedHeight = '0';
-    column.setAttribute('aria-label', `图库第 ${index + 1} 列`);
-    galleryMasonryColumns.push(column);
-    els.galleryGrid.append(column);
-  }
-}
-
-function galleryCardEstimatedHeight(image) {
-  const width = Math.max(1, Number(image?.width) || 1);
-  const height = Math.max(1, Number(image?.height) || width);
-  const gap = galleryMasonryColumnCount > 1 ? 10 * (galleryMasonryColumnCount - 1) : 0;
-  const columnWidth = Math.max(120, ((els.galleryGrid.getBoundingClientRect().width || 1100) - gap) / Math.max(1, galleryMasonryColumnCount));
-  return columnWidth * Math.max(0.25, Math.min(4, height / width)) + 35;
 }
 
 function appendGalleryMasonryCard(image) {
-  if (!galleryMasonryColumns.length || galleryMasonryColumns.some(column => !column.isConnected)) resetGalleryMasonryColumns();
+  if (els.galleryGrid.classList.contains('empty-state') || !galleryMasonryColumns.length || galleryMasonryColumns.some(column => !column.isConnected)) resetGalleryMasonryColumns();
   const card = createGalleryCard(image);
-  const estimatedHeight = galleryCardEstimatedHeight(image);
-  card.dataset.masonryHeight = String(estimatedHeight);
-  const column = galleryMasonryColumns.reduce((best, candidate) => (
-    Number(candidate.dataset.estimatedHeight || 0) < Number(best.dataset.estimatedHeight || 0) ? candidate : best
-  ), galleryMasonryColumns[0]);
-  column.append(card);
-  column.dataset.estimatedHeight = String(Number(column.dataset.estimatedHeight || 0) + estimatedHeight + 10);
+  els.galleryGrid.append(card);
   return card;
 }
 
 function prependGalleryMasonryCards(images) {
   if (!images.length) return;
-  if (!galleryMasonryColumns.length || galleryMasonryColumns.some(column => !column.isConnected)) {
+  if (els.galleryGrid.classList.contains('empty-state') || !galleryMasonryColumns.length || galleryMasonryColumns.some(column => !column.isConnected)) {
     resetGalleryMasonryColumns();
   }
-  const assignments = new Map(galleryMasonryColumns.map(column => [column, []]));
-  const projectedHeights = new Map(galleryMasonryColumns.map(column => [column, Number(column.dataset.estimatedHeight || 0)]));
-  for (const image of images) {
-    const column = galleryMasonryColumns.reduce((best, candidate) => (
-      projectedHeights.get(candidate) < projectedHeights.get(best) ? candidate : best
-    ), galleryMasonryColumns[0]);
-    const estimatedHeight = galleryCardEstimatedHeight(image);
-    assignments.get(column).push({ image, estimatedHeight });
-    projectedHeights.set(column, projectedHeights.get(column) + estimatedHeight + 10);
-  }
-  for (const column of galleryMasonryColumns) {
-    const assigned = assignments.get(column);
-    for (const { image, estimatedHeight } of [...assigned].reverse()) {
-      const card = createGalleryCard(image);
-      card.dataset.masonryHeight = String(estimatedHeight);
-      column.prepend(card);
-    }
-    column.dataset.estimatedHeight = String(projectedHeights.get(column));
-  }
+  const fragment = document.createDocumentFragment();
+  for (const image of images) fragment.append(createGalleryCard(image));
+  els.galleryGrid.prepend(fragment);
   els.galleryGrid.classList.remove('empty-state');
 }
 
@@ -10625,11 +10761,6 @@ function syncGalleryMasonryForViewport() {
 function detachGalleryCard(id) {
   const card = document.querySelector(`[data-gallery-id="${CSS.escape(id)}"]`);
   if (!card) return;
-  const column = card.closest('.gallery-column');
-  if (column) {
-    const nextHeight = Math.max(0, Number(column.dataset.estimatedHeight || 0) - Number(card.dataset.masonryHeight || 0) - 10);
-    column.dataset.estimatedHeight = String(nextHeight);
-  }
   card.remove();
 }
 
@@ -10723,7 +10854,7 @@ function renderGalleryResultSummary() {
   }
   const start = galleryWindowStart + 1;
   const end = galleryWindowStart + galleryLoaded;
-  els.galleryResultSummary.textContent = start === 1 ? `已载入 ${end} / ${galleryTotal}` : `第 ${start}–${end} / ${galleryTotal}`;
+  els.galleryResultSummary.textContent = `${start === 1 ? `已载入 ${end} / ${galleryTotal}` : `第 ${start}–${end} / ${galleryTotal}`} · 最新在前`;
 }
 
 function trimGalleryDomWindow() {
@@ -10839,6 +10970,7 @@ async function loadGallery() {
 
 async function openImage(id) {
   if (!id) return;
+  imageViewer?.setImage(id);
   const summary = loadedGalleryImage(id);
   const cached = imageDetailCache.get(id)?.data || null;
 
@@ -10902,9 +11034,64 @@ function triggerBrowserDownload(url) {
   link.remove();
 }
 
-function openDownloadChoice() {
-  if (!currentImage?.id || !currentImage?.originalUrl) return toast('当前图片没有可下载的原图。', 'error');
+let pendingDownloadIds = [], imageDownloadBusy = false, imageDownloadCancelled = false;
+function openDownloadChoice(ids) {
+  if (imageDownloadBusy) return toast('正在保存图片，请等待完成或停止批量下载。');
+  pendingDownloadIds = Array.isArray(ids) ? [...ids] : currentImage?.id && currentImage?.originalUrl ? [currentImage.id] : [];
+  if (!pendingDownloadIds.length) return toast('请选择要下载的图片。');
+  const mode = readDownloadPreferences().metadata;
+  if (globalThis.NAI_RUNTIME?.download && mode !== 'ask') {
+    runImageDownloads(mode).catch(error => toast(error.message, 'error')); return;
+  }
+  const title = els.downloadChoiceDialog?.querySelector('.dialog-header strong');
+  if (title) title.textContent = pendingDownloadIds.length > 1 ? `下载 ${pendingDownloadIds.length} 张图片` : '下载图片';
   els.downloadChoiceDialog?.showModal();
+}
+
+async function runImageDownloads(mode) {
+  if (imageDownloadBusy || !pendingDownloadIds.length) return;
+  const ids = [...pendingDownloadIds]; pendingDownloadIds = [];
+  if (!globalThis.NAI_RUNTIME?.download) {
+    ids.forEach(id => triggerBrowserDownload(`/api/images/${encodeURIComponent(id)}/${mode}${mode === 'original' ? '?download=1' : ''}`));
+    return;
+  }
+  imageDownloadBusy = true; imageDownloadCancelled = false;
+  const cancel = $('#galleryCancelDownload'), progress = $('#galleryDownloadProgress');
+  if (cancel) cancel.disabled = false;
+  const batch = ids.length > 1;
+  let { destination } = readDownloadPreferences();
+  cancel?.classList.toggle('hidden', !batch);
+  if (progress) { progress.hidden = false; progress.textContent = `准备保存 0 / ${ids.length}`; }
+  updateGallerySelectionUi();
+  try {
+    if (destination === 'folder' || (batch && destination === 'ask')) {
+      const folder = await globalThis.NAI_RUNTIME.downloads.getFolder();
+      if (!folder.configured || destination === 'ask') {
+        const selected = await globalThis.NAI_RUNTIME.downloads.chooseFolder();
+        if (selected.cancelled || !selected.configured) { if (progress) progress.textContent = '未保存，已取消选择文件夹。'; return; }
+      }
+      destination = 'folder';
+    }
+    cancel?.classList.toggle('hidden', !batch);
+    if (progress) { progress.hidden = false; progress.textContent = `正在保存 0 / ${ids.length}`; }
+    const result = await saveGalleryImages({
+      ids, mode, destination, download: (url, options) => globalThis.NAI_RUNTIME.download(url, options),
+      cancelled: () => imageDownloadCancelled,
+      onProgress: ({ saved, total }) => { if (progress) progress.textContent = `已保存 ${saved.length} / ${total}`; }
+    });
+    result.saved.forEach(id => selectedGalleryIds.delete(id));
+    const remaining = ids.length - result.saved.length;
+    const message = `已保存 ${result.saved.length} / ${ids.length} 张${result.cancelled ? '，已停止' : ''}${result.failed.length ? `，${remaining} 张未保存：${result.failed[0].message}` : ''}`;
+    if (progress) progress.textContent = message;
+    toast(message, result.failed.length ? 'error' : 'success');
+  } catch (error) {
+    if (progress) progress.textContent = `保存未完成：${error.message}`;
+    throw error;
+  } finally {
+    imageDownloadBusy = false;
+    cancel?.classList.add('hidden');
+    updateGallerySelectionUi();
+  }
 }
 
 function imageSourceHasStructuredGroups(raw) {
@@ -11318,6 +11505,7 @@ function switchTabTo(name) {
   if (name === activeMainTab && document.querySelector(`#${name}Tab`)?.classList.contains('active')) return;
   if (!tabScrollPositions[name] && tabScrollPositions[name] !== 0) tabScrollPositions[name] = 0;
   if (activeMainTab && activeMainTab !== name) tabScrollPositions[activeMainTab] = window.scrollY;
+  if (activeMainTab === 'codex' && name !== 'codex') { codexPanel.closeDetail(); referenceHub.hide(window.scrollY); }
   activeMainTab = name;
   if ($('#pageCrumb')) $('#pageCrumb').textContent = ({ editor: '编辑工作台', artists: '画师资料库', storm: '画风 Storm', reverse: '图片反推', codex: '法典', gallery: '图库', scheme: '方案', queue: '生成队列' })[name] || '工作台';
   $$('.tab').forEach(button => button.classList.toggle('active', button.dataset.tab === name));
@@ -11333,8 +11521,7 @@ function switchTabTo(name) {
     syncGalleryMasonryForViewport();
     tryAutoLoadPendingGalleryImages();
   });
-  if (name !== 'codex') codexPanel.closeDetail();
-  if (name === 'codex') codexPanel.ensureLoaded();
+  if (name === 'codex') referenceHub.show();
   if (name === 'scheme') loadSchemes().catch(error => toast(error.message, 'error'));
   if (name === 'artists') ensureArtistLibrary().show().then(() => artistAutomationAvailable ? ensureArtistAutomation().refresh() : undefined).catch(error => toast(error.message, 'error'));
   if (name === 'storm') {
@@ -11344,7 +11531,7 @@ function switchTabTo(name) {
     loadStormLast();
   }
   if (name === 'reverse') taggerPanel.show();
-  const targetY = Number(tabScrollPositions[name] || 0);
+  const targetY = Number(name === 'codex' ? referenceHub.scrollPosition() : tabScrollPositions[name] || 0);
   requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo({ top: targetY, left: 0, behavior: 'auto' })));
 }
 
@@ -11495,7 +11682,7 @@ function initBindings() {
   $('#tagUndoButton')?.addEventListener('click', () => stepTagHistory(-1));
   $('#tagRedoButton')?.addEventListener('click', () => stepTagHistory(1));
   document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && tagSelection.size && !document.querySelector('dialog[open]')) { clearTagSelection(); return; }
+    if (event.key === 'Escape' && (tagSelection.size || tagMultiSelect) && !document.querySelector('dialog[open]')) { clearTagSelection(); return; }
     const typing = event.target.closest?.('input, textarea, select, [contenteditable="true"]') || document.querySelector('dialog[open]');
     if (!typing && tagSelection.size && (event.key === 'Delete' || event.key === 'Backspace')) { event.preventDefault(); deleteSelectedTags(); return; }
     if (typing || !(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z' || !$('#editorTab')?.classList.contains('active')) return;
@@ -12176,6 +12363,7 @@ function initBindings() {
   $('#resumeQueueButton').addEventListener('click', async () => { await api('/api/jobs/resume', { method: 'POST' }); refreshJobs(); });
   $('#queueRerouteButton')?.addEventListener('click', openQueueRouteMenu);
   $('#queueCancelAllButton')?.addEventListener('click', () => cancelAllQueued().catch(error => toast(error.message, 'error')));
+  $('#queueClearFailedButton')?.addEventListener('click', () => deleteFailedQueueRecords().catch(error => toast(error.message, 'error')));
   els.loadMoreButton.addEventListener('click', loadGallery);
   els.favoriteOnly.addEventListener('change', () => resetGallery(false).catch(error => toast(error.message, 'error')));
   els.galleryAgeFilter?.addEventListener('change', () => {
@@ -12239,6 +12427,8 @@ function initBindings() {
   });
   els.galleryClearSelection?.addEventListener('click', () => { selectedGalleryIds.clear(); updateGallerySelectionUi(); });
   els.galleryDeleteSelected?.addEventListener('click', () => deleteSelectedGallery().catch(error => toast(error.message, 'error')));
+  $('#galleryDownloadSelected')?.addEventListener('click', () => openDownloadChoice([...selectedGalleryIds]));
+  $('#galleryCancelDownload')?.addEventListener('click', () => { imageDownloadCancelled = true; $('#galleryCancelDownload').disabled = true; });
   els.cleanupUndoButton?.addEventListener('click', () => undoCleanupDelete().catch(error => toast(error.message, 'error')));
   els.cleanupDeleteButton?.addEventListener('click', () => deleteCleanupCurrentImage().catch(error => toast(error.message, 'error')));
   els.cleanupKeepButton?.addEventListener('click', () => cleanupKeepAndNext().catch(error => toast(error.message, 'error')));
@@ -12418,17 +12608,16 @@ function initBindings() {
   }));
   $('#closeDownloadChoiceDialog')?.addEventListener('click', () => els.downloadChoiceDialog?.close());
   els.downloadChoiceDialog?.addEventListener('click', event => { if (event.target === els.downloadChoiceDialog) els.downloadChoiceDialog.close(); });
-  $('#downloadOriginalButton')?.addEventListener('click', () => {
-    if (!currentImage?.originalUrl) return;
-    triggerBrowserDownload(`${currentImage.originalUrl}?download=1`);
-    els.downloadChoiceDialog?.close();
-  });
-  $('#downloadCleanButton')?.addEventListener('click', () => {
-    if (!currentImage?.id) return;
-    triggerBrowserDownload(`/api/images/${encodeURIComponent(currentImage.id)}/clean`);
-    els.downloadChoiceDialog?.close();
-    toast('正在下载净图；该文件不能再用于恢复 NovelAI 元数据。', 'success');
-  });
+  for (const [id, mode] of [['downloadOriginalButton', 'original'], ['downloadCleanButton', 'clean']]) {
+    $(`#${id}`)?.addEventListener('click', () => {
+      if ($('#rememberDownloadChoice')?.checked) {
+        writeDownloadPreferences({ metadata: mode });
+        document.dispatchEvent(new Event('nai-download-preferences-changed'));
+      }
+      els.downloadChoiceDialog?.close();
+      runImageDownloads(mode).catch(error => toast(error.message, 'error'));
+    });
+  }
 
   $('#dialogReuse').addEventListener('click', restoreImageState);
   $('#dialogReuseMenu')?.addEventListener('click', openImageRestoreOptions);
@@ -12472,20 +12661,10 @@ function initBindings() {
     }
   });
 
-  let viewerTouchStart = null;
-  els.dialogImageStage?.addEventListener('touchstart', event => {
-    const touch = event.changedTouches?.[0];
-    if (touch) viewerTouchStart = { x: touch.clientX, y: touch.clientY };
-  }, { passive: true });
-  els.dialogImageStage?.addEventListener('touchend', event => {
-    const touch = event.changedTouches?.[0];
-    if (!touch || !viewerTouchStart) return;
-    const dx = touch.clientX - viewerTouchStart.x;
-    const dy = touch.clientY - viewerTouchStart.y;
-    viewerTouchStart = null;
-    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.35) return;
-    navigateImageDialog(dx < 0 ? 1 : -1).catch(error => toast(error.message, 'error'));
-  }, { passive: true });
+  imageViewer = installImageViewer({
+    stage: els.dialogImageStage, image: els.dialogImage, dialog: els.imageDialog,
+    navigate: step => navigateImageDialog(step).catch(error => toast(error.message, 'error'))
+  });
 
   $('#payloadPreviewButton').addEventListener('click', async () => {
     try {
@@ -12562,6 +12741,7 @@ function initBindings() {
 
 async function startApp(context = authContext) {
   applyAuthContext(context);
+  els.appView.setAttribute('aria-busy', 'true');
   showApp();
   syncGalleryTimeControls();
   syncGalleryScopeControls();
@@ -12582,7 +12762,8 @@ async function startApp(context = authContext) {
   updateEditorModuleCounts();
   const dataLoads = [refreshJobs(), refreshSystem(), resetGallery(false), refreshTranslationStatus(), loadArtistIdentityIndex()];
   if (authContext.role === 'owner') dataLoads.push(loadSchemes({ applyDefault: true }), refreshProviderStatus(), refreshVisitorPasswordStatus());
-  await Promise.all(dataLoads);
+  try { await Promise.all(dataLoads); }
+  finally { els.appView.setAttribute('aria-busy', 'false'); }
   draftReady = true;
   if (pollTimer) clearInterval(pollTimer);
   if (systemTimer) clearInterval(systemTimer);

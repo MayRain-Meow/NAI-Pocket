@@ -65,7 +65,7 @@ public class PocketNativePlugin extends Plugin {
             for (int i = 0; i < entries.length(); i++) {
                 org.json.JSONObject item = entries.getJSONObject(i);
                 String route = item.getString("route");
-                if (!route.matches("/api/(images|assets)/[a-zA-Z0-9-]+/(original|preview|thumbnail)")) throw new IllegalArgumentException("Invalid media route");
+                if (!PocketMediaRoutes.isValid(route)) throw new IllegalArgumentException("Invalid media route");
                 if (item.optBoolean("remove", false)) { PocketMediaClient.media.remove(route); continue; }
                 String mime = item.getString("mime");
                 if (!mime.matches("image/(png|jpeg|webp)")) throw new IllegalArgumentException("Invalid media type");
@@ -126,6 +126,19 @@ public class PocketNativePlugin extends Plugin {
     @PluginMethod public void bootMark(PluginCall call) { BootRecord.mark(getContext(), call.getString("step", "")); call.resolve(); }
     @PluginMethod public void bootDone(PluginCall call) { BootRecord.done(getContext()); call.resolve(); }
 
+    @PluginMethod public void setAppearance(PluginCall call) {
+        final String fallback = Boolean.TRUE.equals(call.getBoolean("dark", false)) ? "#0B0C10" : "#F4F4F2";
+        final String background = call.getString("background", fallback);
+        final int color = android.graphics.Color.parseColor(background != null && background.matches("#[0-9a-fA-F]{6}") ? background : fallback);
+        getActivity().runOnUiThread(() -> {
+            getActivity().getWindow().getDecorView().setBackgroundColor(color);
+            getBridge().getWebView().setBackgroundColor(color);
+            getActivity().getWindow().setStatusBarColor(color);
+            getActivity().getWindow().setNavigationBarColor(color);
+            call.resolve();
+        });
+    }
+
     @PluginMethod public void diskStatus(PluginCall call) {
         android.os.StatFs stats = new android.os.StatFs(getContext().getFilesDir().getPath());
         JSObject result = new JSObject(); result.put("freeBytes", stats.getAvailableBytes()); result.put("totalBytes", stats.getTotalBytes()); call.resolve(result);
@@ -136,6 +149,78 @@ public class PocketNativePlugin extends Plugin {
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
             .setType(call.getString("mime", "application/octet-stream")).putExtra(Intent.EXTRA_TITLE, name);
         startActivityForResult(call, intent, "exportResult");
+    }
+
+    private SharedPreferences exportPreferences() {
+        return getContext().getSharedPreferences("nai-pocket-export", Context.MODE_PRIVATE);
+    }
+
+    private JSObject exportFolderInfo() {
+        String uri = exportPreferences().getString("folderUri", "");
+        JSObject result = new JSObject();
+        result.put("configured", !uri.isEmpty());
+        result.put("name", exportPreferences().getString("folderName", ""));
+        return result;
+    }
+
+    @PluginMethod public void getExportFolder(PluginCall call) { call.resolve(exportFolderInfo()); }
+
+    @PluginMethod public void chooseExportFolder(PluginCall call) {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
+        startActivityForResult(call, intent, "exportFolderResult");
+    }
+
+    @ActivityCallback private void exportFolderResult(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null || result.getData().getData() == null) {
+            JSObject response = exportFolderInfo(); response.put("cancelled", true); call.resolve(response); return;
+        }
+        try {
+            android.net.Uri tree = result.getData().getData();
+            int flags = result.getData().getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            if ((flags & Intent.FLAG_GRANT_WRITE_URI_PERMISSION) == 0) throw new java.io.IOException("No write permission");
+            getContext().getContentResolver().takePersistableUriPermission(tree, flags);
+            android.net.Uri document = android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, android.provider.DocumentsContract.getTreeDocumentId(tree));
+            String name = "已授权的文件夹";
+            try (android.database.Cursor cursor = getContext().getContentResolver().query(document,
+                new String[] { android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME }, null, null, null)) {
+                if (cursor != null && cursor.moveToFirst()) name = cursor.getString(0);
+            }
+            String previous = exportPreferences().getString("folderUri", "");
+            exportPreferences().edit().putString("folderUri", tree.toString()).putString("folderName", name).apply();
+            if (!previous.isEmpty() && !previous.equals(tree.toString())) {
+                try { getContext().getContentResolver().releasePersistableUriPermission(android.net.Uri.parse(previous),
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION); } catch (Exception ignored) {}
+            }
+            call.resolve(exportFolderInfo());
+        } catch (Exception error) { call.reject("无法记住此文件夹，请选择允许写入的文件夹。", error); }
+    }
+
+    @PluginMethod public void exportToFolder(PluginCall call) {
+        String stored = exportPreferences().getString("folderUri", "");
+        if (stored.isEmpty()) { call.reject("请先到「下载设置」选择文件夹。"); return; }
+        galleryThread.execute(() -> {
+            android.net.Uri created = null;
+            try {
+                android.net.Uri tree = android.net.Uri.parse(stored);
+                android.net.Uri parent = android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, android.provider.DocumentsContract.getTreeDocumentId(tree));
+                String mime = call.getString("mime", "image/png");
+                if (!mime.matches("image/(png|jpeg|webp)")) throw new IllegalArgumentException("Images only");
+                String name = call.getString("name", "nai-image.png").replaceAll("[\\\\/:*?\"<>|]", "_");
+                created = android.provider.DocumentsContract.createDocument(getContext().getContentResolver(), parent, mime, name);
+                if (created == null) throw new java.io.IOException("Cannot create document");
+                try (java.io.OutputStream output = getContext().getContentResolver().openOutputStream(created, "w")) {
+                    if (output == null) throw new java.io.IOException("Cannot open destination");
+                    copyGallerySource(call, output);
+                }
+                JSObject response = new JSObject(); response.put("saved", true); call.resolve(response);
+            } catch (Exception error) {
+                if (created != null) try { android.provider.DocumentsContract.deleteDocument(getContext().getContentResolver(), created); } catch (Exception ignored) {}
+                call.reject("保存失败：文件夹不可用或授权已失效，请在「下载设置」重新选择。", error);
+            }
+        });
     }
 
     @ActivityCallback private void exportResult(PluginCall call, ActivityResult result) {
@@ -156,7 +241,9 @@ public class PocketNativePlugin extends Plugin {
 
     // Phone album copy (Pictures/NAI Pocket). Original bytes are copied as-is, never re-encoded.
     // Callers treat every outcome as non-fatal: the in-app gallery already holds the image.
-    private static final String GALLERY_FOLDER = "NAI Pocket";
+    private String galleryFolder() {
+        return getContext().getPackageName().endsWith(".experience") ? "NAI Pocket Experience" : "NAI Pocket";
+    }
 
     private boolean legacyStorage() { return android.os.Build.VERSION.SDK_INT < 29; }
 
@@ -225,7 +312,7 @@ public class PocketNativePlugin extends Plugin {
         android.content.ContentValues values = new android.content.ContentValues();
         values.put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, name);
         values.put(android.provider.MediaStore.Images.Media.MIME_TYPE, mime);
-        values.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/" + GALLERY_FOLDER);
+        values.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/" + galleryFolder());
         values.put(android.provider.MediaStore.Images.Media.IS_PENDING, 1);
         android.net.Uri uri = resolver.insert(android.provider.MediaStore.Images.Media.getContentUri(android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY), values);
         if (uri == null) throw new java.io.IOException("MediaStore insert failed");
@@ -246,7 +333,7 @@ public class PocketNativePlugin extends Plugin {
 
     @SuppressWarnings("deprecation")
     private void writeLegacyGallery(PluginCall call, String name, String mime) throws Exception {
-        File folder = new File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES), GALLERY_FOLDER);
+        File folder = new File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES), galleryFolder());
         if (!folder.isDirectory() && !folder.mkdirs()) throw new java.io.IOException("Cannot create album folder");
         int dot = name.lastIndexOf('.');
         String base = name.substring(0, dot), extension = name.substring(dot);
@@ -333,9 +420,10 @@ public class PocketNativePlugin extends Plugin {
 
     @PluginMethod
     public void readVault(PluginCall call) {
+        final String vaultName = "booru".equals(call.getString("scope")) ? KEY + "-booru" : KEY;
         vaultThread.execute(() -> {
             try {
-                SharedPreferences preferences = getContext().getSharedPreferences(KEY, Context.MODE_PRIVATE);
+                SharedPreferences preferences = getContext().getSharedPreferences(vaultName, Context.MODE_PRIVATE);
                 String data = preferences.getString("data", "");
                 String text = "{}";
                 if (!data.isEmpty()) {
@@ -351,12 +439,13 @@ public class PocketNativePlugin extends Plugin {
     @PluginMethod
     public void writeVault(PluginCall call) {
         String value = call.getString("value");
+        final String vaultName = "booru".equals(call.getString("scope")) ? KEY + "-booru" : KEY;
         if (value == null || value.length() > 1000000) { call.reject("凭据数据无效。"); return; }
         vaultThread.execute(() -> {
             try {
                 Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding"); cipher.init(Cipher.ENCRYPT_MODE, key());
                 String data = Base64.encodeToString(cipher.doFinal(value.getBytes(StandardCharsets.UTF_8)), Base64.NO_WRAP);
-                boolean saved = getContext().getSharedPreferences(KEY, Context.MODE_PRIVATE).edit()
+                boolean saved = getContext().getSharedPreferences(vaultName, Context.MODE_PRIVATE).edit()
                     .putString("data", data).putString("iv", Base64.encodeToString(cipher.getIV(), Base64.NO_WRAP)).commit();
                 if (!saved) throw new java.io.IOException("Vault write failed");
                 call.resolve();

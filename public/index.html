@@ -14,6 +14,8 @@
   <link rel="stylesheet" href="/tag-chips.css?v=1.9.48">
 <link rel="stylesheet" href="/native.css">
 <link rel="stylesheet" href="/artist-browser.css">
+<link rel="stylesheet" href="/gallery-enhancements.css">
+<link rel="stylesheet" href="/booru.css">
 </head>
 <body class="native-mode native-booting">
   <div id="toastHost" class="toast-host" aria-live="polite"></div>
@@ -81,6 +83,7 @@
             <button type="button" role="menuitem" data-proxy="#restoreToolButton">从图片恢复参数</button>
             <button type="button" role="menuitem" data-proxy="#translateMissingButton">补全缺失释义</button>
             <button type="button" role="menuitem" data-proxy="#showTranslations">显示 / 隐藏中文释义</button>
+            <button id="quickDeleteButton" type="button" role="menuitem" aria-pressed="false" title="快删：点 Tag 直接删除，可撤销">快删</button>
             
             <button type="button" role="menuitem" data-menu-action="brackets">括号权重转数字</button>
             <button type="button" role="menuitem" data-menu-action="default-scheme" data-owner-only="">载入默认方案</button>
@@ -99,8 +102,9 @@
         <div class="prompt-meter-line" data-new-layout-only="">
           <span class="prompt-meter-bar"><i id="promptMeterBar"></i></span>
           <span id="promptMeterText" class="prompt-meter-text"></span>
-          <button id="quickDeleteButton" class="quick-delete-button" type="button" aria-pressed="false" title="快删：点 Tag 直接删除，可撤销">快删</button>
+          <button id="tagMultiSelectButton" class="tag-multi-select-button" type="button" aria-pressed="false" title="选择多个 Tag，一起移动或删除">多选</button>
         </div>
+        <div id="tagBatchActions" class="tag-batch-actions" role="region" aria-label="批量 Tag 操作" hidden></div>
         <div class="module-nav" role="navigation" aria-label="Prompt 模块">
           <button type="button" class="module-nav-button active" data-editor-nav="all">全部</button>
           <button type="button" class="module-nav-button" data-editor-nav="characters">角色 <span data-module-count="characters">0</span></button>
@@ -432,6 +436,11 @@
     </section>
 
     <section id="codexTab" class="tab-panel codex-page" data-new-layout-only="">
+      <div id="referenceSwitch" class="reference-switch" role="tablist" aria-label="法典与在线画廊" hidden>
+        <button id="referenceBooru" type="button" role="tab" data-reference="booru" aria-selected="false" aria-controls="booruMount" tabindex="-1">画廊</button>
+        <button id="referenceCodex" type="button" role="tab" data-reference="codex" aria-selected="true" aria-controls="codexLibrary">法典</button>
+      </div>
+      <div id="codexLibrary" role="tabpanel" aria-labelledby="referenceCodex">
       <div class="codex-top">
         <div class="codex-head">
           <button id="codexSourceButton" class="codex-source" type="button" aria-expanded="false" aria-controls="codexSourcePanel" aria-label="切换法典来源"><span id="codexSourceLabel" class="codex-source-label">法典</span><i aria-hidden="true"></i></button>
@@ -449,6 +458,8 @@
       <button id="codexMore" class="codex-more" type="button" hidden="">加载更多</button>
       <p id="codexCredit" class="codex-credit"></p>
       <div id="codexDetail" class="codex-detail" role="dialog" aria-label="法典条目" hidden=""></div>
+      </div>
+      <div id="booruMount" role="tabpanel" aria-labelledby="referenceBooru" hidden></div>
     </section>
 
     <section id="reverseTab" class="tab-panel reverse-workspace-tab" data-owner-only="">
@@ -535,6 +546,7 @@
           <div class="queue-control-actions">
             <button id="queueRerouteButton" type="button" class="ghost" aria-expanded="false">换渠道</button>
             <button id="queueCancelAllButton" type="button" class="ghost danger">全部取消</button>
+            <button id="queueClearFailedButton" type="button" class="ghost danger">清理失败记录</button>
           </div>
           <div id="queueRouteMenu" class="queue-route-menu" hidden=""></div>
         </div>
@@ -600,10 +612,13 @@
             <button id="gallerySelectAll" class="ghost hidden" type="button" title="选中已载入的全部图片">全选</button>
             <button id="gallerySelectNonFavorites" class="ghost hidden" type="button" title="选中已载入的未收藏图片">非收藏</button>
             <button id="galleryClearSelection" class="ghost hidden" type="button">清空</button>
+            <button id="galleryDownloadSelected" class="primary hidden" type="button">下载所选</button>
+            <button id="galleryCancelDownload" class="ghost hidden" type="button">停止下载</button>
             <button id="galleryDeleteSelected" class="ghost danger hidden" type="button" data-owner-only="">删除</button>
             <span id="gallerySelectionText" class="hint hidden">已选择 0 张</span>
             <button id="galleryExitSelection" class="ghost hidden" type="button">完成</button>
           </div>
+          <p id="galleryDownloadProgress" class="hint" role="status" hidden=""></p>
         </div>
         <div class="gallery-filter-row">
           <input id="gallerySearch" type="search" autocomplete="off" spellcheck="false" placeholder="搜索 Prompt / 备注 / Seed">
@@ -1096,6 +1111,7 @@
       <button id="closeDownloadChoiceDialog" class="icon-button" type="button" aria-label="关闭">×</button>
     </div>
     <div class="action-choice-body">
+      <label class="check-label"><input id="rememberDownloadChoice" type="checkbox" checked="">记住选择，可在设置 → 图片下载中更改</label>
       <button id="downloadOriginalButton" class="action-choice-card" type="button">
         <strong>原图</strong>
         <span>保留 NovelAI Prompt、Seed、生成参数等元数据，方便以后恢复。</span>
@@ -1105,6 +1121,13 @@
         <span>重新编码为 PNG，移除文本 / EXIF 与 NovelAI alpha 隐写元数据；适合外发。</span>
       </button>
     </div>
+  </dialog>
+
+  <dialog id="trashImageDialog" class="trash-image-dialog" aria-labelledby="trashImageTitle">
+    <div class="dialog-header"><strong id="trashImageTitle">回收站图片</strong><button id="closeTrashImageDialog" type="button" aria-label="关闭">关闭</button></div>
+    <div class="trash-image-stage"><img id="trashImagePreview" alt="回收站图片预览"></div>
+    <p id="trashImageStatus" class="hint" role="status"></p>
+    <div class="trash-image-actions dialog-actions"><button id="trashLoadOriginal" class="ghost" type="button">查看原图</button><button id="trashDeleteImage" class="ghost danger" type="button">彻底删除</button><button id="trashRestoreImage" class="primary" type="button">恢复图片</button></div>
   </dialog>
 
   <dialog id="imageRestoreDialog" class="action-choice-dialog image-restore-dialog">

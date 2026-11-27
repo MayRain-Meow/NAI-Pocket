@@ -19,9 +19,9 @@ export function openMedia(database, resourceStatus) {
       updatePreview: (id, name, bytes) => serial(async () => (await db.prepare('UPDATE images SET preview_name=?,preview_bytes=? WHERE id=?').run(name, bytes, id)).changes)
     }
   });
-  async function registerRows(rows, remove = false) {
+  async function registerRows(rows, remove = false, trash = false) {
     const entries = rows.flatMap(row => ['original', 'thumbnail', 'preview'].map(tier => ({
-      route: `/api/images/${row.id}/${tier}`, remove,
+      route: `/api/images/${trash ? 'trash/' : ''}${row.id}/${tier}`, remove,
       path: locate(tier === 'preview' && !row.preview_name ? 'original' : tier, tier === 'original' ? row.original_name : tier === 'thumbnail' ? row.thumb_name : row.preview_name || row.original_name),
       mime: tier === 'original' || (tier === 'preview' && !row.preview_name) ? row.mime : 'image/webp'
     })));
@@ -35,6 +35,8 @@ export function openMedia(database, resourceStatus) {
     if (row) await PocketNative.registerMedia({ entries: [{ route: `/api/assets/${row.id}/original`, path: localPath('input-assets', row.stored_name), mime: row.mime }] });
   }
   const gallery = createGalleryService({ store: database.store(createGalleryStore(db, transaction)), cursors, effects: { resourceStatus,
+    async afterTrash(rows) { await registerRows(rows, true); await registerRows(rows, false, true); },
+    async afterRestore(rows) { await registerRows(rows, true, true); await registerRows(rows); },
     async deleteGalleryRows(rows) {
       for (const row of rows) {
         await nativeFiles.remove(locate('original', row.original_name)); await nativeFiles.remove(locate('thumbnail', row.thumb_name));
@@ -43,7 +45,9 @@ export function openMedia(database, resourceStatus) {
       await serial(() => transaction(function* () {
         for (const row of rows) { yield db.prepare('DELETE FROM images WHERE id=?').run(row.id); yield db.prepare('UPDATE jobs SET image_id=NULL WHERE id=?').run(row.job_id); }
       }));
-      await registerRows(rows, true); return {};
+      await registerRows(rows, true);
+      await registerRows(rows, true, true);
+      return {};
     }
   } });
   async function registerAll() {
@@ -56,5 +60,17 @@ export function openMedia(database, resourceStatus) {
     const unique = [...new Set(ids.filter(Boolean))];
     if (unique.length) await registerRows(await serial(() => db.prepare(`SELECT * FROM images WHERE id IN (${unique.map(() => '?').join(',')})`).all(...unique)));
   }
-  return { media, gallery, registerRows, registerIds, registerAsset, registerAll };
+  async function registerTrashIds(ids) {
+    const rows = await Promise.all(ids.map(id => gallery.getTrashImage(id).catch(() => null)));
+    await registerRows(rows.filter(Boolean), false, true);
+  }
+  async function trashMedia(id, tier) {
+    const row = await gallery.getTrashImage(id);
+    const actualTier = tier === 'preview' && !row.preview_name ? 'original' : tier;
+    return {
+      file: locate(actualTier, actualTier === 'original' ? row.original_name : actualTier === 'thumbnail' ? row.thumb_name : row.preview_name),
+      mime: actualTier === 'original' ? row.mime : 'image/webp'
+    };
+  }
+  return { media, gallery, registerRows, registerIds, registerTrashIds, trashMedia, registerAsset, registerAll };
 }

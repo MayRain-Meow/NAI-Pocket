@@ -1,0 +1,83 @@
+/* Inherit the current palette. This page is also legible in the upstream theme. */
+.reference-switch, .booru-panel, .booru-dialog {
+  --booru-paper: var(--ef-paper, #f4f4f2); --booru-surface: var(--ef-surface, #fff);
+  --booru-ink: var(--ef-ink, #161616); --booru-muted: var(--ef-muted, #626262);
+  --booru-line: var(--ef-line, #d3d3cf); --booru-soft: var(--ef-soft, #e8e8e4);
+  --booru-accent: var(--ef-accent, #fffa00); --booru-on-accent: var(--ef-on-accent, #161616);
+  color: var(--booru-ink);
+}
+.reference-switch { display:flex; gap:4px; padding:8px 0 14px; }
+.reference-switch[hidden], #codexLibrary[hidden], #booruMount[hidden] { display:none !important; }
+.reference-switch button { flex:1; min-height:48px; border:0; background:var(--booru-soft); color:var(--booru-ink); font-weight:700; }
+.reference-switch button[aria-selected="true"] { background:var(--booru-ink) !important; color:var(--booru-paper) !important; }
+.booru-panel { max-width:1200px; margin:auto; padding-bottom:24px; }
+.booru-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:4px 0 16px; }
+.booru-heading h1 { margin:0; font-size:25px; }
+.booru-panel button, .booru-dialog button, .booru-link { min-height:48px; border-radius:0; }
+.booru-panel button, .booru-dialog button { border:1px solid var(--booru-line); padding:10px 14px; color:var(--booru-ink); background:var(--booru-soft); box-shadow:none; }
+.booru-panel button:disabled, .booru-dialog button:disabled { opacity:.48; cursor:default; }
+.booru-panel button:not(:disabled):active, .booru-dialog button:not(:disabled):active { transform:translateY(1px); }
+.booru-panel .booru-primary, .booru-dialog .booru-primary { background:var(--booru-accent) !important; color:var(--booru-on-accent) !important; border-color:transparent; font-weight:700; }
+.booru-search { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:end; }
+.booru-query, .booru-filters label, .booru-settings-body label:not(.booru-check), .booru-import-dock > label { display:grid; gap:6px; min-width:0; }
+.booru-search input, .booru-search select, .booru-dialog input:not([type="checkbox"]), .booru-dialog textarea, .booru-dialog select {
+  min-height:48px; width:100%; min-width:0; box-sizing:border-box; padding:10px; font-size:16px; border:1px solid var(--booru-line);
+  background:var(--booru-surface); color:var(--booru-ink); border-radius:0;
+}
+.booru-filters { grid-column:1/-1; display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.booru-hint { font-size:13px; line-height:1.65; color:var(--booru-muted); overflow-wrap:anywhere; }
+.booru-status-row { display:flex; gap:10px; align-items:center; justify-content:space-between; min-height:60px; }
+.booru-status-row p { font-size:13px; line-height:1.6; margin:8px 0; }
+.booru-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; align-items:start; }
+.booru-grid .booru-card { padding:0; display:flex; flex-direction:column; min-width:0; border:0; background:var(--booru-surface); text-align:left; overflow:hidden; clip-path:none; }
+.booru-card img { width:100%; aspect-ratio:3/4; height:auto; object-fit:contain; display:block; background:var(--booru-soft); font-size:13px; }
+.booru-card-caption { width:100%; display:flex; flex-direction:column; padding:8px 3px 12px; box-sizing:border-box; border-bottom:1px solid var(--booru-line); }
+.booru-card-caption strong { font-variant-numeric:tabular-nums; font-size:14px; }
+.booru-card-caption small { color:var(--booru-muted); font-size:12px; }
+.booru-pagination { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; padding:20px 0; }
+.booru-dialog { padding:0; border:1px solid var(--booru-line); width:min(1000px,calc(100vw - 24px)); max-width:calc(100vw - 24px); max-height:94dvh; margin:auto; background:var(--booru-paper); overflow:auto; }
+.booru-dialog[open] { display:flex; flex-direction:column; }
+.booru-dialog::backdrop { background:#0009; }
+.booru-dialog-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 14px; border-bottom:1px solid var(--booru-line); flex:none; }
+.booru-dialog > .booru-hint { margin:8px 14px; flex:none; }
+.booru-detail-body { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); overflow:auto; min-height:0; gap:18px; padding:0 14px 14px; overscroll-behavior:contain; }
+.booru-media, .booru-tags { min-width:0; }
+.booru-image-stage { display:block; height:42dvh; min-height:180px; margin:0; background:var(--booru-soft); }
+.booru-image-stage .zoom-surface { display:flex; width:100%; height:100%; align-items:center; justify-content:center; touch-action:none; overflow:hidden; }
+.booru-image-stage img { display:block; max-width:100%; max-height:100%; width:auto; height:auto; object-fit:contain; }
+.booru-inline-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.booru-link { display:inline-flex; align-items:center; padding:8px 12px; box-sizing:border-box; text-decoration:underline; color:var(--booru-ink); }
+.booru-tag-category { border-top:1px solid var(--booru-line); padding:10px 0; }
+.booru-category-label, .booru-check { display:flex; align-items:center; gap:10px; min-height:48px; cursor:pointer; }
+.booru-dialog input[type="checkbox"] { width:20px; height:20px; accent-color:var(--booru-ink); flex:none; }
+.booru-tag-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.booru-dialog .booru-tag { display:flex; flex-direction:column; justify-content:center; align-items:flex-start; max-width:100%; min-height:48px; font-size:13px; overflow-wrap:anywhere; text-align:left; }
+.booru-dialog .booru-tag[aria-pressed="true"] { background:var(--booru-ink) !important; color:var(--booru-paper) !important; border-color:var(--booru-ink); }
+.booru-tag small { font-size:11px; opacity:.85; }
+.booru-import-dock { flex:none; display:flex; gap:12px; align-items:end; padding:12px 14px; border-top:1px solid var(--booru-line); background:var(--booru-surface); }
+.booru-import-dock > label { flex:1; font-size:13px; }
+.booru-import-actions { display:flex; gap:6px; }
+.booru-settings { width:min(600px,calc(100vw - 24px)); }
+.booru-settings-body { padding:0 16px 20px; overflow:auto; overscroll-behavior:contain; }
+.booru-settings-body section { border-bottom:1px solid var(--booru-line); padding:12px 0; display:grid; gap:10px; }
+.booru-settings-body h2 { font-size:18px; margin:0; }
+.booru-settings-body fieldset { border:1px solid var(--booru-line); display:flex; flex-wrap:wrap; gap:8px 14px; }
+.booru-settings-body > button { margin-top:12px; width:100%; }
+.booru-panel :focus-visible, .booru-dialog :focus-visible, .reference-switch :focus-visible { outline:2px solid var(--booru-ink); outline-offset:3px; }
+@media (max-width:700px) {
+  .booru-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+  .booru-dialog { width:calc(100vw - 12px); max-width:calc(100vw - 12px); max-height:calc(100dvh - 16px); }
+  .booru-detail-body { grid-template-columns:minmax(0,1fr); gap:10px; padding:0 10px 10px; }
+  .booru-image-stage { height:35dvh; min-height:150px; }
+  .booru-import-dock { flex-direction:column; align-items:stretch; gap:8px; padding:10px; }
+  .booru-import-dock > label { grid-template-columns:70px minmax(0,1fr); align-items:center; }
+  .booru-import-actions { display:grid; grid-template-columns:auto auto minmax(0,1fr); }
+  .booru-import-actions button { padding:10px 8px; font-size:13px; }
+  .booru-dialog .image-zoom-controls { padding:8px 0; }
+  .booru-heading h1 { font-size:23px; }
+}
+@media (prefers-reduced-motion:no-preference) {
+  .booru-card img.is-loaded { animation:booru-arrive 160ms cubic-bezier(.16,1,.3,1); }
+  .booru-dialog[open] { animation:booru-arrive 160ms cubic-bezier(.16,1,.3,1); }
+  @keyframes booru-arrive { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+}

@@ -15,20 +15,29 @@ import { packFixture,catalogFixture,examplesPackFixture,examplesCatalogFixture }
 import { previewHtml, previewHtmlForResources, previewScript, previewSeedScript, previewImage } from './offline-preview.mjs';
 import { seedPreparedArtists } from './seed-prepared-artists.mjs';
 import { stylePackFixture } from '../../tests/style-pack-fixtures.mjs';
+import { booruFixturePost } from './booru-ui.test.mjs';
 
 
 const preview = process.argv.includes('--preview');
+const experience = process.argv.includes('--experience');
 function option(name) {const index=process.argv.indexOf(name);if(index<0)return null;const value=process.argv[index+1];if(!value||value.startsWith('--')||process.argv.lastIndexOf(name)!==index)throw new Error(`Invalid ${name}`);return value;}
 const artistSource=option('--artist-source'),artistImages=option('--artist-images');
 if(Boolean(artistSource)!==Boolean(artistImages)||(artistSource&&!preview))throw new Error('Prepared artists require --preview --artist-source <json> --artist-images <directory>');
 if (!preview && !process.env.PLAYWRIGHT_MODULE) throw new Error('Set PLAYWRIGHT_MODULE to an existing Playwright index.mjs.');
 const appRoot = path.resolve(import.meta.dirname, '..'), project = path.dirname(appRoot);
+// Read the production Java allowlist: a permissive bridge mock hid the trash-route regression.
+const mediaRouteSource = await fs.readFile(path.join(appRoot, 'android/app/src/main/java/app/naipocket/local/PocketMediaRoutes.java'), 'utf8');
+const mediaRoutePattern = mediaRouteSource.match(/ROUTE_PATTERN = "([^"]+)";/)?.[1];
+assert.ok(mediaRoutePattern, 'native media route contract is available to the bridge fixture');
+const nativeMediaRoute = new RegExp(`^(?:${mediaRoutePattern})$`);
 const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'nai-native-integration-'));
 const out = path.join(temporary, 'www'), dataRoot = path.join(temporary, 'data');
 await fs.mkdir(dataRoot); await fs.mkdir(out);
 const db = new DatabaseSync(path.join(dataRoot,'app.db'));
-const media = new Map(); let vault = '{}', failedVault = false;
+const media = new Map(); let vault = '{}', booruVault = '{}', failedVault = false;
+const booruCalls = [];
 const albumCopies = []; let albumFailure = false;
+const downloadEvents = []; let exportFolder = { configured:false, name:'' }, folderPickerCount = 0;
 const generationCalls = [], encodingCalls = [], naxCalls = [], danbooruCalls = [];
 let exampleCacheBytes = 40*1024**2, slowVaultMs = 0;
 let bootRecord=null,bootCrash=null;const bootSteps=[];
@@ -69,7 +78,7 @@ const sources = {
   '@capacitor/filesystem': `${rpcCode} export const Directory={Data:'DATA'};export const Filesystem=new Proxy({}, {get:(_,method)=>(args)=>rpc('Filesystem.'+String(method),args)});`,
   '@capacitor-community/sqlite': `${rpcCode} export const CapacitorSQLite={};export class SQLiteConnection {async createConnection(){return {open:async()=>{},execute:sql=>rpc('db.execute',{sql}),query:(sql,values)=>rpc('db.query',{sql,values}),run:(sql,values)=>rpc('db.run',{sql,values}),beginTransaction:()=>rpc('db.execute',{sql:'BEGIN'}),commitTransaction:()=>rpc('db.execute',{sql:'COMMIT'}),rollbackTransaction:()=>rpc('db.execute',{sql:'ROLLBACK'})};}}`
 };
-await build({absWorkingDir:appRoot,entryPoints:['src/main.js'],outdir:out,bundle:true,format:'esm',splitting:true,target:'chrome110',logLevel:'silent',plugins:[{name:'fixture-bridge',setup(build){
+await build({absWorkingDir:appRoot,entryPoints:['src/main.js'],outdir:out,bundle:true,format:'esm',splitting:true,target:'chrome110',logLevel:'silent',define:{__POCKET_EXPERIENCE__:String(experience)},plugins:[{name:'fixture-bridge',setup(build){
   build.onResolve({filter:/^@capacitor/},args=>sources[args.path]?{path:args.path,namespace:'fixture'}:undefined);
   build.onLoad({filter:/.*/,namespace:'fixture'},args=>({contents:sources[args.path],loader:'js'}));
   build.onResolve({filter:/owner-features\.js(?:\?|$)/},()=>({path:path.join(appRoot,'src/owner-features.js')}));
@@ -80,10 +89,22 @@ if (preview) {
   const html = await fs.readFile(path.join(out,'index.html'),'utf8');
   await fs.writeFile(path.join(out,'index.html'),html.replace('</body>','<script type="module" src="/fixture/seed.js"></script></body>'));
 }
-for(const name of ['styles.css','workspace.css','tag-chips.css','artist-browser.css','artist-library.css','native.css','licenses.txt'])await fs.copyFile(path.join(appRoot,'www',name),path.join(out,name));
+for(const name of ['styles.css','workspace.css','tag-chips.css','artist-browser.css','artist-library.css','gallery-enhancements.css','booru.css','native.css','licenses.txt'])await fs.copyFile(path.join(appRoot,'www',name),path.join(out,name));
 await fs.cp(path.join(appRoot,'www/icons'),path.join(out,'icons'),{recursive:true});
+if (experience) await fs.cp(path.join(appRoot,'www/endfield'),path.join(out,'endfield'),{recursive:true});
 function local(name) { const file=path.resolve(dataRoot,String(name));if(!file.startsWith(dataRoot+path.sep))throw new Error('Fixture path escaped');return file; }
 async function rpc(name,args) {
+  if(name==='SystemBars.setStyle')return {};
+  if(name==='PocketNative.setAppearance')return {};
+  if(name==='PocketNative.getExportFolder')return exportFolder;
+  if(name==='PocketNative.chooseExportFolder'){
+    if(preview)throw new Error('文件夹授权需在安卓手机上验证。');
+    folderPickerCount++; return exportFolder={configured:true,name:'测试文件夹'};
+  }
+  if(name==='PocketNative.exportToFolder'){
+    if(preview)throw new Error('文件夹保存需在安卓手机上验证。');
+    downloadEvents.push({destination:'folder',...args,bytes:args.path?await fs.readFile(local(args.path)):Buffer.from(args.data,'base64')});return {saved:true};
+  }
   if(name==='ArtistResources.recover') {
     if(!resourceReview)assert.ok(args.activeDirectories.includes('fixture-v1'),'startup recovery must protect seeded legacy resources');
     else assert.ok(args.activeDirectories.length>0,'startup recovery must protect selected resource mappings');
@@ -174,8 +195,9 @@ async function rpc(name,args) {
     if(installBarrier&&args.sql.includes('INSERT INTO artist_resource_observations'))await installBarrier;
     return {changes:{changes:Number(db.prepare(args.sql).run(...args.values).changes)}};
   }
-  if(name==='PocketNative.readVault'){if(slowVaultMs){const wait=slowVaultMs;slowVaultMs=0;await new Promise(resolve=>setTimeout(resolve,wait));}return {value:vault};}
+  if(name==='PocketNative.readVault'){if(args.scope==='booru')return {value:booruVault};if(slowVaultMs){const wait=slowVaultMs;slowVaultMs=0;await new Promise(resolve=>setTimeout(resolve,wait));}return {value:vault};}
   if(name==='PocketNative.writeVault'){
+    if(args.scope==='booru'){booruVault=args.value;return {};}
     if (preview && Object.values(JSON.parse(args.value).secrets || {}).some(value => !Object.values(demoTokens).includes(value))) throw new Error('体验预览只接受演示 Token；请勿填入真实凭据。');
     if(failedVault){failedVault=false;throw new Error('Synthetic vault commit failure');}vault=args.value;return {};
   }
@@ -194,20 +216,35 @@ async function rpc(name,args) {
   if(name==='PocketNative.storageUsage')return {folders:{originals:5*1024**2,thumbnails:1024**2,'artist-cache':exampleCacheBytes,'style-index':3*1024**2,'artist-resources':2*1024**2},databaseBytes:2*1024**2,cacheBytes:0,freeBytes:1024**3,totalBytes:8*1024**3};
   if(name==='PocketNative.clearExampleCache'){const freedBytes=exampleCacheBytes;exampleCacheBytes=0;return {freedBytes};}
   if(name==='PocketNative.queueActive'||name==='PocketNative.cancelRequest')return {};
-  if(name==='PocketNative.registerMedia'){for(const item of args.entries){if(item.remove)media.delete(item.route);else media.set(item.route,item);}return {};}
+  if(name==='PocketNative.registerMedia'){for(const item of args.entries){if(!nativeMediaRoute.test(item.route)||/[\r\n]/.test(item.route))throw new Error('本机图片路由无效。');if(item.remove)media.delete(item.route);else media.set(item.route,item);}return {};}
   if(name==='PocketNative.requestGalleryAccess')return {granted:true};
   if(name==='PocketNative.saveToGallery'){
     if (preview) throw new Error('手机相册复制需在安卓手机上验证；此预览没有写入相册。');
-    albumCopies.push(args);await fs.access(local(args.path));
+    albumCopies.push(args);
+    const bytes=args.path?await fs.readFile(local(args.path)):Buffer.from(args.data,'base64');
+    downloadEvents.push({destination:'album',...args,bytes});
     if(albumFailure)throw new Error('Synthetic album write failure');
     return {saved:true,uri:'content://media/external/images/media/'+albumCopies.length};
   }
   if(name==='PocketNative.exportFile'){
     if (preview) throw new Error('系统文件导出需在安卓手机上确认；此预览没有保存文件。');
-    return {saved:true};
+    downloadEvents.push({destination:'ask',...args,bytes:args.path?await fs.readFile(local(args.path)):Buffer.from(args.data,'base64')});return {saved:true};
   }
   if(name==='PocketNative.request'){
     const url=new URL(args.url);
+    if(url.hostname==='danbooru.donmai.us' && (url.pathname==='/posts.json'||url.pathname==='/explore/posts/popular.json'||/^\/posts\/\d+\.json$/.test(url.pathname))){
+      booruCalls.push({path:url.pathname,tags:url.searchParams.get('tags'),page:url.searchParams.get('page'),headers:args.headers});
+      const tags=url.searchParams.get('tags')||'';
+      if(tags.includes('fixture_slow'))await new Promise(resolve=>setTimeout(resolve,800));
+      if(tags.includes('fixture_error'))return {status:429,headers:{'content-type':'application/json'},body:Buffer.from('{"error":"fixture upstream failure"}').toString('base64')};
+      const page=Number(url.searchParams.get('page')||1),count=Number(url.searchParams.get('limit')||40);
+      const data=/\/\d+\.json$/.test(url.pathname)?booruFixturePost(Number(url.pathname.match(/\d+/)[0])):Array.from({length:count},(_,i)=>booruFixturePost((tags.includes('fixture_fast')?9000:page*100)+i));
+      return {status:200,headers:{'content-type':'application/json'},body:Buffer.from(JSON.stringify(data)).toString('base64')};
+    }
+    if(url.hostname==='cdn.donmai.us' && url.pathname.startsWith('/booru-fixture/')){
+      assert.equal(args.headers.authorization,undefined,'Danbooru media never receives credentials');
+      return {status:200,headers:{'content-type':'image/png'},body:previewImage({input:'synthetic gallery fixture',parameters:{width:512,height:768,seed:42}},Number(url.pathname.match(/(\d+)\.png$/)[1])).toString('base64')};
+    }
     if(url.hostname==='cdn.donmai.us'){
       assert.equal(args.method,'GET');assert.deepEqual(Object.keys(args.headers).map(key=>key.toLowerCase()).filter(key=>!['accept','user-agent'].includes(key)),[],'annotation thumbnails send no credentials');
       danbooruCalls.push(url.pathname);
@@ -300,7 +337,30 @@ try {
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   await page.waitForFunction(()=>globalThis.NAI_RUNTIME&& !document.querySelector('#appView').classList.contains('hidden'),{},{timeout:15000});
   assert.deepEqual(errors,[],'native app boots the real UI without missing imports/ports');
-  if (process.argv.includes('--relay-settings-only')) {
+  if (process.argv.includes('--booru-checks')) {
+    const { runBooruChecks } = await import('./booru-ui.test.mjs');
+    await runBooruChecks({ page, temporary, calls: booruCalls, downloadEvents, getBooruVault: () => JSON.parse(booruVault), getProviderVault: () => JSON.parse(vault) }).catch(async error => {
+      await page.screenshot({ path: path.join(temporary, 'booru-failure.png') }); console.log(`Booru failure screenshot: ${temporary}`); throw error;
+    });
+    assert.deepEqual(errors, [], 'Danbooru real UI has no uncaught browser errors');
+  } else if (process.argv.includes('--usability-checks')) {
+    const { runUsabilityChecks } = await import('./usability-ui.test.mjs');
+    await runUsabilityChecks({ page, db, dataRoot, temporary });
+    assert.deepEqual(errors, [], 'queue, similarity, image gestures and palettes have no uncaught browser errors');
+  } else if (process.argv.includes('--prompt-selection-checks')) {
+    const { runPromptSelectionChecks } = await import('./prompt-selection-ui.test.mjs');
+    await runPromptSelectionChecks({ page, temporary });
+    assert.deepEqual(errors, [], 'prompt batch selection has no uncaught browser errors');
+  } else if (process.argv.includes('--gallery-checks')) {
+    const { runGalleryRegressionChecks } = await import('./gallery-regressions.test.mjs');
+    await runGalleryRegressionChecks({ page, db, dataRoot, media, temporary });
+    assert.deepEqual(errors, [], 'gallery ordering and native trash routes have no uncaught browser errors');
+  } else if (process.argv.includes('--experience-checks')) {
+    const { runExperienceChecks } = await import('./experience-ui.test.mjs');
+    const experiencePng=previewImage({input:'synthetic fixture',parameters:{width:512,height:768,seed:42}},1);
+    await runExperienceChecks({page,db,dataRoot,png:experiencePng,downloadEvents,media,folderPickerCount:()=>folderPickerCount,temporary});
+    assert.deepEqual(errors,[],'experience UI has no uncaught browser errors');
+  } else if (process.argv.includes('--relay-settings-only')) {
     const { runRelaySettingsChecks } = await import('./relay-settings.test.mjs');
     await runRelaySettingsChecks({ page, getVault: () => JSON.parse(vault), generationCalls, temporary });
     assert.deepEqual(errors, [], 'relay settings UI has no uncaught browser errors');
@@ -406,7 +466,7 @@ try {
   await page.locator('#generationProvider').selectOption('rbq');
   await page.locator('#officialAccountSelect').selectOption(accountId);
   assert.equal(await page.locator('#nativePhoneAlbumToggle').isChecked(),true,'phone album copy defaults to on');
-  await page.getByText('保存到手机相册',{exact:true}).click();
+  await page.getByText('生成完成后，自动保存原图',{exact:true}).click();
   await page.waitForFunction(()=>!document.querySelector('#nativePhoneAlbumToggle').checked);
   const albumSetting=()=>db.prepare("SELECT value FROM app_state WHERE key='phone_gallery_copy'").get()?.value;
   { const deadline=Date.now()+3000;while(albumSetting()!=='0'&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,50)); }
@@ -894,6 +954,12 @@ try {
   await page.waitForFunction(()=>!document.body.classList.contains('native-booting')&&!document.querySelector('.native-startup-slow'),{},{timeout:20000});
   slowVaultMs=0;
   // Start-up record (0.7.7): every step is recorded before it runs and a start that reaches the editor is done.
+  // The editor is revealed before the asynchronous native bootDone RPC has completed.
+  const waitForBootRecord = async () => {
+    const deadline=Date.now()+3000;
+    while(!bootRecord.done&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,25));
+  };
+  await waitForBootRecord();
   assert.equal(bootRecord.done,true,'a start that reached the editor is recorded as finished');
   for(const step of ['打开本机数据库','读取账号与通道','整理画师资料','载入编辑器'])assert.ok(bootSteps.includes(step),`step recorded: ${step}`);
   // A start that died (here: the WebView renderer during 整理画师资料) makes the next one a safe start that says so.
@@ -915,6 +981,7 @@ try {
   assert.equal(await page.locator('.native-start-recovered button').first().textContent(),'已复制');
   await page.locator('.native-start-recovered').getByRole('button',{name:'知道了',exact:true}).click();
   assert.equal(await page.locator('.native-start-recovered').count(),0);
+  await waitForBootRecord();
   assert.deepEqual([bootRecord.done,bootCrash],[true,null],'reaching the editor clears the record and the crash note');
   // Stopped twice in a row: the start waits on the card, so the diagnostics can be copied before it is tried again.
   bootRecord.done=false;bootRecord.failures=1;bootRecord.step='打开本机数据库';
@@ -928,6 +995,7 @@ try {
   assert.equal(await page.evaluate(()=>document.body.classList.contains('native-booting')),true);
   await proceed.click();
   await page.waitForFunction(()=>!document.body.classList.contains('native-booting'),{},{timeout:20000});
+  await waitForBootRecord();
   assert.equal(bootRecord.done,true);
   assert.equal(await recovered.getByRole('button',{name:'知道了',exact:true}).count(),1,'the card stays, now with 知道了');
   await recovered.getByRole('button',{name:'知道了',exact:true}).click();

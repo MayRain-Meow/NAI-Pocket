@@ -4,12 +4,15 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { publicCss, publicHtml } from './public-assets.mjs';
 import { writeLicenses } from './licenses.mjs';
+import { writeEndfieldAssets } from './endfield-assets.mjs';
+const experience = process.argv.includes('--experience');
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), project = path.dirname(root);
 const out = path.join(root, 'www');
 if (path.resolve(out) !== path.resolve(root, 'www') || path.dirname(out) !== root) throw new Error('Invalid generated output directory');
 await fs.rm(out, { recursive: true, force: true });
 await fs.mkdir(out, { recursive: true });
 const result = await build({ absWorkingDir: root, entryPoints: ['src/main.js'], outdir: out, bundle: true, format: 'esm', target: 'chrome110',
+  define: { __POCKET_EXPERIENCE__: String(experience) },
   splitting: true, metafile: true, minify: false, sourcemap: false, legalComments: 'none', chunkNames: 'chunks/[name]-[hash]',
   plugins: [{ name: 'shared-ui-boundaries', setup(build) {
     build.onResolve({ filter: /owner-features\.js(?:\?|$)/ }, () => ({ path: path.join(root, 'src/owner-features.js') }));
@@ -21,12 +24,19 @@ const result = await build({ absWorkingDir: root, entryPoints: ['src/main.js'], 
 const forbidden = /(?:artist-automation|deepseek|artist-ingestion|artist-annotation|nax-preview-mirror|customer-relay|src[\/]artist-library)/i;
 const forbiddenInputs = Object.keys(result.metafile.inputs).filter(input => forbidden.test(input));
 if (forbiddenInputs.length) throw new Error(`Private modules entered native build: ${forbiddenInputs.join(', ')}`);
-for (const name of ['styles.css','workspace.css','tag-chips.css','artist-browser.css','artist-library.css']) await fs.writeFile(path.join(out,name),publicCss(await fs.readFile(path.join(project,'public',name),'utf8')));
+for (const name of ['styles.css','workspace.css','tag-chips.css','artist-browser.css','artist-library.css','gallery-enhancements.css','booru.css']) await fs.writeFile(path.join(out,name),publicCss(await fs.readFile(path.join(project,'public',name),'utf8')));
 await fs.copyFile(path.join(root,'src/native.css'),path.join(out,'native.css'));
 await fs.mkdir(path.join(out,'icons'),{recursive:true});
 for (const name of ['icon-flow-192.png','icon-flow-512.png','apple-touch-icon.png']) await fs.copyFile(path.join(project,'public/icons',name),path.join(out,'icons',name));
-const html = publicHtml(await fs.readFile(path.join(project,'public/index.html'),'utf8'));
+let html = publicHtml(await fs.readFile(path.join(project,'public/index.html'),'utf8'));
+if (experience) {
+  await writeEndfieldAssets(project, out);
+  html = html.replace('</head>', '<script src="/endfield/boot.js"></script><link rel="stylesheet" href="/endfield/compat.css"><link rel="stylesheet" href="/endfield/theme.css"><link rel="stylesheet" href="/endfield/motion.css"></head>');
+}
 await fs.writeFile(path.join(out,'index.html'),html);
+await fs.writeFile(path.join(out,'build-profile.json'), JSON.stringify({ experience, sourceVersion: JSON.parse(await fs.readFile(path.join(root,'package.json'),'utf8')).version }) + '\n');
 await writeLicenses(out, Object.keys(result.metafile.inputs));
+if (experience) await fs.appendFile(path.join(out,'licenses.txt'),
+  `\n\n=== Saira font / SIL Open Font License 1.1 ===\n\n${await fs.readFile(path.join(project,'public/endfield/Saira-OFL.txt'),'utf8')}`);
 await fs.writeFile(path.join(root,'build-inputs.json'),JSON.stringify({ inputs:Object.keys(result.metafile.inputs),outputs:Object.keys(result.metafile.outputs) },null,2)+'\n');
 console.log(`Native web bundle built from ${Object.keys(result.metafile.inputs).length} public/shared inputs.`);

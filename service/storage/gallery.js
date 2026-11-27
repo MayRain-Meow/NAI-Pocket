@@ -87,7 +87,7 @@ export function createGalleryStore(db, transaction = null) {
       return Number((yield db.prepare('SELECT COUNT(*) AS count FROM image_trash').get()).count);
     }),
     getTrashRow: flow(function* (id) {
-      return (yield db.prepare('SELECT id,thumb_name FROM image_trash WHERE id=?').get(id));
+      return (yield db.prepare('SELECT id,thumb_name,row_json,deleted_at FROM image_trash WHERE id=?').get(id));
     }),
     // Full image rows, for restoring or for the permanent delete. `olderThan` picks expired ones.
     trashRows: flow(function* ({ ids = null, olderThan = null } = {}) {

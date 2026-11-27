@@ -232,7 +232,7 @@ export function createCodexPanel({ api, toast, isActive, tags: tagTools, editor,
     const track = el('div', 'codex-rail-track');
     track.append(el('div', 'codex-rail-thumb'));
     rail.append(track, el('span', 'codex-rail-label'));
-    $('#codexTab').append(rail);
+    ($('#codexLibrary') || $('#codexTab')).append(rail);
     const before = el('button', 'codex-before');
     before.type = 'button';
     before.id = 'codexBefore';

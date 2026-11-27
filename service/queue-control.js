@@ -189,6 +189,32 @@ const retryJob = flow(function* (jobId) {
   if (Number(result.changes)) (yield appendJobLog(jobId, 'info', 'manual-retry', '用户手动重试任务；上一次错误与日志已保留。'));
   return Number(result.changes) ? { ok: true } : { ok: false, reason: '任务状态已经变化。' };
 });
+// Image rows reference jobs with ON DELETE CASCADE; never remove a record
+// backing a saved or trashed image, even if a late local error marked it failed.
+const deleteFailedJobs = flow(function* (jobId = null) {
+  return yield transaction(function* () {
+    const rows = yield db.prepare(jobId == null
+      ? "SELECT id FROM jobs WHERE status='failed'"
+      : "SELECT id FROM jobs WHERE id=? AND status='failed'").all(...(jobId == null ? [] : [jobId]));
+    if (jobId != null && !rows.length) return { ok: false, reason: '只能删除失败的任务记录。' };
+    const protectedJobs = new Set((yield db.prepare('SELECT job_id FROM images').all()).map(row => row.job_id));
+    for (const row of yield db.prepare('SELECT row_json FROM image_trash').all()) {
+      try { protectedJobs.add(JSON.parse(row.row_json).job_id); }
+      catch { return { ok: false, reason: '回收站记录异常，暂未清理任务，以保护图片。' }; }
+    }
+    let deleted = 0, skipped = 0;
+    for (const { id } of rows) {
+      if (activeJobControllers.has(id) || protectedJobs.has(id)) { skipped++; continue; }
+      const result = yield db.prepare("DELETE FROM jobs WHERE id=? AND status='failed' AND NOT EXISTS (SELECT 1 FROM images WHERE job_id=?)").run(id, id);
+      if (Number(result.changes)) {
+        yield db.prepare('DELETE FROM job_logs WHERE job_id=?').run(id);
+        deleted++;
+      } else skipped++;
+    }
+    if (jobId != null && !deleted) return { ok: false, reason: '这条记录仍在收尾，或关联图库／回收站图片，已保留。' };
+    return { ok: true, deleted, skipped };
+  });
+});
 const setQueuePaused = flow(function* (paused) {
   (yield setAppState('queue_paused', paused ? '1' : '0'));
   (yield setAppState('queue_pause_reason', paused ? JSON.stringify({ kind: 'manual', at: clock.now() }) : ''));
@@ -196,5 +222,5 @@ const setQueuePaused = flow(function* (paused) {
 const isQueuePaused = flow(function* () {
   return (yield getAppState('queue_paused', '0')) === '1';
 });
-return { isV5State, providerLabel, billingMessage, safeLogDetail, chooseSeed, retryable, rateLimitDelayMs, cancelledError, appendJobLog, getJobLogs, queueCooldownUntil, currentJobStatus, recoverOrphanedRunningJobs, cancelJob, pauseForAccountError, queuePauseReason, cancelQueuedJobs, rerouteQueuedJobs, cancelBatch, retryJob, setQueuePaused, isQueuePaused };
+return { isV5State, providerLabel, billingMessage, safeLogDetail, chooseSeed, retryable, rateLimitDelayMs, cancelledError, appendJobLog, getJobLogs, queueCooldownUntil, currentJobStatus, recoverOrphanedRunningJobs, cancelJob, pauseForAccountError, queuePauseReason, cancelQueuedJobs, rerouteQueuedJobs, cancelBatch, retryJob, deleteFailedJobs, setQueuePaused, isQueuePaused };
 }

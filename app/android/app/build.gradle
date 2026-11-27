@@ -1,5 +1,6 @@
 apply plugin: 'com.android.application'
 def pocketVersion = new groovy.json.JsonSlurper().parse(file('../../package.json')).version
+def pocketExperience = project.hasProperty('pocketExperience')
 def signingNames = ['NAI_ANDROID_KEYSTORE_PATH', 'NAI_ANDROID_KEYSTORE_PASSWORD', 'NAI_ANDROID_KEY_ALIAS', 'NAI_ANDROID_KEY_PASSWORD']
 def hasReleaseSigning = signingNames.every { System.getenv(it) }
 if (signingNames.any { System.getenv(it) } && !hasReleaseSigning) throw new GradleException('Supply all four NAI_ANDROID signing environment variables.')
@@ -8,11 +9,13 @@ android {
     namespace = "app.naipocket.local"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "app.naipocket.local"
+        applicationId pocketExperience ? "app.naipocket.local.experience" : "app.naipocket.local"
+        manifestPlaceholders = [pocketAppName: pocketExperience ? 'NAI Pocket Endfield' : '@string/app_name',
+                                pocketAppIcon: pocketExperience ? '@drawable/pocket_icon_experience' : '@drawable/pocket_icon']
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 33
-        versionName pocketVersion
+        versionCode pocketExperience ? 37 : 33
+        versionName pocketExperience ? "${pocketVersion}-endfield.5" : pocketVersion
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         // ONNX Runtime ships native code per ABI; phones only (emulators are not a target).
         ndk { abiFilters 'arm64-v8a', 'armeabi-v7a' }
@@ -62,6 +65,16 @@ dependencies {
 }
 
 apply from: 'capacitor.build.gradle'
+
+tasks.register('verifyPocketDistribution') {
+    doLast {
+        def profileFile = file('src/main/assets/public/build-profile.json')
+        if (!profileFile.exists()) throw new GradleException('Build and sync the web assets first.')
+        def profile = new groovy.json.JsonSlurper().parse(profileFile)
+        if (profile.experience != pocketExperience) throw new GradleException('Web and Android profiles differ. Use npm run android:experience for the independent trial.')
+    }
+}
+tasks.named('preBuild').configure { dependsOn 'verifyPocketDistribution' }
 
 try {
     def servicesJSON = file('google-services.json')

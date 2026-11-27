@@ -5,6 +5,11 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "build:experience": "node scripts/build.mjs --experience",
+    "android:experience": "node scripts/android.mjs release --experience",
+    "test:experience": "node ../tests/download-preferences.test.mjs && node ../tests/trash-preview.test.mjs && node ../tests/gallery-order.test.mjs && npm run test:media-routes && npm run build:experience && node tests/offline-integration.mjs --experience --experience-checks && node tests/offline-integration.mjs --experience --gallery-checks && node tests/offline-integration.mjs --experience --prompt-selection-checks && node tests/offline-integration.mjs --experience --usability-checks",
+    "test:media-routes": "node tests/media-routes.test.mjs",
+    "test:booru": "node tests/booru.test.mjs && npm run build:experience && node tests/offline-integration.mjs --experience --booru-checks",
     "sync": "npm run build && cap sync android",
     "android": "node scripts/android.mjs",
     "android:release": "node scripts/android.mjs release",
