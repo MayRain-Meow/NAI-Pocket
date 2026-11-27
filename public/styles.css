@@ -767,6 +767,14 @@ dialog::backdrop { background: #000a; backdrop-filter: blur(5px); }
 .dialog-image-stage .dialog-image-wrap img {
   max-height: calc(100dvh - 155px);
 }
+.dialog-image-stage .zoom-surface { touch-action: none; overflow: hidden; cursor: zoom-in; user-select: none; }
+.zoom-surface.is-zoomed { cursor: grab; }
+.zoom-surface.is-zoomed:active { cursor: grabbing; }
+.zoom-surface img { transform-origin: center; will-change: transform; transition: none; -webkit-user-drag: none; }
+.image-zoom-controls { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:8px 12px; flex:none; }
+.image-zoom-controls button { min-width:48px; min-height:48px; }
+.image-zoom-controls [data-zoom="reset"] { min-width:70px; font-variant-numeric:tabular-nums; }
+.image-zoom-hint { flex:1 1 180px; color:var(--muted); font-size:12px; }
 .dialog-nav {
   position: absolute;
   z-index: 5;

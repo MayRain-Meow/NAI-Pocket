@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="/native.css">
 <link rel="stylesheet" href="/artist-browser.css">
 <link rel="stylesheet" href="/gallery-enhancements.css">
+<link rel="stylesheet" href="/booru.css">
 </head>
 <body class="native-mode native-booting">
   <div id="toastHost" class="toast-host" aria-live="polite"></div>
@@ -435,6 +436,11 @@
     </section>
 
     <section id="codexTab" class="tab-panel codex-page" data-new-layout-only="">
+      <div id="referenceSwitch" class="reference-switch" role="tablist" aria-label="法典与在线画廊" hidden>
+        <button id="referenceBooru" type="button" role="tab" data-reference="booru" aria-selected="false" aria-controls="booruMount" tabindex="-1">画廊</button>
+        <button id="referenceCodex" type="button" role="tab" data-reference="codex" aria-selected="true" aria-controls="codexLibrary">法典</button>
+      </div>
+      <div id="codexLibrary" role="tabpanel" aria-labelledby="referenceCodex">
       <div class="codex-top">
         <div class="codex-head">
           <button id="codexSourceButton" class="codex-source" type="button" aria-expanded="false" aria-controls="codexSourcePanel" aria-label="切换法典来源"><span id="codexSourceLabel" class="codex-source-label">法典</span><i aria-hidden="true"></i></button>
@@ -452,6 +458,8 @@
       <button id="codexMore" class="codex-more" type="button" hidden="">加载更多</button>
       <p id="codexCredit" class="codex-credit"></p>
       <div id="codexDetail" class="codex-detail" role="dialog" aria-label="法典条目" hidden=""></div>
+      </div>
+      <div id="booruMount" role="tabpanel" aria-labelledby="referenceBooru" hidden></div>
     </section>
 
     <section id="reverseTab" class="tab-panel reverse-workspace-tab" data-owner-only="">
@@ -538,6 +546,7 @@
           <div class="queue-control-actions">
             <button id="queueRerouteButton" type="button" class="ghost" aria-expanded="false">换渠道</button>
             <button id="queueCancelAllButton" type="button" class="ghost danger">全部取消</button>
+            <button id="queueClearFailedButton" type="button" class="ghost danger">清理失败记录</button>
           </div>
           <div id="queueRouteMenu" class="queue-route-menu" hidden=""></div>
         </div>

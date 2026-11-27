@@ -1,4 +1,6 @@
 import { readDownloadPreferences, writeDownloadPreferences, saveGalleryImages } from './download-preferences.js';
+import { installImageViewer } from './image-viewer.js';
+import { tagDragEdgeSpeed, tagDragScrollStep } from './tag-drag-scroll.js';
 import {
   tokenizePrompt as tokenizePromptUtil,
   parseTagToken,
@@ -29,6 +31,8 @@ import { attachWeightHighlight } from './weight-highlight.js?v=1.9.48';
 import { confirmAction, promptText } from './confirm-sheet.js?v=1.9.48';
 import { createTaggerPanel } from './tagger-panel.js?v=1.9.48';
 import { createCodexPanel } from './codex-panel.js?v=1.9.48';
+import { createReferenceHub } from './booru-panel.js';
+import { booruKey } from './booru-core.js';
 import { createDefaultGenerationState, GENERATION_GROUP_KEYS, DEFAULT_ENHANCE_UPSCALE_FACTOR } from './generation-state.js?v=1.9.48';
 import { characterLimitForModel as sharedCharacterLimit, isV5GenerationModel, supportsPreciseReference as sharedPreciseReference, preciseStrengthMax, supportsReferenceFidelity, supportsOutfitReference, preciseReferenceWhileInpainting, preciseReferenceKind, preciseReferenceSameOutfit, preciseReferenceType, preciseReferenceTypeFor, PRECISE_REFERENCE_TYPES, supportsVibeTransfer as sharedVibeTransfer, supportsCharacterPrompt, DEFAULT_NAI_MODEL, DEFAULT_CHARACTER_LIMIT, modelDisplayName } from './model-utils.js?v=1.9.48';
 
@@ -2543,20 +2547,25 @@ function updateTagDragPosition(x, y) {
   const overTrash = Boolean(trashBox && y <= trashBox.bottom + 6 && x >= trashBox.left && x <= trashBox.right);
   drag.target = overTrash ? { trash: true, highlight: drag.trash, zone: null, viaNav: true } : resolveTagDragTarget(x, y);
   paintTagDragTarget(drag.target);
-  if (overTrash) { drag.autoScroll = 0; return; }
-
-  const topBand = Math.max(86, (els.editorCommandBar?.getBoundingClientRect().bottom || 0) + 18);
-  const bottomBand = window.innerHeight - Math.max(105, (els.floatingGenerateBar?.getBoundingClientRect().height || 0) + 28);
-  if (y < topBand) drag.autoScroll = -Math.min(22, Math.max(4, (topBand - y) * 0.24));
-  else if (y > bottomBand) drag.autoScroll = Math.min(22, Math.max(4, (y - bottomBand) * 0.24));
-  else drag.autoScroll = 0;
 }
 
-function runTagDragAutoScroll() {
+function runTagDragAutoScroll(now) {
   const drag = activeTagDrag;
   if (!drag?.dragging) return;
-  if (drag.autoScroll && !drag.target?.trash) {
-    window.scrollBy(0, drag.autoScroll);
+  const viewport = window.visualViewport;
+  let top = viewport?.offsetTop || 0;
+  let bottom = top + (viewport?.height || window.innerHeight);
+  for (const element of [els.editorCommandBar, els.floatingGenerateBar, document.querySelector('.workspace-nav')]) {
+    if (!element || getComputedStyle(element).display === 'none') continue;
+    const rect = element.getBoundingClientRect();
+    if (rect.width < window.innerWidth * .5 || !rect.height) continue;
+    if (element === els.editorCommandBar && rect.top <= 100) top = Math.max(top, rect.bottom);
+    else if (element !== els.editorCommandBar && rect.top > window.innerHeight / 2) bottom = Math.min(bottom, rect.top);
+  }
+  const speed = drag.target?.trash ? 0 : tagDragEdgeSpeed(drag.lastY, top, bottom);
+  const distance = tagDragScrollStep(drag.scrollState, speed, now);
+  if (distance) {
+    window.scrollBy(0, distance);
     drag.target = resolveTagDragTarget(drag.lastX, drag.lastY);
     paintTagDragTarget(drag.target);
   }
@@ -2601,7 +2610,7 @@ function beginTagDrag(card, sourceRef, tag, x, y) {
     trash,
     lastX: x,
     lastY: y,
-    autoScroll: 0,
+    scrollState: {},
     target: null,
     raf: 0
   };
@@ -4819,10 +4828,44 @@ const taggerPanel = createTaggerPanel({
 
 const codexPanel = createCodexPanel({
   api, toast,
-  isActive: () => activeMainTab === 'codex',
+  isActive: () => activeMainTab === 'codex' && referenceHub.isCodex(),
   tags: { parse: codexTags, key: codexTagKey, format: formatTag, formatWeight: formatTagWeight, hasCjk },
   editor: codexEditor
 });
+const referenceHub = createReferenceHub({ api, toast, codex: codexPanel, editor: {
+  open: () => switchTabTo('editor'),
+  targets: () => [
+    ...GROUP_DEFS.map(([key, label]) => [key, `全局 · ${label}`]),
+    ['negative', '负面提示词'],
+    ...appState.characters.map((character, index) => [`character:${character.id}`, `角色 ${index + 1}${character.name ? ` · ${character.name}` : ''}`])
+  ].sort((a, b) => (a[0] === 'misc' ? -1 : b[0] === 'misc' ? 1 : 0)),
+  import(items, { target, replace }) {
+    const character = target.startsWith('character:') ? appState.characters.find(x => x.id === target.slice(10)) : null;
+    if (!(target in GROUP_LABELS) && target !== 'negative' && !character) throw new Error('这个导入位置已不存在，请重新打开图片。');
+    // Do not reinterpret text mode behind the user's back: synchronize it using
+    // the same editor restore path before adding a new undoable operation.
+    if (directPromptEdited) throw new Error('请先在编辑器将文本提示词转回标签模式，再导入画廊标签。');
+    let count = 0;
+    asOneHistoryStep(() => {
+      const current = target === 'negative' ? ucChipTags() : character ? character.promptTags : appState.groups[target];
+      const next = replace ? [] : [...current];
+      const have = new Set(next.map(tag => booruKey(tag.text.replace(/\\([()])/g, '$1'))));
+      for (const item of items) {
+        const key = booruKey(item.raw);
+        if (have.has(key)) continue;
+        have.add(key);
+        const text = item.category === 'artist' && target === 'style' ? `artist:${item.text}` : item.text;
+        next.push(hydrateTag({ text, weight: 1, enabled: true, id: uid() })); count++;
+      }
+      clearTagSelection();
+      if (target === 'negative') { ucChipState.tags = next; commitUcChips(); if (editMode.side === 'negative') renderUcChips(); }
+      else if (character) { character.promptTags = next; renderCharacters(); }
+      else { appState.groups[target] = next; openTagGroups.add(target); renderTagGroups(); }
+      compilePromptToPreview(true);
+    });
+    return count;
+  }
+} });
 
 // 清空 in the section headers and over the negative list, and the 画风 header
 // link to Storm (its bottom tab is dropped in the new layout).
@@ -5135,6 +5178,7 @@ function bindNewLayoutControls() {
   bindEmptySections();
   bindPositionSheet();
   codexPanel.bind();
+  referenceHub.bind();
   bindSectionHeaderActions();
   bindRenewalDialog();
   $('#ucChipAddButton')?.addEventListener('click', submitUcChipInput);
@@ -8351,7 +8395,9 @@ function bindQueueInteractions() {
     if (!button || !item) return;
     const jobId = item.dataset.queueId;
     const action = button.dataset.queueAction;
-    const run = action === 'cancel'
+    const run = action === 'delete'
+      ? deleteFailedQueueRecords(jobId)
+      : action === 'cancel'
       ? api(`/api/jobs/${jobId}/cancel`, { method: 'POST' })
       : action === 'retry'
         ? api(`/api/jobs/${jobId}/retry`, { method: 'POST' })
@@ -8936,6 +8982,8 @@ function renderQueueControl(data) {
     note.classList.toggle('warn', data.pauseReason?.kind === 'account');
   }
   const waiting = Number(data.counts?.pending || 0);
+  const clearFailed = $('#queueClearFailedButton');
+  if (clearFailed) clearFailed.disabled = !Number(data.counts?.failed || 0);
   const cancel = $('#queueCancelAllButton');
   if (cancel) {
     cancel.disabled = !waiting;
@@ -9010,6 +9058,14 @@ async function cancelAllQueued() {
   refreshJobs();
 }
 
+async function deleteFailedQueueRecords(jobId = null) {
+  if (!await confirmAction(jobId ? '删除这条失败记录及其日志？删除后不能重试这条记录。' : '清理所有失败记录及其日志？关联图片的记录会保留。', { confirmLabel: '清理', danger: true })) return;
+  const result = await api(jobId ? `/api/jobs/${encodeURIComponent(jobId)}` : '/api/jobs/failed', { method: 'DELETE' });
+  if (jobId) expandedJobLogs.delete(jobId);
+  toast(`已清理 ${result.deleted} 条失败记录。${result.skipped ? `另有 ${result.skipped} 条仍在收尾或关联图片，已保留。` : ''}`, 'success');
+  await refreshJobs();
+}
+
 function renderJobs(data) {
   bindQueueInteractions();
   const jobs = Array.isArray(data.jobs) ? data.jobs : [];
@@ -9069,7 +9125,7 @@ function renderJobs(data) {
       </div>
       <div class="inline-actions queue-actions">
         ${['pending', 'running'].includes(job.status) ? `<button class="ghost danger" data-cancel data-queue-action="cancel">${job.status === 'running' ? '停止' : '取消'}</button>` : ''}
-        ${job.status === 'failed' ? '<button class="ghost" data-retry data-queue-action="retry">重试</button>' : ''}
+        ${job.status === 'failed' ? '<button class="ghost" data-retry data-queue-action="retry">重试</button><button class="ghost danger" data-queue-action="delete">删除记录</button>' : ''}
         ${job.image_id ? '<button class="ghost" data-open data-queue-action="open">查看</button>' : ''}
         <button class="ghost" data-logs data-queue-action="logs">${logsOpen ? '收起日志' : '日志'}</button>
       </div>
@@ -10299,8 +10355,10 @@ function renderDialogMetadata(image, detailReady = true) {
   $('#dialogRegenerate').disabled = !detailReady || !image.params;
 }
 
+let imageViewer = null;
 function showDialogImageInstant(image, { loadPreview = true, detailReady = Boolean(image?.params) } = {}) {
   if (!image) return;
+  imageViewer?.setImage(image.id);
   cancelScheduledPreviewPrefetch();
   currentImage = image;
   const thumb = image.thumbUrl || '';
@@ -10912,6 +10970,7 @@ async function loadGallery() {
 
 async function openImage(id) {
   if (!id) return;
+  imageViewer?.setImage(id);
   const summary = loadedGalleryImage(id);
   const cached = imageDetailCache.get(id)?.data || null;
 
@@ -11446,6 +11505,7 @@ function switchTabTo(name) {
   if (name === activeMainTab && document.querySelector(`#${name}Tab`)?.classList.contains('active')) return;
   if (!tabScrollPositions[name] && tabScrollPositions[name] !== 0) tabScrollPositions[name] = 0;
   if (activeMainTab && activeMainTab !== name) tabScrollPositions[activeMainTab] = window.scrollY;
+  if (activeMainTab === 'codex' && name !== 'codex') { codexPanel.closeDetail(); referenceHub.hide(window.scrollY); }
   activeMainTab = name;
   if ($('#pageCrumb')) $('#pageCrumb').textContent = ({ editor: '编辑工作台', artists: '画师资料库', storm: '画风 Storm', reverse: '图片反推', codex: '法典', gallery: '图库', scheme: '方案', queue: '生成队列' })[name] || '工作台';
   $$('.tab').forEach(button => button.classList.toggle('active', button.dataset.tab === name));
@@ -11461,8 +11521,7 @@ function switchTabTo(name) {
     syncGalleryMasonryForViewport();
     tryAutoLoadPendingGalleryImages();
   });
-  if (name !== 'codex') codexPanel.closeDetail();
-  if (name === 'codex') codexPanel.ensureLoaded();
+  if (name === 'codex') referenceHub.show();
   if (name === 'scheme') loadSchemes().catch(error => toast(error.message, 'error'));
   if (name === 'artists') ensureArtistLibrary().show().then(() => artistAutomationAvailable ? ensureArtistAutomation().refresh() : undefined).catch(error => toast(error.message, 'error'));
   if (name === 'storm') {
@@ -11472,7 +11531,7 @@ function switchTabTo(name) {
     loadStormLast();
   }
   if (name === 'reverse') taggerPanel.show();
-  const targetY = Number(tabScrollPositions[name] || 0);
+  const targetY = Number(name === 'codex' ? referenceHub.scrollPosition() : tabScrollPositions[name] || 0);
   requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo({ top: targetY, left: 0, behavior: 'auto' })));
 }
 
@@ -12304,6 +12363,7 @@ function initBindings() {
   $('#resumeQueueButton').addEventListener('click', async () => { await api('/api/jobs/resume', { method: 'POST' }); refreshJobs(); });
   $('#queueRerouteButton')?.addEventListener('click', openQueueRouteMenu);
   $('#queueCancelAllButton')?.addEventListener('click', () => cancelAllQueued().catch(error => toast(error.message, 'error')));
+  $('#queueClearFailedButton')?.addEventListener('click', () => deleteFailedQueueRecords().catch(error => toast(error.message, 'error')));
   els.loadMoreButton.addEventListener('click', loadGallery);
   els.favoriteOnly.addEventListener('change', () => resetGallery(false).catch(error => toast(error.message, 'error')));
   els.galleryAgeFilter?.addEventListener('change', () => {
@@ -12601,20 +12661,10 @@ function initBindings() {
     }
   });
 
-  let viewerTouchStart = null;
-  els.dialogImageStage?.addEventListener('touchstart', event => {
-    const touch = event.changedTouches?.[0];
-    if (touch) viewerTouchStart = { x: touch.clientX, y: touch.clientY };
-  }, { passive: true });
-  els.dialogImageStage?.addEventListener('touchend', event => {
-    const touch = event.changedTouches?.[0];
-    if (!touch || !viewerTouchStart) return;
-    const dx = touch.clientX - viewerTouchStart.x;
-    const dy = touch.clientY - viewerTouchStart.y;
-    viewerTouchStart = null;
-    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.35) return;
-    navigateImageDialog(dx < 0 ? 1 : -1).catch(error => toast(error.message, 'error'));
-  }, { passive: true });
+  imageViewer = installImageViewer({
+    stage: els.dialogImageStage, image: els.dialogImage, dialog: els.imageDialog,
+    navigate: step => navigateImageDialog(step).catch(error => toast(error.message, 'error'))
+  });
 
   $('#payloadPreviewButton').addEventListener('click', async () => {
     try {
