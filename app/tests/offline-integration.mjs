@@ -15,6 +15,7 @@ import { packFixture,catalogFixture,examplesPackFixture,examplesCatalogFixture }
 import { previewHtml, previewHtmlForResources, previewScript, previewSeedScript, previewImage } from './offline-preview.mjs';
 import { seedPreparedArtists } from './seed-prepared-artists.mjs';
 import { stylePackFixture } from '../../tests/style-pack-fixtures.mjs';
+import { booruFixturePost } from './booru-ui.test.mjs';
 
 
 const preview = process.argv.includes('--preview');
@@ -33,7 +34,8 @@ const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'nai-native-integratio
 const out = path.join(temporary, 'www'), dataRoot = path.join(temporary, 'data');
 await fs.mkdir(dataRoot); await fs.mkdir(out);
 const db = new DatabaseSync(path.join(dataRoot,'app.db'));
-const media = new Map(); let vault = '{}', failedVault = false;
+const media = new Map(); let vault = '{}', booruVault = '{}', failedVault = false;
+const booruCalls = [];
 const albumCopies = []; let albumFailure = false;
 const downloadEvents = []; let exportFolder = { configured:false, name:'' }, folderPickerCount = 0;
 const generationCalls = [], encodingCalls = [], naxCalls = [], danbooruCalls = [];
@@ -87,7 +89,7 @@ if (preview) {
   const html = await fs.readFile(path.join(out,'index.html'),'utf8');
   await fs.writeFile(path.join(out,'index.html'),html.replace('</body>','<script type="module" src="/fixture/seed.js"></script></body>'));
 }
-for(const name of ['styles.css','workspace.css','tag-chips.css','artist-browser.css','artist-library.css','gallery-enhancements.css','native.css','licenses.txt'])await fs.copyFile(path.join(appRoot,'www',name),path.join(out,name));
+for(const name of ['styles.css','workspace.css','tag-chips.css','artist-browser.css','artist-library.css','gallery-enhancements.css','booru.css','native.css','licenses.txt'])await fs.copyFile(path.join(appRoot,'www',name),path.join(out,name));
 await fs.cp(path.join(appRoot,'www/icons'),path.join(out,'icons'),{recursive:true});
 if (experience) await fs.cp(path.join(appRoot,'www/endfield'),path.join(out,'endfield'),{recursive:true});
 function local(name) { const file=path.resolve(dataRoot,String(name));if(!file.startsWith(dataRoot+path.sep))throw new Error('Fixture path escaped');return file; }
@@ -193,8 +195,9 @@ async function rpc(name,args) {
     if(installBarrier&&args.sql.includes('INSERT INTO artist_resource_observations'))await installBarrier;
     return {changes:{changes:Number(db.prepare(args.sql).run(...args.values).changes)}};
   }
-  if(name==='PocketNative.readVault'){if(slowVaultMs){const wait=slowVaultMs;slowVaultMs=0;await new Promise(resolve=>setTimeout(resolve,wait));}return {value:vault};}
+  if(name==='PocketNative.readVault'){if(args.scope==='booru')return {value:booruVault};if(slowVaultMs){const wait=slowVaultMs;slowVaultMs=0;await new Promise(resolve=>setTimeout(resolve,wait));}return {value:vault};}
   if(name==='PocketNative.writeVault'){
+    if(args.scope==='booru'){booruVault=args.value;return {};}
     if (preview && Object.values(JSON.parse(args.value).secrets || {}).some(value => !Object.values(demoTokens).includes(value))) throw new Error('体验预览只接受演示 Token；请勿填入真实凭据。');
     if(failedVault){failedVault=false;throw new Error('Synthetic vault commit failure');}vault=args.value;return {};
   }
@@ -229,6 +232,19 @@ async function rpc(name,args) {
   }
   if(name==='PocketNative.request'){
     const url=new URL(args.url);
+    if(url.hostname==='danbooru.donmai.us' && (url.pathname==='/posts.json'||url.pathname==='/explore/posts/popular.json'||/^\/posts\/\d+\.json$/.test(url.pathname))){
+      booruCalls.push({path:url.pathname,tags:url.searchParams.get('tags'),page:url.searchParams.get('page'),headers:args.headers});
+      const tags=url.searchParams.get('tags')||'';
+      if(tags.includes('fixture_slow'))await new Promise(resolve=>setTimeout(resolve,800));
+      if(tags.includes('fixture_error'))return {status:429,headers:{'content-type':'application/json'},body:Buffer.from('{"error":"fixture upstream failure"}').toString('base64')};
+      const page=Number(url.searchParams.get('page')||1),count=Number(url.searchParams.get('limit')||40);
+      const data=/\/\d+\.json$/.test(url.pathname)?booruFixturePost(Number(url.pathname.match(/\d+/)[0])):Array.from({length:count},(_,i)=>booruFixturePost((tags.includes('fixture_fast')?9000:page*100)+i));
+      return {status:200,headers:{'content-type':'application/json'},body:Buffer.from(JSON.stringify(data)).toString('base64')};
+    }
+    if(url.hostname==='cdn.donmai.us' && url.pathname.startsWith('/booru-fixture/')){
+      assert.equal(args.headers.authorization,undefined,'Danbooru media never receives credentials');
+      return {status:200,headers:{'content-type':'image/png'},body:previewImage({input:'synthetic gallery fixture',parameters:{width:512,height:768,seed:42}},Number(url.pathname.match(/(\d+)\.png$/)[1])).toString('base64')};
+    }
     if(url.hostname==='cdn.donmai.us'){
       assert.equal(args.method,'GET');assert.deepEqual(Object.keys(args.headers).map(key=>key.toLowerCase()).filter(key=>!['accept','user-agent'].includes(key)),[],'annotation thumbnails send no credentials');
       danbooruCalls.push(url.pathname);
@@ -321,7 +337,17 @@ try {
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   await page.waitForFunction(()=>globalThis.NAI_RUNTIME&& !document.querySelector('#appView').classList.contains('hidden'),{},{timeout:15000});
   assert.deepEqual(errors,[],'native app boots the real UI without missing imports/ports');
-  if (process.argv.includes('--prompt-selection-checks')) {
+  if (process.argv.includes('--booru-checks')) {
+    const { runBooruChecks } = await import('./booru-ui.test.mjs');
+    await runBooruChecks({ page, temporary, calls: booruCalls, downloadEvents, getBooruVault: () => JSON.parse(booruVault), getProviderVault: () => JSON.parse(vault) }).catch(async error => {
+      await page.screenshot({ path: path.join(temporary, 'booru-failure.png') }); console.log(`Booru failure screenshot: ${temporary}`); throw error;
+    });
+    assert.deepEqual(errors, [], 'Danbooru real UI has no uncaught browser errors');
+  } else if (process.argv.includes('--usability-checks')) {
+    const { runUsabilityChecks } = await import('./usability-ui.test.mjs');
+    await runUsabilityChecks({ page, db, dataRoot, temporary });
+    assert.deepEqual(errors, [], 'queue, similarity, image gestures and palettes have no uncaught browser errors');
+  } else if (process.argv.includes('--prompt-selection-checks')) {
     const { runPromptSelectionChecks } = await import('./prompt-selection-ui.test.mjs');
     await runPromptSelectionChecks({ page, temporary });
     assert.deepEqual(errors, [], 'prompt batch selection has no uncaught browser errors');

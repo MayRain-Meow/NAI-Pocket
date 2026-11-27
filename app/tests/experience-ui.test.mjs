@@ -116,7 +116,7 @@ export async function runExperienceChecks({page,db,dataRoot,png,downloadEvents,m
     await page.waitForFunction(group=>document.querySelector(`.tag-section[data-group="${group}"] .tag-chip`),group);
   }
   await page.locator('#model').selectOption({index:0});
-  for(const theme of ['light','dark']){
+  for(const theme of ['light','dark','blue-coral','rose-night']){
     await page.locator('#openSettingsButton').click();
     await page.locator('#appearanceTheme').selectOption(theme);
     await page.locator('#closeSettingsButton').click();
@@ -257,7 +257,7 @@ export async function runExperienceChecks({page,db,dataRoot,png,downloadEvents,m
   await page.screenshot({path:path.join(temporary,'settings-dark.png')});
   await page.locator('#closeSettingsButton').click();
   await page.screenshot({path:path.join(temporary,'editor-dark.png')});
-  for(const theme of ['light','dark']){
+  for(const theme of ['light','dark','blue-coral','rose-night']){
     await page.locator('#openSettingsButton').click();
     await page.locator('#appearanceTheme').selectOption(theme);
     await page.locator('#closeSettingsButton').click();
