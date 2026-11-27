@@ -5,18 +5,21 @@ export function installEndfieldUi({ systemBars, appearance } = {}) {
   const media = matchMedia('(prefers-color-scheme: dark)');
   const section = document.createElement('section');
   section.className = 'settings-dialog-section';
-  section.innerHTML = '<div class="settings-section-heading"><span class="workspace-eyebrow">// APPEARANCE</span><h2>显示</h2></div><label>颜色主题<select id="appearanceTheme"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label><p class="hint">Endfield 独立版 / 原项目：MayRain-Meow 的 NAI Pocket。与作者原版分别保存数据。</p>';
+  section.innerHTML = '<div class="settings-section-heading"><span class="workspace-eyebrow">// APPEARANCE</span><h2>显示</h2></div><label>颜色主题<select id="appearanceTheme"><option value="system">跟随系统</option><option value="light">浅色 · 明黄</option><option value="dark">深色 · 蓝紫</option><option value="blue-coral">浅色 · 蓝紫与珊瑚</option><option value="rose-night">深色 · 玫红</option></select></label><div class="ef-palette-preview" aria-hidden="true"><i></i><i></i><i></i></div><p class="hint">Endfield 独立版 / 原项目：MayRain-Meow 的 NAI Pocket。与作者原版分别保存数据。</p>';
   document.querySelector('.settings-dialog-body')?.prepend(section);
   // Keep batch saving discoverable without requiring the overflow menu.
   const batchSelect = document.getElementById('gallerySelectToggle');
   if (batchSelect) document.querySelector('.gallery-title-actions')?.prepend(batchSelect);
   const select = section.querySelector('select');
   try { select.value = localStorage.getItem('nai-pocket-theme') || 'system'; } catch {}
+  if (!select.value) select.value = 'system';
   function applyTheme() {
-    const dark = select.value === 'dark' || select.value === 'system' && media.matches;
+    const dark = select.value === 'dark' || select.value === 'rose-night' || select.value === 'system' && media.matches;
+    root.dataset.efPalette = select.value;
     root.dataset.theme = dark ? 'dark' : 'light';
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#191919' : '#F4F4F2');
-    appearance?.({ dark }).catch(() => {});
+    const background = getComputedStyle(root).getPropertyValue('--ef-paper').trim();
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', background);
+    appearance?.({ dark, background }).catch(() => {});
     systemBars?.setStyle({ style: dark ? 'DARK' : 'LIGHT' }).catch(() => {});
   }
   select.addEventListener('change', () => {
