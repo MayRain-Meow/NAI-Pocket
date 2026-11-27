@@ -18,7 +18,7 @@ const failure = (status, message) => Object.assign(new Error(message), { status 
 const bounded = (value, fallback, max) => Math.max(1, Math.min(max, Number.parseInt(value, 10) || fallback));
 
 // Local /api transport for the existing UI. No server URL or credentials cross this boundary.
-export function createLocalApi({ database, settings, providers, client, assets, media, schemes, queue, references }) {
+export function createLocalApi({ database, settings, providers, client, assets, media, schemes, queue, references, booru }) {
   const { translations, search, codex, tagger } = references;
   const { db, serial } = database;
   const providerCall = providers.call;
@@ -28,6 +28,21 @@ export function createLocalApi({ database, settings, providers, client, assets, 
     const url = new URL(request.url), pathname = url.pathname, method = request.method, query = url.searchParams;
     const body = async () => { if (Number(request.headers.get('content-length') || 0) > 8 * 1024 * 1024) throw failure(413, '请求过大。'); return request.json(); };
     const bytes = async () => { const data = Buffer.from(await request.arrayBuffer()); if (data.length > 24 * 1024 * 1024) throw failure(413, '图片最大 24 MB。'); return data; };
+    if (pathname.startsWith('/api/booru/') && booru) {
+      if (pathname === '/api/booru/settings' && method === 'GET') return booru.settings();
+      if (pathname === '/api/booru/settings' && method === 'PUT') return booru.save(await body());
+      if (pathname === '/api/booru/test' && method === 'POST') return booru.test({ signal: request.signal });
+      if (pathname === '/api/booru/cache' && method === 'DELETE') return booru.clearCache();
+      if (pathname === '/api/booru/posts' && method === 'GET') return booru.list(Object.fromEntries(query), { signal: request.signal });
+      const post = pathname.match(/^\/api\/booru\/posts\/(\d+)(?:\/(preview|sample|original))?$/);
+      if (post && method === 'GET') {
+        if (!post[2]) return booru.detail(post[1], { signal: request.signal });
+        const image = await booru.image(post[1], post[2], { signal: request.signal });
+        return new Response(image.bytes, { headers: { 'Content-Type': image.type, 'Cache-Control': 'no-store',
+          'X-Content-Type-Options': 'nosniff', 'Content-Disposition': `inline; filename="${image.name}"` } });
+      }
+      throw failure(404, '画廊操作不存在。');
+    }
     if (pathname === '/api/auth/me') return { role: 'owner', local: true };
     if (pathname === '/api/auth/visitor-password' && method === 'GET') return { enabled: false };
     if (pathname === '/api/artists/identities' && method === 'GET') return { identities: await references.artists.identities() };
@@ -160,6 +175,17 @@ export function createLocalApi({ database, settings, providers, client, assets, 
     if (pathname === '/api/jobs/cancel-all' && method === 'POST') {
       const result = await queue.control.cancelQueuedJobs(await body()); queue.kick(); return result;
     }
+    if (pathname === '/api/jobs/failed' && method === 'DELETE') {
+      const result = await queue.control.deleteFailedJobs();
+      if (!result.ok) throw failure(409, result.reason);
+      return result;
+    }
+    match = pathname.match(/^\/api\/jobs\/([^/]+)$/);
+    if (match && method === 'DELETE') {
+      const result = await queue.control.deleteFailedJobs(decodeURIComponent(match[1]));
+      if (!result.ok) throw failure(409, result.reason);
+      return result;
+    }
     if (pathname === '/api/jobs/reroute' && method === 'POST') {
       const data = await body(), result = await queue.control.rerouteQueuedJobs(data);
       if (data.resume === true) { await queue.control.setQueuePaused(false); queue.kick(); }
@@ -242,9 +268,10 @@ export function createLocalApi({ database, settings, providers, client, assets, 
     },
     async download(url, { destination = 'ask' } = {}) {
       const parsed = new URL(url, location.origin), match = parsed.pathname.match(/^\/api\/images\/([^/]+)\/(original|clean)$/);
+      const booruImage = /^\/api\/booru\/posts\/\d+\/original$/.test(parsed.pathname);
       const save = async options => {
-        const result = match && destination === 'album' ? await PocketNative.saveToGallery(options)
-          : match && destination === 'folder' ? await PocketNative.exportToFolder(options)
+        const result = (match || booruImage) && destination === 'album' ? await PocketNative.saveToGallery(options)
+          : (match || booruImage) && destination === 'folder' ? await PocketNative.exportToFolder(options)
             : await PocketNative.exportFile(options);
         if (!result.saved && result.reason) throw new Error(result.reason === 'permission-denied' ? '没有保存权限，请到系统设置中授权，或更换下载位置。' : '图片未保存，请检查下载位置和权限。');
         return Boolean(result.saved);

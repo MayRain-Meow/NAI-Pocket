@@ -22,6 +22,7 @@ import { CURRENT_STYLE_VERSION } from './style-pack.js';
 import { createUpdater } from './updater.js';
 import { appUpdateSection } from './update-section.js';
 import { downloadSettingsSection } from './download-settings.js';
+import { createBooruService } from './booru.js';
 
 document.body.classList.add('native-mode');
 // Native-only settings row, created here so the shared web markup stays unchanged.
@@ -227,13 +228,18 @@ try {
     try {await references.artistPacks.recover();}
     catch {notice('旧资料清理未完成，现有资料仍可使用；下次启动会重试。');}
   }
-  const api = createLocalApi({ database, settings, providers, assets, media, queue, client, schemes, references });
+  // Separate encrypted namespace avoids racing the generation-provider vault.
+  const booru = createBooruService({ http, vault: {
+    read: async () => JSON.parse((await PocketNative.readVault({ scope: 'booru' })).value || '{}'),
+    write: value => PocketNative.writeVault({ scope: 'booru', value: JSON.stringify(value) })
+  } });
+  const api = createLocalApi({ database, settings, providers, assets, media, queue, client, schemes, references, booru });
   const browserFetch = window.fetch.bind(window);
   window.fetch = (input, options) => {
     const url = new URL(input instanceof Request ? input.url : input, location.origin);
     return url.origin === location.origin && url.pathname.startsWith('/api/') ? api.fetch(input, options) : browserFetch(input, options);
   };
-  globalThis.NAI_RUNTIME = { native: true, download: (url, options) => api.download(url, options),
+  globalThis.NAI_RUNTIME = { native: true, booru: true, download: (url, options) => api.download(url, options),
     downloads: { getFolder: () => PocketNative.getExportFolder(), chooseFolder: () => PocketNative.chooseExportFolder() },
     loadImage: createImageLoader(url => api.fetch(url)) };
   const settingsBody = document.querySelector('.settings-dialog-body') || document.querySelector('#settingsDialog .dialog-body');
@@ -258,7 +264,7 @@ try {
     native: registerPlugin('AppUpdate'), currentVersion: appVersion });
   if (experience) {
     updateSection.className = 'settings-dialog-section';
-    updateSection.innerHTML = `<div class="settings-section-heading"><span class="workspace-eyebrow">// ENDFIELD</span><h2>Endfield 独立版</h2></div><p class="hint">版本 ${appVersion}-endfield.3，基于 NAI Pocket ${appVersion}。此为独立修改版，并非原作者的官方发布。不接收原版自动更新；源码与修改说明随安装包提供。</p>`;
+    updateSection.innerHTML = `<div class="settings-section-heading"><span class="workspace-eyebrow">// ENDFIELD</span><h2>Endfield 独立版</h2></div><p class="hint">版本 ${appVersion}-endfield.5，基于 NAI Pocket ${appVersion}。此为独立修改版，并非原作者的官方发布。不接收原版自动更新；源码与修改说明随安装包提供。</p>`;
   }
   settingsBody?.append(downloadSettingsSection({ native: PocketNative, notice, experience: typeof __POCKET_EXPERIENCE__ !== 'undefined' && __POCKET_EXPERIENCE__ }),
     await phoneAlbumSection(queue), storageSection({ request, notice }), resourcesSection, exampleImagesSection({ request, catalogUrl: V5_EXAMPLES_CATALOG_URL, notice }), styleSection, styleModelSection({ request, notice }), updateSection, aboutSection(appVersion, licenseButton));
