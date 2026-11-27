@@ -127,7 +127,9 @@ public class PocketNativePlugin extends Plugin {
     @PluginMethod public void bootDone(PluginCall call) { BootRecord.done(getContext()); call.resolve(); }
 
     @PluginMethod public void setAppearance(PluginCall call) {
-        final int color = android.graphics.Color.parseColor(Boolean.TRUE.equals(call.getBoolean("dark", false)) ? "#191919" : "#F4F4F2");
+        final String fallback = Boolean.TRUE.equals(call.getBoolean("dark", false)) ? "#0B0C10" : "#F4F4F2";
+        final String background = call.getString("background", fallback);
+        final int color = android.graphics.Color.parseColor(background != null && background.matches("#[0-9a-fA-F]{6}") ? background : fallback);
         getActivity().runOnUiThread(() -> {
             getActivity().getWindow().getDecorView().setBackgroundColor(color);
             getBridge().getWebView().setBackgroundColor(color);
@@ -418,9 +420,10 @@ public class PocketNativePlugin extends Plugin {
 
     @PluginMethod
     public void readVault(PluginCall call) {
+        final String vaultName = "booru".equals(call.getString("scope")) ? KEY + "-booru" : KEY;
         vaultThread.execute(() -> {
             try {
-                SharedPreferences preferences = getContext().getSharedPreferences(KEY, Context.MODE_PRIVATE);
+                SharedPreferences preferences = getContext().getSharedPreferences(vaultName, Context.MODE_PRIVATE);
                 String data = preferences.getString("data", "");
                 String text = "{}";
                 if (!data.isEmpty()) {
@@ -436,12 +439,13 @@ public class PocketNativePlugin extends Plugin {
     @PluginMethod
     public void writeVault(PluginCall call) {
         String value = call.getString("value");
+        final String vaultName = "booru".equals(call.getString("scope")) ? KEY + "-booru" : KEY;
         if (value == null || value.length() > 1000000) { call.reject("凭据数据无效。"); return; }
         vaultThread.execute(() -> {
             try {
                 Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding"); cipher.init(Cipher.ENCRYPT_MODE, key());
                 String data = Base64.encodeToString(cipher.doFinal(value.getBytes(StandardCharsets.UTF_8)), Base64.NO_WRAP);
-                boolean saved = getContext().getSharedPreferences(KEY, Context.MODE_PRIVATE).edit()
+                boolean saved = getContext().getSharedPreferences(vaultName, Context.MODE_PRIVATE).edit()
                     .putString("data", data).putString("iv", Base64.encodeToString(cipher.getIV(), Base64.NO_WRAP)).commit();
                 if (!saved) throw new java.io.IOException("Vault write failed");
                 call.resolve();
